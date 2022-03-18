@@ -91,11 +91,13 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
             ui.text("Create new competition");
             ui.set_window_font_scale(1.0);
 
+            // TODO: Move the focus to the next input on TAB or ESC
             // draw InputText boxes and check wether changes happen
             let mut anything_changed = false;
             my_input_boxes.iter_mut().for_each(|b| {
                 let changed = b.build(ui, max_label_size);
                 anything_changed = anything_changed || changed;
+                // ui.set_keyboard_focus_here();
             });
 
             // draw count teams integer input box
@@ -169,7 +171,7 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
     child_bg_color.pop();
 }
 
-fn build_teams_stage(ui: &Ui, program_state: &ProgramState, menu_bar_height: f32) {
+fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
     let child_bg_color = ui.push_style_color(StyleColor::ChildBg, [0.0, 0.0, 0.0, 1.0]);
     let window_bg_color = ui.push_style_color(StyleColor::WindowBg, [0.0, 0.0, 0.0, 1.0]);
 
@@ -180,7 +182,88 @@ fn build_teams_stage(ui: &Ui, program_state: &ProgramState, menu_bar_height: f32
         ])
         .no_nav()
         .bring_to_front_on_focus(false)
-        .build(ui, || {});
+        .build(ui, || {
+            ui.indent_by(10.0);
+
+            // TODO: Implement back button
+
+            // Write headline
+            ui.new_line();
+            ui.set_window_font_scale(2.0);
+            ui.text("Enter group and team names:");
+            ui.set_window_font_scale(1.0);
+
+            let state = program_state.new_screen_state.as_mut().unwrap();
+            let data = program_state.competition_data.as_mut().unwrap();
+
+            // init team names vector if not yet done
+            if data.team_names.is_none() {
+                data.team_names = Some(
+                    (1..=data.team_distribution[0])
+                        .map(|_| {
+                            (1..=data.team_distribution[1])
+                                .map(|_| String::from(""))
+                                .collect()
+                        })
+                        .collect(),
+                );
+            }
+
+            // init group names vector if not yet done
+            if data.group_names.is_none() {
+                data.group_names = Some(
+                    (1..=data.team_distribution[0])
+                        .map(|group_idx| format!("Group {group_idx}"))
+                        .collect(),
+                );
+            }
+
+            // calculate max label size: either "Group Name" or the "Team {}" with the greatest team number
+            let max_label_size = ui.calc_text_size("Group Name")[0]
+                .max(ui.calc_text_size(format!("Team {}", data.team_distribution[1]))[0]);
+
+            // create tab bar for all groups and add text input boxes for setting group and team names
+            if let Some(team_names) = data.team_names.as_mut() {
+                if let Some(group_names) = data.group_names.as_mut() {
+                    if let Some(tab_bar_token) = ui.tab_bar("Choose the group:") {
+                        for group_idx in 1..=data.team_distribution[0] {
+                            // TODO: Find a way to dynamically change tab item name, but keep focus on input text
+                            if let Some(tab_item_token) = ui.tab_item(format!("Group {group_idx}"))
+                            {
+                                // draw input text box for group name
+                                MyTextInput::new(
+                                    "Group Name:",
+                                    "Enter a specific name for this group",
+                                    group_names.get_mut((group_idx - 1) as usize).unwrap(),
+                                )
+                                .build(ui, max_label_size);
+
+                                let team_names_for_group =
+                                    team_names.get_mut((group_idx - 1) as usize).unwrap();
+
+                                // draw input text boxes for team names
+                                for team_idx in 1..=data.team_distribution[1] {
+                                    MyTextInput::new(
+                                        format!("Team {team_idx}").as_str(),
+                                        "",
+                                        team_names_for_group
+                                            .get_mut((team_idx - 1) as usize)
+                                            .unwrap(),
+                                    )
+                                    .build(ui, max_label_size);
+                                }
+                                tab_item_token.end();
+                            }
+                        }
+                        tab_bar_token.end();
+                    }
+                }
+            }
+
+            ui.separator();
+
+            if ui.button("Submit") {}
+        });
 
     window_bg_color.end();
     child_bg_color.end();
