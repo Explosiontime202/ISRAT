@@ -1,21 +1,22 @@
-use imgui::{ChildWindow, Selectable, StyleColor, Ui};
+use imgui::{ChildWindow, Condition, Selectable, StyleColor, Ui, Window};
 
 use crate::{CompetitionData, ProgramState};
 
 use super::my_input_text::MyTextInput;
 
 pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
+    // init state if not yet happened
     if program_state.new_screen_state.is_none() {
-        program_state.new_screen_state = Some(NewScreenState {
-            stage: NewScreenStage::Start,
-            submit_failure_msg: None,
-        });
+        program_state.new_screen_state = Some(NewScreenState::new());
     }
-    match program_state.new_screen_state.unwrap().stage {
-        NewScreenStage::Start => build_init_stage(ui, program_state, menu_bar_height),
-        NewScreenStage::Teams => build_teams_stage(ui, program_state, menu_bar_height),
+    match program_state.new_screen_state.as_ref().unwrap().stage {
+        NewScreenStage::GeneralInfo => build_init_stage(ui, program_state, menu_bar_height),
+        NewScreenStage::TeamNames => build_teams_stage(ui, program_state, menu_bar_height),
+        NewScreenStage::PlayerNames => build_player_names(ui, program_state, menu_bar_height),
     }
 }
+
+// builder for different stages
 
 fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
     let child_bg_color = ui.push_style_color(StyleColor::ChildBg, [0.0, 0.0, 0.0, 1.0]);
@@ -153,16 +154,16 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
 
             // draw submit button and check for valid inputs, possibly set failure message
             if ui.button("Submit") {
-                if let Some(err_msg) = check_valid_inputs(data, NewScreenStage::Start) {
+                if let Some(err_msg) = check_valid_inputs(data, NewScreenStage::GeneralInfo) {
                     new_screen_state.submit_failure_msg = Some(err_msg);
                 } else {
-                    new_screen_state.stage = NewScreenStage::Teams;
+                    new_screen_state.stage = NewScreenStage::TeamNames;
                     new_screen_state.submit_failure_msg = None;
                 }
             }
 
             // draw submit failure message
-            if let Some(msg) = new_screen_state.submit_failure_msg {
+            if let Some(msg) = &new_screen_state.submit_failure_msg {
                 ui.same_line_with_pos(max_label_size + 20.0);
                 ui.text(msg);
             }
@@ -193,7 +194,7 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
             ui.text("Enter group and team names:");
             ui.set_window_font_scale(1.0);
 
-            let state = program_state.new_screen_state.as_mut().unwrap();
+            let new_screen_state = program_state.new_screen_state.as_mut().unwrap();
             let data = program_state.competition_data.as_mut().unwrap();
 
             // init team names vector if not yet done
@@ -233,7 +234,7 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
                                 // draw input text box for group name
                                 MyTextInput::new(
                                     "Group Name:",
-                                    "Enter a specific name for this group",
+                                    "",
                                     group_names.get_mut((group_idx - 1) as usize).unwrap(),
                                 )
                                 .build(ui, max_label_size);
@@ -262,12 +263,92 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
 
             ui.separator();
 
-            if ui.button("Submit") {}
+            // TODO: Add a reset and a back button
+
+            if ui.button("Submit") {
+                if let Some(failure_msg) = check_valid_inputs(data, new_screen_state.stage) {
+                    new_screen_state.submit_failure_msg = Some(failure_msg);
+                } else {
+                    new_screen_state.stage = NewScreenStage::PlayerNames;
+                    new_screen_state.submit_failure_msg = None;
+                }
+            }
+
+            ui.same_line();
+            if ui.button("Reset") {
+                ui.open_popup("##reset_popup");
+                new_screen_state.reset_popup = true;
+            }
+
+            ui.same_line();
+            if ui.button("Go back") {
+                ui.open_popup("##go_back_popup");
+                new_screen_state.go_back_popup = true;
+            }
+
+            if new_screen_state.reset_popup {
+                ui.popup_modal("##reset_popup")
+                    .resizable(false)
+                    .movable(false)
+                    .scrollable(false)
+                    .build(ui, || {
+                        ui.text("Are you sure you want to reset all team and group names?");
+                        ui.text("This will delete all your entered group and team names!");
+                        if ui.button("Yes") {
+                            data.team_names = None;
+                            data.group_names = None;
+                            new_screen_state.reset_popup = false;
+                            new_screen_state.submit_failure_msg = None;
+                            ui.close_current_popup();
+                        }
+                        ui.same_line();
+                        if ui.button("No") {
+                            new_screen_state.reset_popup = false;
+                            ui.close_current_popup();
+                        }
+                    });
+            }
+
+            if new_screen_state.go_back_popup {
+                ui.popup_modal("##go_back_popup")
+                    .resizable(false)
+                    .movable(false)
+                    .scrollable(false)
+                    .build(ui, || {
+                        ui.text("Are you sure you want to go back to the previous step?");
+                        ui.text("This will delete all your entered group and team names!");
+                        if ui.button("Yes") {
+                            data.team_names = None;
+                            data.group_names = None;
+                            new_screen_state.stage = NewScreenStage::GeneralInfo;
+                            new_screen_state.go_back_popup = false;
+                            new_screen_state.submit_failure_msg = None;
+                            ui.close_current_popup();
+                        }
+                        ui.same_line();
+                        if ui.button("No") {
+                            new_screen_state.go_back_popup = false;
+                            ui.close_current_popup();
+                        }
+                    });
+            }
+
+            // draw submit failure message
+            if let Some(msg) = &new_screen_state.submit_failure_msg {
+                ui.same_line();
+                ui.text(msg);
+            }
         });
 
     window_bg_color.end();
     child_bg_color.end();
 }
+
+fn build_player_names(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
+    // Submit, Skip, Reset Button
+}
+
+// Helper
 
 fn calc_group_possibilities(count_teams: u32) -> Vec<[u32; 2]> {
     if count_teams == 0 {
@@ -284,43 +365,97 @@ fn calc_group_possibilities(count_teams: u32) -> Vec<[u32; 2]> {
     }
 }
 
-fn check_valid_inputs<'a>(data: &CompetitionData, stage: NewScreenStage) -> Option<&'a str> {
+fn check_valid_inputs(data: &CompetitionData, stage: NewScreenStage) -> Option<String> {
     match stage {
-        NewScreenStage::Start => {
+        NewScreenStage::GeneralInfo => {
             if data.name == "" {
-                Some("Enter a name for the competition!")
+                Some("Enter a name for the competition!".to_string())
             } else if data.date_string == "" {
-                Some("Enter a date when the competition takes place!")
+                Some("Enter a date when the competition takes place!".to_string())
             } else if data.place == "" {
-                Some("Enter a place where the competition takes place!")
+                Some("Enter a place where the competition takes place!".to_string())
             } else if data.executor == "" {
                 // TODO: Make an executor optional?
-                Some("Enter an executor of the competition!")
+                Some("Enter an executor of the competition!".to_string())
             } else if data.organizer == "" {
                 // TODO: Make an organizer optional?
-                Some("Enter an organizer of the competition!")
+                Some("Enter an organizer of the competition!".to_string())
             } else if data.count_teams < 2 {
-                Some("A competition needs at least 2 teams!")
+                Some("A competition needs at least 2 teams!".to_string())
             } else if data.team_distribution == [0, 0] {
-                Some("Choose a team distribution!")
+                Some("Choose a team distribution!".to_string())
             } else {
                 None
             }
         }
+        NewScreenStage::TeamNames => {
+            // Check if every group and team name is non empty
+            let mut ret_val = None;
+
+            'outer_loop: for group_idx in 0..data.team_distribution[0] {
+                // check group name
+                if data
+                    .group_names
+                    .as_ref()
+                    .unwrap()
+                    .get(group_idx as usize)
+                    .unwrap()
+                    == ""
+                {
+                    ret_val = Some(format!("Enter non empty name for group {}!", group_idx + 1));
+                    break;
+                }
+
+                // check team names
+                for team_idx in 0..data.team_distribution[1] {
+                    if data
+                        .team_names
+                        .as_ref()
+                        .unwrap()
+                        .get(group_idx as usize)
+                        .unwrap()
+                        .get(team_idx as usize)
+                        .unwrap()
+                        == ""
+                    {
+                        ret_val = Some(format!(
+                            "Enter non empty name for team {} of group {}!",
+                            team_idx + 1,
+                            group_idx + 1
+                        ));
+                        break 'outer_loop;
+                    }
+                }
+            }
+            ret_val
+        }
         _ => {
-            panic!("This new screens stage needs to be handled!")
+            todo!("This new screens stage needs to be handled!")
         }
     }
 }
 
 #[derive(Clone, Copy)]
 pub enum NewScreenStage {
-    Start,
-    Teams,
+    GeneralInfo,
+    TeamNames,
+    PlayerNames,
 }
 
-#[derive(Clone, Copy)]
-pub struct NewScreenState<'a> {
+pub struct NewScreenState {
     stage: NewScreenStage,
-    submit_failure_msg: Option<&'a str>,
+    submit_failure_msg: Option<String>,
+    reset_popup: bool,
+    go_back_popup: bool,
+}
+
+impl NewScreenState {
+    fn new() -> NewScreenState {
+        NewScreenState {
+            stage: NewScreenStage::GeneralInfo,
+            submit_failure_msg: None,
+            reset_popup: false,
+            go_back_popup: false,
+        }
+    }
 }

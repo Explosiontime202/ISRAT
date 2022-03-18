@@ -6,6 +6,8 @@ mod screens;
 
 mod support;
 
+// TODO: Add auto saving
+
 fn main() {
     let mut system = support::init("Ergebnis-Manager");
 
@@ -102,6 +104,7 @@ fn main() {
     });
 }
 
+// TODO: Use this method properly
 fn add_main_menu(ui: &Ui) {
     if let Some(main_menu_bar_token) = ui.begin_main_menu_bar() {
         if let Some(file_menu_token) = ui.begin_menu("File") {
@@ -157,15 +160,15 @@ impl CompetitionData {
     }
 }
 
-pub struct ProgramState<'a> {
+pub struct ProgramState {
     pub stage: ProgramStage,
     pub size: [f32; 2],
     pub competition_data: Option<CompetitionData>,
-    pub new_screen_state: Option<NewScreenState<'a>>,
+    pub new_screen_state: Option<NewScreenState>,
 }
 
-impl ProgramState<'_> {
-    pub fn new(stage: ProgramStage, size: [f32; 2]) -> ProgramState<'static> {
+impl ProgramState {
+    pub fn new(stage: ProgramStage, size: [f32; 2]) -> ProgramState {
         ProgramState {
             stage,
             size,

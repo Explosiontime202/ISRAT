@@ -61,6 +61,3 @@ fn bottom_buttons(ui: &Ui, state: &mut ProgramState, height: f32) {
     child_bg_color_token.pop();
 }
 
-pub trait Screen {
-    fn build(&mut self, ui: &Ui, menu_bar_height: f32);
-}
