@@ -140,7 +140,7 @@ pub struct CompetitionData {
     pub organizer: String,
     pub count_teams: u32,
     pub team_distribution: [u32; 2], // count_groups x count_teams_per_group
-    pub team_names: Option<Vec<Vec<String>>>, // for each group a vector of team names, ordered by id
+    pub teams: Option<Vec<Vec<Team>>>, // for each group a vector of teams, ordered by ids
     pub group_names: Option<Vec<String>>, // a vector of the group names, ordered by id
 }
 
@@ -154,10 +154,15 @@ impl CompetitionData {
             organizer: String::from(""),
             count_teams: 0,
             team_distribution: [0, 0],
-            team_names: None,
-            group_names : None
+            teams: None,
+            group_names: None,
         }
     }
+}
+
+pub struct Team {
+    pub name: String,
+    pub player_names: [Option<String>; 6], // maximal 6 possible players per team
 }
 
 pub struct ProgramState {
