@@ -9,6 +9,8 @@ use crate::ProgramState;
 mod my_input_text;
 pub mod new_screen;
 pub mod start_screen;
+pub mod erg_view_screen;
+pub mod add_next_games_screen;
 
 pub fn build(ui: &Ui, program_state: &mut ProgramState) {
     let menu_bar_height = program_state.size[1] / 8.0;
@@ -17,18 +19,20 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState) {
     match program_state.stage {
         ProgramStage::StartScreenStage => start_screen::build(ui, program_state, menu_bar_height),
         ProgramStage::NewScreenStage => new_screen::build(ui, program_state, menu_bar_height),
+        ProgramStage::CurrentErgViewStage => erg_view_screen::build(ui, program_state, menu_bar_height),
+        ProgramStage::AddNextGamesStage => add_next_games_screen::build(ui, program_state, menu_bar_height),
     };
 
     bottom_buttons(ui, program_state, menu_bar_height);
 }
 
-fn bottom_buttons(ui: &Ui, state: &mut ProgramState, height: f32) {
+fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState, height: f32) {
     let child_bg_color_token = ui.push_style_color(StyleColor::ChildBg, [0.2, 0.2, 0.2, 1.0]);
     let window_bg_color_token = ui.push_style_color(StyleColor::WindowBg, [0.2, 0.2, 0.2, 1.0]);
     let menu_bar_bg_color_token = ui.push_style_color(StyleColor::MenuBarBg, [0.2, 0.2, 0.2, 1.0]);
     Window::new("bottom_buttons")
-        .size([state.size[0], height], Condition::Always)
-        .position([0.0, state.size[1] - height], Condition::Always)
+        .size([program_state.size[0], height], Condition::Always)
+        .position([0.0, program_state.size[1] - height], Condition::Always)
         .no_decoration()
         .movable(false)
         .focus_on_appearing(true)
@@ -39,8 +43,7 @@ fn bottom_buttons(ui: &Ui, state: &mut ProgramState, height: f32) {
                 // TODO: Replace with icon buttons (first create them^^ :D)
                 // TODO: Extract functionality in order to use it with upper menu buttons
                 if ui.button("New") {
-                    // TODO: Implement new call
-                    state.stage = ProgramStage::NewScreenStage;
+                    program_state.switch_to_stage(ProgramStage::NewScreenStage);
                 }
                 if ui.button("Open") {
                     // TODO: Implement open saved data

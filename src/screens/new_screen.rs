@@ -1,14 +1,12 @@
 use imgui::{ChildWindow, Selectable, StyleColor, Ui};
 
-use crate::{CompetitionData, ProgramState, Team};
+use crate::{CompetitionData, ProgramStage, ProgramState, Team};
 
 use super::my_input_text::MyTextInput;
 
 pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
-    // init state if not yet happened
-    if program_state.new_screen_state.is_none() {
-        program_state.new_screen_state = Some(NewScreenState::new());
-    }
+    assert!(program_state.new_screen_state.is_some());
+    assert!(program_state.competition_data.is_some());
 
     let child_bg_color = ui.push_style_color(StyleColor::ChildBg, [0.0, 0.0, 0.0, 1.0]);
     let window_bg_color = ui.push_style_color(StyleColor::WindowBg, [0.0, 0.0, 0.0, 1.0]);
@@ -26,7 +24,7 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
 // builder for different stages
 
 fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
-    ChildWindow::new("Main screen")
+    ChildWindow::new("##init_stage_window")
         .size([
             program_state.size[0],
             program_state.size[1] - menu_bar_height,
@@ -34,11 +32,6 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
         .no_nav()
         .bring_to_front_on_focus(false)
         .build(ui, || {
-            // init competition data if not already done
-            if program_state.competition_data.is_none() {
-                program_state.competition_data = Some(CompetitionData::empty());
-            }
-
             // init references and data structures
             let new_screen_state = program_state.new_screen_state.as_mut().unwrap();
             let data = program_state.competition_data.as_mut().unwrap();
@@ -161,21 +154,47 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
                 if let Some(err_msg) = check_valid_inputs(data, NewScreenStage::GeneralInfo) {
                     new_screen_state.submit_failure_msg = Some(err_msg);
                 } else {
-                    new_screen_state.stage = NewScreenStage::TeamNames;
-                    new_screen_state.submit_failure_msg = None;
+                    new_screen_state.go_to_stage(NewScreenStage::TeamNames, data);
                 }
+            }
+
+            // draw reset button
+            ui.same_line();
+            if ui.button("Reset") {
+                ui.open_popup("##reset_popup");
+                new_screen_state.reset_popup = true;
+            }
+
+            if new_screen_state.reset_popup {
+                ui.popup_modal("##reset_popup")
+                    .resizable(false)
+                    .movable(false)
+                    .scrollable(false)
+                    .build(ui, || {
+                        ui.text("Are you sure you want to reset all information?");
+                        ui.text("This will delete all your entered information!");
+                        if ui.button("Yes") {
+                            new_screen_state.reset_stage(data);
+                            ui.close_current_popup();
+                        }
+                        ui.same_line();
+                        if ui.button("No") {
+                            new_screen_state.reset_popup = false;
+                            ui.close_current_popup();
+                        }
+                    });
             }
 
             // draw submit failure message
             if let Some(msg) = &new_screen_state.submit_failure_msg {
-                ui.same_line_with_pos(max_label_size + 20.0);
+                ui.same_line();
                 ui.text(msg);
             }
         });
 }
 
 fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
-    ChildWindow::new("Main screen")
+    ChildWindow::new("##teams_stage_window")
         .size([
             program_state.size[0],
             program_state.size[1] - menu_bar_height,
@@ -268,12 +287,7 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
                 if let Some(failure_msg) = check_valid_inputs(data, new_screen_state.stage) {
                     new_screen_state.submit_failure_msg = Some(failure_msg);
                 } else {
-                    new_screen_state.stage = NewScreenStage::PlayerNames;
-                    new_screen_state.submit_failure_msg = None;
-
-                    // shouldn't be necessary, but just in case
-                    new_screen_state.reset_popup = false;
-                    new_screen_state.go_back_popup = false;
+                    new_screen_state.go_to_stage(NewScreenStage::PlayerNames, data);
                 }
             }
 
@@ -298,10 +312,7 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
                         ui.text("Are you sure you want to reset all team and group names?");
                         ui.text("This will delete all your entered group and team names!");
                         if ui.button("Yes") {
-                            data.teams = None;
-                            data.group_names = None;
-                            new_screen_state.reset_popup = false;
-                            new_screen_state.submit_failure_msg = None;
+                            new_screen_state.reset_stage(data);
                             ui.close_current_popup();
                         }
                         ui.same_line();
@@ -321,11 +332,7 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
                         ui.text("Are you sure you want to go back to the previous step?");
                         ui.text("This will delete all your entered group and team names!");
                         if ui.button("Yes") {
-                            data.teams = None;
-                            data.group_names = None;
-                            new_screen_state.stage = NewScreenStage::GeneralInfo;
-                            new_screen_state.go_back_popup = false;
-                            new_screen_state.submit_failure_msg = None;
+                            new_screen_state.go_to_stage(NewScreenStage::GeneralInfo, data);
                             ui.close_current_popup();
                         }
                         ui.same_line();
@@ -347,7 +354,7 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
 fn build_player_names(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
     // Submit, Skip, Reset Button
 
-    ChildWindow::new("Main screen")
+    ChildWindow::new("##player_names_stage_window")
         .size([
             program_state.size[0],
             program_state.size[1] - menu_bar_height,
@@ -363,172 +370,150 @@ fn build_player_names(ui: &Ui, program_state: &mut ProgramState, menu_bar_height
             ui.text("Enter player names:");
             ui.set_window_font_scale(1.0);
 
-            let new_screen_state = program_state.new_screen_state.as_mut().unwrap();
-            let data = program_state.competition_data.as_mut().unwrap();
+            {
+                let new_screen_state = program_state.new_screen_state.as_mut().unwrap();
+                let data = program_state.competition_data.as_mut().unwrap();
+                assert!(data.teams.is_some());
 
-            assert!(data.teams.is_some());
-
-            // get all teams sorted
-            let mut sorted_teams: Vec<&mut Team> = data
-                .teams
-                .as_mut()
-                .unwrap()
-                .iter_mut()
-                .flat_map(|v| v.iter_mut())
-                .collect();
-            sorted_teams.sort_by(|a, b| a.name.cmp(&b.name));
-
-            let max_label_size = ui.calc_text_size(format!("Player 6"))[0];
-
-            // draw selector for team selection
-            ui.text("Team:");
-            ui.same_line_with_pos(max_label_size + 20.0);
-
-            if let Some(combo_token) = ui.begin_combo(
-                "##team_selector",
-                if let Some(selected_idx) = new_screen_state.selected_team {
-                    sorted_teams.get(selected_idx).unwrap().name.as_str()
-                } else {
-                    "Select a team!"
-                },
-            ) {
-                sorted_teams.iter_mut().enumerate().for_each(|(idx, team)| {
-                    if Selectable::new(&team.name).build(ui) {
-                        new_screen_state.selected_team = Some(idx);
-                    }
-                });
-                combo_token.end();
-            }
-
-            // draw text input boxes for selected team, if any team is selected
-            if let Some(selected_idx) = new_screen_state.selected_team {
-                sorted_teams
-                    .get_mut(selected_idx)
+                // get all teams sorted
+                let mut sorted_teams: Vec<&mut Team> = data
+                    .teams
+                    .as_mut()
                     .unwrap()
-                    .player_names
                     .iter_mut()
-                    .enumerate()
-                    .for_each(|(idx, player)| {
-                        if player.is_none() {
-                            *player = Some(String::from(""));
-                        }
-                        MyTextInput::new(
-                            format!("Player {}", idx + 1).as_str(),
-                            "",
-                            player.as_mut().unwrap(),
-                        )
-                        .build(ui, max_label_size);
-                    });
-            }
+                    .flat_map(|v| v.iter_mut())
+                    .collect();
 
+                sorted_teams.sort_by(|a, b| a.name.cmp(&b.name));
+
+                let max_label_size = ui.calc_text_size(format!("Player 6"))[0];
+
+                // draw selector for team selection
+                ui.text("Team:");
+                ui.same_line_with_pos(max_label_size + 20.0);
+
+                if let Some(combo_token) = ui.begin_combo(
+                    "##team_selector",
+                    if let Some(selected_idx) = new_screen_state.selected_team {
+                        sorted_teams.get(selected_idx).unwrap().name.as_str()
+                    } else {
+                        "Select a team!"
+                    },
+                ) {
+                    sorted_teams.iter_mut().enumerate().for_each(|(idx, team)| {
+                        if Selectable::new(&team.name).build(ui) {
+                            new_screen_state.selected_team = Some(idx);
+                        }
+                    });
+                    combo_token.end();
+                }
+
+                // draw text input boxes for selected team, if any team is selected
+                if let Some(selected_idx) = new_screen_state.selected_team {
+                    sorted_teams
+                        .get_mut(selected_idx)
+                        .unwrap()
+                        .player_names
+                        .iter_mut()
+                        .enumerate()
+                        .for_each(|(idx, player)| {
+                            if player.is_none() {
+                                *player = Some(String::from(""));
+                            }
+                            MyTextInput::new(
+                                format!("Player {}", idx + 1).as_str(),
+                                "",
+                                player.as_mut().unwrap(),
+                            )
+                            .build(ui, max_label_size);
+                        });
+                }
+            }
             ui.separator();
 
             // add buttons to submit the data, to skip the screen,
             // to reset the filled fields and to go back to the last screen
 
             if ui.button("Submit") {
-                assert!(check_valid_inputs(data, new_screen_state.stage).is_none());
-                // TODO: Change to be forwarded to next screen
-                todo!("Change to be forwarded to next screen");
-                new_screen_state.stage = NewScreenStage::PlayerNames;
-                new_screen_state.selected_team = None;
+                {
+                    let new_screen_state = program_state.new_screen_state.as_mut().unwrap();
+                    let data = program_state.competition_data.as_mut().unwrap();
+                    assert!(check_valid_inputs(data, new_screen_state.stage).is_none());
+                }
 
-                // shouldn't be necessary, but just in case
-                new_screen_state.reset_popup = false;
-                new_screen_state.go_back_popup = false;
-                new_screen_state.submit_failure_msg = None;
+                program_state.switch_to_stage(ProgramStage::CurrentErgViewStage);
+                return;
             }
 
             ui.same_line();
             if ui.button("Skip") {
-                // TODO: Change to be forwarded to next screen
-                todo!("Change to be forwarded to next screen");
-
-                // shouldn't be necessary, but just in case
-                new_screen_state.reset_popup = false;
-                new_screen_state.go_back_popup = false;
-                new_screen_state.selected_team = None;
-                new_screen_state.submit_failure_msg = None;
+                program_state.switch_to_stage(ProgramStage::CurrentErgViewStage);
+                return;
             }
 
-            ui.same_line();
-            if ui.button("Reset") {
-                ui.open_popup("##reset_popup");
-                new_screen_state.reset_popup = true;
-            }
+            {
+                let new_screen_state = program_state.new_screen_state.as_mut().unwrap();
+                let data = program_state.competition_data.as_mut().unwrap();
 
-            ui.same_line();
-            if ui.button("Go back") {
-                ui.open_popup("##go_back_popup");
-                new_screen_state.go_back_popup = true;
-            }
+                ui.same_line();
+                if ui.button("Reset") {
+                    ui.open_popup("##reset_popup");
+                    new_screen_state.reset_popup = true;
+                }
 
-            // create reset popup popup
-            if new_screen_state.reset_popup {
-                ui.popup_modal("##reset_popup")
-                    .resizable(false)
-                    .movable(false)
-                    .scrollable(false)
-                    .build(ui, || {
-                        ui.text("Are you sure you want to reset all player names?");
-                        ui.text("This will delete all your entered player names!");
+                ui.same_line();
+                if ui.button("Go back") {
+                    ui.open_popup("##go_back_popup");
+                    new_screen_state.go_back_popup = true;
+                }
 
-                        if ui.button("Yes") {
-                            // delete player names
-                            data.teams.as_mut().unwrap().iter_mut().for_each(|group| {
-                                group.iter_mut().for_each(|team| {
-                                    team.player_names = [None, None, None, None, None, None];
-                                })
-                            });
-                            // delete sorted team names vector
-                            new_screen_state.selected_team = None;
+                // create reset popup popup
+                if new_screen_state.reset_popup {
+                    ui.popup_modal("##reset_popup")
+                        .resizable(false)
+                        .movable(false)
+                        .scrollable(false)
+                        .build(ui, || {
+                            ui.text("Are you sure you want to reset all player names?");
+                            ui.text("This will delete all your entered player names!");
 
-                            new_screen_state.reset_popup = false;
-                            ui.close_current_popup();
-                        }
+                            if ui.button("Yes") {
+                                new_screen_state.reset_stage(data);
+                                ui.close_current_popup();
+                            }
 
-                        ui.same_line();
+                            ui.same_line();
 
-                        if ui.button("No") {
-                            new_screen_state.reset_popup = false;
-                            ui.close_current_popup();
-                        }
-                    });
-            }
+                            if ui.button("No") {
+                                new_screen_state.reset_popup = false;
+                                ui.close_current_popup();
+                            }
+                        });
+                }
 
-            // create go back popup
-            if new_screen_state.go_back_popup {
-                ui.popup_modal("##go_back_popup")
-                    .resizable(false)
-                    .movable(false)
-                    .scrollable(false)
-                    .build(ui, || {
-                        ui.text("Are you sure you want to go back to the previous step?");
-                        ui.text("This will delete all your entered player names!");
+                // create go back popup
+                if new_screen_state.go_back_popup {
+                    ui.popup_modal("##go_back_popup")
+                        .resizable(false)
+                        .movable(false)
+                        .scrollable(false)
+                        .build(ui, || {
+                            ui.text("Are you sure you want to go back to the previous step?");
+                            ui.text("This will delete all your entered player names!");
 
-                        if ui.button("Yes") {
-                            // delete player names
-                            data.teams.as_mut().unwrap().iter_mut().for_each(|group| {
-                                group.iter_mut().for_each(|team| {
-                                    team.player_names = [None, None, None, None, None, None];
-                                })
-                            });
-                            // delete sorted team names vector
-                            new_screen_state.selected_team = None;
+                            if ui.button("Yes") {
+                                new_screen_state.go_to_stage(NewScreenStage::TeamNames, data);
+                                ui.close_current_popup();
+                            }
 
-                            new_screen_state.stage = NewScreenStage::TeamNames;
-                            new_screen_state.go_back_popup = false;
-                            new_screen_state.submit_failure_msg = None;
-                            ui.close_current_popup();
-                        }
+                            ui.same_line();
 
-                        ui.same_line();
-
-                        if ui.button("No") {
-                            new_screen_state.go_back_popup = false;
-                            ui.close_current_popup();
-                        }
-                    });
+                            if ui.button("No") {
+                                new_screen_state.go_back_popup = false;
+                                ui.close_current_popup();
+                            }
+                        });
+                }
             }
         });
 }
@@ -624,23 +609,33 @@ fn check_valid_inputs(data: &CompetitionData, stage: NewScreenStage) -> Option<S
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NewScreenStage {
     GeneralInfo,
     TeamNames,
     PlayerNames,
 }
 
+impl NewScreenStage {
+    pub fn previous(self) -> Option<Self> {
+        match self {
+            Self::GeneralInfo => None,
+            Self::TeamNames => Some(Self::GeneralInfo),
+            Self::PlayerNames => Some(Self::TeamNames),
+        }
+    }
+}
+
 pub struct NewScreenState {
-    stage: NewScreenStage,
-    submit_failure_msg: Option<String>,
-    reset_popup: bool,
-    go_back_popup: bool,
-    selected_team: Option<usize>,
+    pub stage: NewScreenStage,
+    pub submit_failure_msg: Option<String>,
+    pub reset_popup: bool,
+    pub go_back_popup: bool,
+    pub selected_team: Option<usize>,
 }
 
 impl NewScreenState {
-    fn new() -> NewScreenState {
+    pub fn new() -> NewScreenState {
         NewScreenState {
             stage: NewScreenStage::GeneralInfo,
             submit_failure_msg: None,
@@ -648,5 +643,70 @@ impl NewScreenState {
             go_back_popup: false,
             selected_team: None,
         }
+    }
+
+    pub fn reset_stage(&mut self, data: &mut CompetitionData) {
+        self.reset_stage_param(self.stage, data);
+    }
+
+    fn reset_common(&mut self) {
+        self.submit_failure_msg = None;
+        self.reset_popup = false;
+        self.go_back_popup = false;
+        self.selected_team = None;
+    }
+
+    fn reset_stage_param(&mut self, stage: NewScreenStage, data: &mut CompetitionData) {
+        match stage {
+            NewScreenStage::GeneralInfo => {
+                self.reset_common();
+
+                data.name = String::from("");
+                data.date_string = String::from("");
+                data.place = String::from("");
+                data.executor = String::from("");
+                data.organizer = String::from("");
+                data.count_teams = 0;
+                data.team_distribution = [0, 0];
+            }
+            NewScreenStage::TeamNames => {
+                self.reset_common();
+                data.teams = None;
+                data.group_names = None;
+            }
+            NewScreenStage::PlayerNames => {
+                self.reset_common();
+
+                // delete player names
+                data.teams.as_mut().unwrap().iter_mut().for_each(|group| {
+                    group.iter_mut().for_each(|team| {
+                        team.player_names = [None, None, None, None, None, None];
+                    })
+                });
+            }
+        }
+    }
+
+    pub fn go_to_stage(&mut self, new_stage: NewScreenStage, data: &mut CompetitionData) {
+        if self.stage > new_stage {
+            // go back
+            {
+                let mut cur_stage = self.stage;
+                loop {
+                    if cur_stage == new_stage {
+                        break;
+                    }
+                    if let Some(prev_stage) = cur_stage.previous() {
+                        self.reset_stage_param(cur_stage, data);
+                        cur_stage = prev_stage;
+                    }
+                }
+            }
+        } else if self.stage < new_stage {
+            // go forward
+            self.reset_common();
+        }
+
+        self.stage = new_stage;
     }
 }
