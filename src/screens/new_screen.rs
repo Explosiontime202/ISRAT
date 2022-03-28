@@ -1,6 +1,6 @@
 use imgui::{ChildWindow, Selectable, StyleColor, Ui};
 
-use crate::{CompetitionData, ProgramStage, ProgramState, Team};
+use crate::{CompetitionData, ProgramStage, ProgramState, Team, data::calc_group_possibilities};
 
 use super::my_input_text::MyTextInput;
 
@@ -140,8 +140,6 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
                         anything_changed = true;
                     }
                 });
-
-                token.end();
             }
 
             // reset submit failure message
@@ -273,10 +271,8 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
                                     )
                                     .build(ui, max_label_size);
                                 }
-                                tab_item_token.end();
                             }
                         }
-                        tab_bar_token.end();
                     }
                 }
             }
@@ -405,7 +401,6 @@ fn build_player_names(ui: &Ui, program_state: &mut ProgramState, menu_bar_height
                             new_screen_state.selected_team = Some(idx);
                         }
                     });
-                    combo_token.end();
                 }
 
                 // draw text input boxes for selected team, if any team is selected
@@ -519,21 +514,6 @@ fn build_player_names(ui: &Ui, program_state: &mut ProgramState, menu_bar_height
 }
 
 // Helper
-
-fn calc_group_possibilities(count_teams: u32) -> Vec<[u32; 2]> {
-    if count_teams == 0 {
-        Vec::new()
-    } else {
-        let mut possibilities = vec![[1, count_teams]];
-        for group_count in 2..count_teams {
-            if count_teams % group_count == 0 {
-                possibilities.push([group_count, count_teams / group_count]);
-            }
-        }
-
-        possibilities
-    }
-}
 
 fn check_valid_inputs(data: &CompetitionData, stage: NewScreenStage) -> Option<String> {
     match stage {

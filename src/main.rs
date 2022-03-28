@@ -1,3 +1,4 @@
+use data::{CompetitionData, Team};
 use imgui::*;
 use screens::new_screen::NewScreenState;
 use winit::window::Fullscreen;
@@ -5,6 +6,8 @@ use winit::window::Fullscreen;
 mod screens;
 
 mod support;
+
+mod data;
 
 // TODO: Add auto saving
 
@@ -269,6 +272,8 @@ fn main() {
                 String::from("Gruppe BLAU"),
                 String::from("Gruppe ROT"),
             ]),
+            current_interim_result: None,
+            match_results: vec![vec![], vec![]],
         });
         state.new_screen_state = None;
     }
@@ -380,48 +385,15 @@ pub enum ProgramStage {
     AddNextGamesStage,
 }
 
-pub struct CompetitionData {
-    pub name: String,
-    pub date_string: String,
-    pub place: String,
-    pub executor: String,
-    pub organizer: String,
-    pub count_teams: u32,
-    pub team_distribution: [u32; 2], // count_groups x count_teams_per_group
-    pub teams: Option<Vec<Vec<Team>>>, // for each group a vector of teams, ordered by ids
-    pub group_names: Option<Vec<String>>, // a vector of the group names, ordered by id
-}
-
-impl CompetitionData {
-    pub fn empty() -> CompetitionData {
-        CompetitionData {
-            name: String::from(""),
-            date_string: String::from(""),
-            place: String::from(""),
-            executor: String::from(""),
-            organizer: String::from(""),
-            count_teams: 0,
-            team_distribution: [0, 0],
-            teams: None,
-            group_names: None,
-        }
-    }
-}
-
-pub struct Team {
-    pub name: String,
-    pub player_names: [Option<String>; 6], // maximal 6 possible players per team
-}
-
-pub struct ProgramState {
+pub struct ProgramState<'a> {
     pub stage: ProgramStage,
     pub size: [f32; 2],
-    pub competition_data: Option<CompetitionData>,
+    pub competition_data: Option<CompetitionData<'a>>,
     pub new_screen_state: Option<NewScreenState>,
 }
 
-impl ProgramState {
-    pub fn new(stage: ProgramStage, size: [f32; 2]) -> ProgramState {
+impl ProgramState<'_> {
+    pub fn new(stage: ProgramStage, size: [f32; 2]) -> ProgramState<'static> {
         ProgramState {
             stage,
             size,
@@ -446,6 +418,12 @@ impl ProgramState {
 
             ProgramStage::CurrentErgViewStage => {
                 self.new_screen_state = None;
+
+                // init match results vector
+                self.competition_data.as_mut().unwrap().match_results =
+                    (0..self.competition_data.as_ref().unwrap().team_distribution[0])
+                        .map(|_| vec![])
+                        .collect();
                 // TODO: Add more state resets if needed
             }
             ProgramStage::AddNextGamesStage => todo!(),
