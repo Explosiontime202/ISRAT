@@ -243,10 +243,10 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
             // create tab bar for all groups and add text input boxes for setting group and team names
             if let Some(team_names) = data.teams.as_mut() {
                 if let Some(group_names) = data.group_names.as_mut() {
-                    if let Some(tab_bar_token) = ui.tab_bar("Choose the group:") {
+                    if let Some(_tab_bar_token) = ui.tab_bar("Choose the group:") {
                         for group_idx in 1..=data.team_distribution[0] {
                             // TODO: Find a way to dynamically change tab item name, but keep focus on input text
-                            if let Some(tab_item_token) = ui.tab_item(format!("Group {group_idx}"))
+                            if let Some(_tab_item_token) = ui.tab_item(format!("Group {group_idx}"))
                             {
                                 // draw input text box for group name
                                 MyTextInput::new(

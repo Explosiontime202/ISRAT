@@ -9,7 +9,7 @@ use crate::ProgramState;
 mod my_input_text;
 pub mod new_screen;
 pub mod start_screen;
-pub mod erg_view_screen;
+pub mod erg_screen;
 pub mod add_next_games_screen;
 
 pub fn build(ui: &Ui, program_state: &mut ProgramState) {
@@ -19,7 +19,7 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState) {
     match program_state.stage {
         ProgramStage::StartScreenStage => start_screen::build(ui, program_state, menu_bar_height),
         ProgramStage::NewScreenStage => new_screen::build(ui, program_state, menu_bar_height),
-        ProgramStage::CurrentErgViewStage => erg_view_screen::build(ui, program_state, menu_bar_height),
+        ProgramStage::CurrentErgViewStage => erg_screen::build(ui, program_state, menu_bar_height),
         ProgramStage::AddNextGamesStage => add_next_games_screen::build(ui, program_state, menu_bar_height),
     };
 

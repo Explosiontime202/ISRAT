@@ -1,6 +1,6 @@
 use data::{CompetitionData, Team};
 use imgui::*;
-use screens::new_screen::NewScreenState;
+use screens::{erg_screen::ErgScreenState, new_screen::NewScreenState};
 use winit::window::Fullscreen;
 
 mod screens;
@@ -276,6 +276,7 @@ fn main() {
             match_results: vec![vec![], vec![]],
         });
         state.new_screen_state = None;
+        state.erg_view_screen_state = Some(ErgScreenState::new());
     }
 
     // set color theme
@@ -390,6 +391,7 @@ pub struct ProgramState<'a> {
     pub size: [f32; 2],
     pub competition_data: Option<CompetitionData<'a>>,
     pub new_screen_state: Option<NewScreenState>,
+    pub erg_view_screen_state: Option<ErgScreenState>,
 }
 
 impl ProgramState<'_> {
@@ -399,6 +401,7 @@ impl ProgramState<'_> {
             size,
             competition_data: None,
             new_screen_state: None,
+            erg_view_screen_state: None,
         }
     }
 
@@ -417,6 +420,7 @@ impl ProgramState<'_> {
             }
 
             ProgramStage::CurrentErgViewStage => {
+                // TODO: Add more state resets if needed
                 self.new_screen_state = None;
 
                 // init match results vector
@@ -424,9 +428,12 @@ impl ProgramState<'_> {
                     (0..self.competition_data.as_ref().unwrap().team_distribution[0])
                         .map(|_| vec![])
                         .collect();
-                // TODO: Add more state resets if needed
+                if self.erg_view_screen_state.is_none() {
+                    self.erg_view_screen_state = Some(ErgScreenState::new());
+                }
             }
             ProgramStage::AddNextGamesStage => todo!(),
+            _ => todo!("Implement stage switch for more stages!"),
         }
         self.stage = new_stage;
     }
