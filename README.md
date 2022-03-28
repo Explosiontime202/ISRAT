@@ -18,4 +18,4 @@ cargo build --release
 Start the program and the GUI will be self explaining.
 
 ## License
-ISRAT is licensed under the MIT License, see [LICENSE](https://github.com/Explosiontime202/ISRAT/blob/master/LICENSE) for more information.
+ISRAT is licensed under the MIT License, see [LICENSE.txt](https://github.com/Explosiontime202/ISRAT/blob/master/LICENSE.txt) for more information.
