@@ -12,7 +12,7 @@ mod data;
 // TODO: Add auto saving
 
 fn main() {
-    let mut system = support::init("Ergebnis-Manager");
+    let mut system = support::init("ISRAT");
 
     // set borderless full screen at start
     system
@@ -41,7 +41,7 @@ fn main() {
             executor: String::from("SV Musterverein"),
             organizer: String::from("Musterverband"),
             count_teams: 20,
-            team_distribution: [2, 10],
+            team_distribution: [2, 11],
             teams: Some(vec![
                 vec![
                     Team {
@@ -154,8 +154,6 @@ fn main() {
                             Some(String::from("Mustername J.6")),
                         ],
                     },
-                ],
-                vec![
                     Team {
                         name: String::from("Musterteam K"),
                         player_names: [
@@ -167,28 +165,8 @@ fn main() {
                             Some(String::from("Mustername K.6")),
                         ],
                     },
-                    Team {
-                        name: String::from("Musterteam L"),
-                        player_names: [
-                            Some(String::from("Mustername L.1")),
-                            Some(String::from("Mustername L.2")),
-                            Some(String::from("Mustername L.3")),
-                            Some(String::from("Mustername L.4")),
-                            Some(String::from("Mustername L.5")),
-                            Some(String::from("Mustername L.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam M"),
-                        player_names: [
-                            Some(String::from("Mustername M.1")),
-                            Some(String::from("Mustername M.2")),
-                            Some(String::from("Mustername M.3")),
-                            Some(String::from("Mustername M.4")),
-                            Some(String::from("Mustername M.5")),
-                            Some(String::from("Mustername M.6")),
-                        ],
-                    },
+                ],
+                vec![
                     Team {
                         name: String::from("Musterteam N"),
                         player_names: [
@@ -266,6 +244,50 @@ fn main() {
                             Some(String::from("Mustername T.6")),
                         ],
                     },
+                    Team {
+                        name: String::from("Musterteam U"),
+                        player_names: [
+                            Some(String::from("Mustername U.1")),
+                            Some(String::from("Mustername U.2")),
+                            Some(String::from("Mustername U.3")),
+                            Some(String::from("Mustername U.4")),
+                            Some(String::from("Mustername U.5")),
+                            Some(String::from("Mustername U.6")),
+                        ],
+                    },
+                    Team {
+                        name: String::from("Musterteam V"),
+                        player_names: [
+                            Some(String::from("Mustername V.1")),
+                            Some(String::from("Mustername V.2")),
+                            Some(String::from("Mustername V.3")),
+                            Some(String::from("Mustername V.4")),
+                            Some(String::from("Mustername V.5")),
+                            Some(String::from("Mustername V.6")),
+                        ],
+                    },
+                    Team {
+                        name: String::from("Musterteam W"),
+                        player_names: [
+                            Some(String::from("Mustername W.1")),
+                            Some(String::from("Mustername W.2")),
+                            Some(String::from("Mustername W.3")),
+                            Some(String::from("Mustername W.4")),
+                            Some(String::from("Mustername W.5")),
+                            Some(String::from("Mustername W.6")),
+                        ],
+                    },
+                    Team {
+                        name: String::from("Musterteam X"),
+                        player_names: [
+                            Some(String::from("Mustername X.1")),
+                            Some(String::from("Mustername X.2")),
+                            Some(String::from("Mustername X.3")),
+                            Some(String::from("Mustername X.4")),
+                            Some(String::from("Mustername X.5")),
+                            Some(String::from("Mustername X.6")),
+                        ],
+                    },
                 ],
             ]),
             group_names: Some(vec![
@@ -273,10 +295,12 @@ fn main() {
                 String::from("Gruppe ROT"),
             ]),
             current_interim_result: None,
-            match_results: vec![vec![], vec![]],
+            matches: vec![],
+            current_batch: vec![0, 0],
         });
         state.new_screen_state = None;
         state.erg_view_screen_state = Some(ErgScreenState::new());
+        state.competition_data.as_mut().unwrap().generate_matches();
     }
 
     // set color theme
@@ -290,7 +314,7 @@ fn main() {
 
         let window_border_size_token = ui.push_style_var(StyleVar::WindowBorderSize(0.0));
         let window_padding_token = ui.push_style_var(StyleVar::WindowPadding([0.0, 0.0]));
-        Window::new("Ergebnis-Manager")
+        Window::new("ISRAT")
             .size(state.size, Condition::Always)
             .position([0.0, 0.0], Condition::Always)
             .no_decoration()
@@ -386,16 +410,16 @@ pub enum ProgramStage {
     AddNextGamesStage,
 }
 
-pub struct ProgramState<'a> {
+pub struct ProgramState {
     pub stage: ProgramStage,
     pub size: [f32; 2],
-    pub competition_data: Option<CompetitionData<'a>>,
+    pub competition_data: Option<CompetitionData>,
     pub new_screen_state: Option<NewScreenState>,
     pub erg_view_screen_state: Option<ErgScreenState>,
 }
 
-impl ProgramState<'_> {
-    pub fn new(stage: ProgramStage, size: [f32; 2]) -> ProgramState<'static> {
+impl ProgramState {
+    pub fn new(stage: ProgramStage, size: [f32; 2]) -> ProgramState {
         ProgramState {
             stage,
             size,
@@ -423,16 +447,12 @@ impl ProgramState<'_> {
                 // TODO: Add more state resets if needed
                 self.new_screen_state = None;
 
-                // init match results vector
-                self.competition_data.as_mut().unwrap().match_results =
-                    (0..self.competition_data.as_ref().unwrap().team_distribution[0])
-                        .map(|_| vec![])
-                        .collect();
                 if self.erg_view_screen_state.is_none() {
                     self.erg_view_screen_state = Some(ErgScreenState::new());
                 }
             }
             ProgramStage::AddNextGamesStage => todo!(),
+            #[allow(unreachable_patterns)]
             _ => todo!("Implement stage switch for more stages!"),
         }
         self.stage = new_stage;

@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, collections::HashMap};
 
-pub struct CompetitionData<'a> {
+pub struct CompetitionData {
     pub name: String,
     pub date_string: String,
     pub place: String,
@@ -11,11 +11,12 @@ pub struct CompetitionData<'a> {
     pub teams: Option<Vec<Vec<Team>>>, // for each group a vector of teams, ordered by ids
     pub group_names: Option<Vec<String>>, // a vector of the group names, ordered by id
     pub current_interim_result: Option<Vec<Vec<InterimResultEntry>>>, // a ResultEntry vector for each group in descending order
-    pub match_results: Vec<Vec<GameResult<'a>>>, // a GameResult vector for each group
+    pub matches: Vec<Vec<Match>>, // a Match vector for each group
+    pub current_batch: Vec<u32>,      // the current batch of matches played for each group
 }
 
-impl CompetitionData<'_> {
-    pub fn empty() -> CompetitionData<'static> {
+impl CompetitionData {
+    pub fn empty() -> CompetitionData {
         CompetitionData {
             name: String::from(""),
             date_string: String::from(""),
@@ -27,7 +28,8 @@ impl CompetitionData<'_> {
             teams: None,
             group_names: None,
             current_interim_result: None,
-            match_results: vec![],
+            matches: vec![],
+            current_batch: vec![],
         }
     }
 
@@ -40,13 +42,10 @@ impl CompetitionData<'_> {
                 .enumerate()
                 .map(|(group_idx, group)| {
                     // create table with entries for all teams in this group
-                    // and the mapping from the team name to the table index
-                    let mut mapping = HashMap::new();
                     let mut table: Vec<InterimResultEntry> = group
                         .iter()
                         .enumerate()
                         .map(|(team_idx, team)| {
-                            mapping.insert(&team.name, team_idx);
                             InterimResultEntry {
                                 team_idx: team_idx,
                                 match_points: [0, 0],
@@ -57,40 +56,48 @@ impl CompetitionData<'_> {
                         .collect();
 
                     // evaluate the match results for this group
-                    self.match_results[group_idx].iter().for_each(|result| {
-                        {
-                            let idx_a = *mapping.get(&result.team_a.name).unwrap();
-                            let entry_a = table.get_mut(idx_a).unwrap();
-                            entry_a.match_points[0] += match result.result {
-                                GameResultEnum::WinnerA => 2,
-                                GameResultEnum::Draw => 1,
-                                GameResultEnum::WinnerB => 0,
-                            };
-                            entry_a.match_points[1] += match result.result {
-                                GameResultEnum::WinnerA => 0,
-                                GameResultEnum::Draw => 1,
-                                GameResultEnum::WinnerB => 2,
-                            };
-                            entry_a.stock_points[0] += result.points[0];
-                            entry_a.stock_points[1] += result.points[1];
-                        }
-                        {
-                            let idx_b = *mapping.get(&result.team_b.name).unwrap();
-                            let entry_b = table.get_mut(idx_b).unwrap();
-                            entry_b.match_points[0] += match result.result {
-                                GameResultEnum::WinnerA => 0,
-                                GameResultEnum::Draw => 1,
-                                GameResultEnum::WinnerB => 2,
-                            };
-                            entry_b.match_points[1] += match result.result {
-                                GameResultEnum::WinnerA => 2,
-                                GameResultEnum::Draw => 1,
-                                GameResultEnum::WinnerB => 0,
-                            };
-                            entry_b.stock_points[0] += result.points[1];
-                            entry_b.stock_points[1] += result.points[0];
-                        }
-                    });
+                    self.matches[group_idx]
+                        .iter()
+                        .filter(|_match| _match.result != MatchResult::NotPlayed)
+                        .for_each(|_match| {
+                            assert!(_match.points.is_some());
+                            let points = _match.points.unwrap();
+                            {
+                                let entry_a = table.get_mut(_match.team_a).unwrap();
+
+                                entry_a.match_points[0] += match _match.result {
+                                    MatchResult::WinnerA => 2,
+                                    MatchResult::Draw => 1,
+                                    MatchResult::WinnerB => 0,
+                                    MatchResult::NotPlayed => panic!(),
+                                };
+                                entry_a.match_points[1] += match _match.result {
+                                    MatchResult::WinnerA => 0,
+                                    MatchResult::Draw => 1,
+                                    MatchResult::WinnerB => 2,
+                                    MatchResult::NotPlayed => panic!(),
+                                };
+                                entry_a.stock_points[0] += points[0];
+                                entry_a.stock_points[1] += points[1];
+                            }
+                            {
+                                let entry_b = table.get_mut(_match.team_b).unwrap();
+                                entry_b.match_points[0] += match _match.result {
+                                    MatchResult::WinnerA => 0,
+                                    MatchResult::Draw => 1,
+                                    MatchResult::WinnerB => 2,
+                                    MatchResult::NotPlayed => panic!(),
+                                };
+                                entry_b.match_points[1] += match _match.result {
+                                    MatchResult::WinnerA => 2,
+                                    MatchResult::Draw => 1,
+                                    MatchResult::WinnerB => 0,
+                                    MatchResult::NotPlayed => panic!(),
+                                };
+                                entry_b.stock_points[0] += points[1];
+                                entry_b.stock_points[1] += points[0];
+                            }
+                        });
 
                     // calculate quotient
                     table.iter_mut().for_each(|entry| {
@@ -103,7 +110,7 @@ impl CompetitionData<'_> {
 
                     // sort the table
                     table.sort_by(|a, b| {
-                        // TODO: Check if ordering is correctly implemented!
+                        // TODO: Verify that the ordering is correctly implemented!
                         if a.match_points[0] > b.match_points[1] {
                             Ordering::Greater
                         } else if a.match_points[0] < b.match_points[1] {
@@ -125,6 +132,40 @@ impl CompetitionData<'_> {
                 .collect(),
         );
     }
+
+    pub fn generate_matches(&mut self) {
+        assert!(self.matches.is_empty());
+
+        let team_count = self.team_distribution[1] as i32;
+        if team_count % 2 == 0 {
+            // even team count per group
+            // TODO: Implement!!
+            //self.matches = (0..self.team_distribution[0]).map(|_| vec![]).collect();
+            todo!();
+        } else {
+            // uneven team count per group
+            for _ in 0..self.team_distribution[0] {
+                let mut group = vec![];
+                for batch_idx in 0..team_count {
+                    let mut batch = vec![];
+                    for lane_idx in 0..(team_count / 2) {
+                        let team_a_idx = (lane_idx - batch_idx).rem_euclid(team_count);
+                        let team_b_idx = (team_count - lane_idx - batch_idx - 2).rem_euclid(team_count);
+                        batch.push(Match {
+                            team_a: team_a_idx as usize,
+                            team_b: team_b_idx as usize,
+                            points: None,
+                            result: MatchResult::NotPlayed,
+                            batch: batch_idx as u32,
+                            lane: lane_idx as u32,
+                        })
+                    }
+                    group.append(&mut batch);
+                }
+                self.matches.push(group);
+            }
+        }
+    }
 }
 
 pub struct Team {
@@ -139,18 +180,24 @@ pub struct InterimResultEntry {
     pub quotient: f32,
 }
 
-pub struct GameResult<'a> {
-    pub team_a: &'a Team,
-    pub team_b: &'a Team,
-    pub points: [i32; 2],
-    pub result: GameResultEnum,
+pub struct Match {
+    // the both opponents
+    //pub team_a: &'a Team,
+    //pub team_b: &'a Team,
+    pub team_a: usize,
+    pub team_b: usize,
+    pub points: Option<[i32; 2]>, // the points of the teams if the match was already played
+    pub result: MatchResult,      // the result of the match
+    pub batch: u32,               // the index of the batch the match is in, e.g. "Spiel 4"
+    pub lane: u32,                // the number of the lane the match is played on, e.g. "Bahn 2"
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum GameResultEnum {
+pub enum MatchResult {
     WinnerA,
     Draw,
     WinnerB,
+    NotPlayed,
 }
 
 pub fn calc_group_possibilities(count_teams: u32) -> Vec<[u32; 2]> {

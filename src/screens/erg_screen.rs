@@ -1,9 +1,11 @@
 use imgui::{
-    ChildWindow, Id, StyleColor, TableColumnFlags, TableColumnSetup, TableFlags,
-    TableRowFlags, Ui,
+    ChildWindow, Id, StyleColor, TableColumnFlags, TableColumnSetup, TableFlags, TableRowFlags, Ui,
 };
 
-use crate::{data::CompetitionData, ProgramState};
+use crate::{
+    data::{CompetitionData, MatchResult},
+    ProgramState,
+};
 
 pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
     let child_bg_color = ui.push_style_color(StyleColor::ChildBg, [0.0, 0.0, 0.0, 1.0]);
@@ -24,18 +26,6 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
                 data.calc_interim_result();
             }
 
-            // TODO: draw selector for group
-            /*if let Some(_combo_token) = ui.begin_combo(
-                "##group_selector",
-                data.group_names.as_ref().unwrap()[erg_screen_state.selected_group_idx].as_str(),
-            ) {
-                data.group_names.as_ref().unwrap().iter().enumerate().for_each(|(idx, group_name)| {
-                    if Selectable::new(group_name)..build(ui) {
-
-                    }
-                });
-            }*/
-
             if let Some(_tab_bar_token) = ui.tab_bar("##group_selector") {
                 data.group_names
                     .as_ref()
@@ -45,6 +35,10 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
                     .for_each(|(idx, group_name)| {
                         if let Some(_tab_item_token) = ui.tab_item(group_name) {
                             draw_erg_table(ui, data, idx);
+                            ui.new_line();
+                            ui.new_line();
+                            ui.new_line();
+                            draw_upcoming_matches(ui, data, idx);
                         }
                     });
             }
@@ -56,7 +50,7 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
 
 fn draw_erg_table(ui: &Ui, data: &CompetitionData, group_idx: usize) {
     let column_widths = [
-        ui.calc_text_size(data.team_distribution[1].to_string())[0] * 2.0,
+        ui.calc_text_size("Place")[0] * 1.5,
         0.0,
         ui.calc_text_size("999 : 999")[0] * 2.0,
         ui.calc_text_size("99.999")[0] * 2.0,
@@ -104,126 +98,112 @@ fn draw_erg_table(ui: &Ui, data: &CompetitionData, group_idx: usize) {
         // add header row and center the headers
         ui.table_next_row_with_flags(TableRowFlags::HEADERS);
 
-        let cursor_y_pos = ui.cursor_pos()[1];
+        ui.table_next_column();
+        center(ui, "Place");
 
         ui.table_next_column();
-        ui.set_cursor_pos([
-            ui.cursor_pos()[0]
-                + (ui.content_region_avail()[0] - ui.calc_text_size("Place")[0]) / 2.0,
-            cursor_y_pos,
-        ]);
-        ui.text("Place");
+        center(ui, "Team");
 
         ui.table_next_column();
-        ui.set_cursor_pos([
-            ui.cursor_pos()[0]
-                + (ui.content_region_avail()[0] - ui.calc_text_size("Team")[0]) / 2.0,
-            cursor_y_pos,
-        ]);
-        ui.text("Team");
+        center(ui, "Points");
 
         ui.table_next_column();
-        ui.set_cursor_pos([
-            ui.cursor_pos()[0]
-                + (ui.content_region_avail()[0] - ui.calc_text_size("Points")[0]) / 2.0,
-            cursor_y_pos,
-        ]);
-        ui.text("Points");
+        center(ui, "Quotient");
 
         ui.table_next_column();
-        ui.set_cursor_pos([
-            ui.cursor_pos()[0]
-                + (ui.content_region_avail()[0] - ui.calc_text_size("Quotient")[0]) / 2.0,
-            cursor_y_pos,
-        ]);
-        ui.text("Quotient");
-
-        ui.table_next_column();
-        ui.set_cursor_pos([
-            ui.cursor_pos()[0]
-                + (ui.content_region_avail()[0] - ui.calc_text_size("Stock Points")[0]) / 2.0,
-            cursor_y_pos,
-        ]);
-        ui.text("Stock Points");
+        center(ui, "Stock Points");
 
         // draw the rows and center the entries
         data.current_interim_result.as_ref().unwrap()[group_idx]
             .iter()
             .enumerate()
             .for_each(|(place_idx, entry)| {
-                let cursor_y_pos = ui.cursor_pos()[1];
                 ui.table_next_row();
 
                 ui.table_next_column();
-                ui.set_cursor_pos([
-                    ui.cursor_pos()[0]
-                        + (ui.content_region_avail()[0]
-                            - ui.calc_text_size(place_idx.to_string())[0])
-                            / 2.0,
-                    cursor_y_pos,
-                ]);
-
-                ui.text(place_idx.to_string());
+                center(ui, (place_idx + 1).to_string());
 
                 ui.table_next_column();
-                ui.set_cursor_pos([
-                    ui.cursor_pos()[0]
-                        + (ui.content_region_avail()[0]
-                            - ui.calc_text_size(
-                                &data.teams.as_ref().unwrap()[group_idx][entry.team_idx].name,
-                            )[0])
-                            / 2.0,
-                    cursor_y_pos,
-                ]);
-
-                ui.text(&data.teams.as_ref().unwrap()[group_idx][entry.team_idx].name);
+                center(
+                    ui,
+                    &data.teams.as_ref().unwrap()[group_idx][entry.team_idx].name,
+                );
 
                 ui.table_next_column();
-                ui.set_cursor_pos([
-                    ui.cursor_pos()[0]
-                        + (ui.content_region_avail()[0]
-                            - ui.calc_text_size(format!(
-                                "{} : {}",
-                                entry.match_points[0], entry.match_points[1]
-                            ))[0])
-                            / 2.0,
-                    cursor_y_pos,
-                ]);
-
-                ui.text(format!(
-                    "{} : {}",
-                    entry.match_points[0], entry.match_points[1]
-                ));
+                center(
+                    ui,
+                    format!("{} : {}", entry.match_points[0], entry.match_points[1]),
+                );
 
                 ui.table_next_column();
-                ui.set_cursor_pos([
-                    ui.cursor_pos()[0]
-                        + (ui.content_region_avail()[0]
-                            - ui.calc_text_size(format!("{:.3}", entry.quotient))[0])
-                            / 2.0,
-                    cursor_y_pos,
-                ]);
-
-                ui.text(format!("{:.3}", entry.quotient));
+                center(ui, format!("{:.3}", entry.quotient));
 
                 ui.table_next_column();
-                ui.set_cursor_pos([
-                    ui.cursor_pos()[0]
-                        + (ui.content_region_avail()[0]
-                            - ui.calc_text_size(format!(
-                                "{} : {}",
-                                entry.stock_points[0], entry.stock_points[1]
-                            ))[0])
-                            / 2.0,
-                    cursor_y_pos,
-                ]);
-
-                ui.text(format!(
-                    "{} : {}",
-                    entry.stock_points[0], entry.stock_points[1]
-                ));
+                center(
+                    ui,
+                    format!("{} : {}", entry.stock_points[0], entry.stock_points[1]),
+                );
             });
     }
+}
+
+fn draw_upcoming_matches(ui: &Ui, data: &CompetitionData, group_idx: usize) {
+    center(ui, "Next Matches:");
+    ui.new_line();
+    if let Some(_table_token) =
+        ui.begin_table_with_flags("##upcoming_matches_table", 3, TableFlags::BORDERS)
+    {
+        ui.table_setup_column_with(TableColumnSetup {
+            name: "##Lane",
+            flags: TableColumnFlags::WIDTH_STRETCH,
+            init_width_or_weight: 1.0,
+            user_id: Id::Int(0),
+        });
+        ui.table_setup_column_with(TableColumnSetup {
+            name: "##TeamA",
+            flags: TableColumnFlags::WIDTH_STRETCH,
+            init_width_or_weight: 3.0,
+            user_id: Id::Int(0),
+        });
+        ui.table_setup_column_with(TableColumnSetup {
+            name: "##TeamB",
+            flags: TableColumnFlags::WIDTH_STRETCH,
+            init_width_or_weight: 3.0,
+            user_id: Id::Int(0),
+        });
+
+        let current_batch = data.current_batch[group_idx];
+        data.matches[group_idx]
+            .iter()
+            .filter(|_match| _match.batch == current_batch)
+            .for_each(|_match| {
+                assert!(_match.result == MatchResult::NotPlayed);
+                ui.table_next_row();
+                ui.table_next_column();
+
+                center(ui, format!("Lane {}", (_match.lane + 1)));
+
+                ui.table_next_column();
+
+                let team_a_name = &data.teams.as_ref().unwrap()[group_idx][_match.team_a].name;
+                center(ui, team_a_name);
+
+                ui.table_next_column();
+
+                let team_b_name = &data.teams.as_ref().unwrap()[group_idx][_match.team_b].name;
+                center(ui, team_b_name);
+            });
+    }
+}
+
+// Helper
+
+fn center<T: AsRef<str>>(ui: &Ui, text: T) {
+    ui.set_cursor_pos([
+        ui.cursor_pos()[0] + (ui.content_region_avail()[0] - ui.calc_text_size(&text)[0]) / 2.0,
+        ui.cursor_pos()[1],
+    ]);
+    ui.text(&text);
 }
 
 pub struct ErgScreenState {}

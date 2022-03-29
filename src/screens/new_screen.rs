@@ -133,7 +133,7 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
             // draw drop down menu for team distribution and check for changes
             ui.text(labels[6]);
             ui.same_line_with_pos(max_label_size + 20.0);
-            if let Some(token) = ui.begin_combo("##group_selection", &mut team_distribution) {
+            if let Some(_combo_token) = ui.begin_combo("##group_selection", &mut team_distribution) {
                 group_possibilities.iter().for_each(|[g, t]| {
                     if Selectable::new(format!("{}x{}", *g, *t)).build(ui) {
                         data.team_distribution = [*g, *t];
@@ -283,6 +283,9 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
                 if let Some(failure_msg) = check_valid_inputs(data, new_screen_state.stage) {
                     new_screen_state.submit_failure_msg = Some(failure_msg);
                 } else {
+                    if data.matches.is_empty() {
+                        data.generate_matches();
+                    }
                     new_screen_state.go_to_stage(NewScreenStage::PlayerNames, data);
                 }
             }
@@ -388,7 +391,7 @@ fn build_player_names(ui: &Ui, program_state: &mut ProgramState, menu_bar_height
                 ui.text("Team:");
                 ui.same_line_with_pos(max_label_size + 20.0);
 
-                if let Some(combo_token) = ui.begin_combo(
+                if let Some(_combo_token) = ui.begin_combo(
                     "##team_selector",
                     if let Some(selected_idx) = new_screen_state.selected_team {
                         sorted_teams.get(selected_idx).unwrap().name.as_str()
