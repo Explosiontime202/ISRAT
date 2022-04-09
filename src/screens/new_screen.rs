@@ -142,6 +142,11 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
                 });
             }
 
+            if data.team_distribution[1] != 0 && data.team_distribution[1] % 2 == 0 {
+                ui.same_line();
+                ui.checkbox("With Breaks", &mut data.with_break);
+            }
+
             // reset submit failure message
             if anything_changed && new_screen_state.submit_failure_msg.is_some() {
                 new_screen_state.submit_failure_msg = None;
@@ -651,6 +656,7 @@ impl NewScreenState {
                 data.organizer = String::from("");
                 data.count_teams = 0;
                 data.team_distribution = [0, 0];
+                data.with_break = true;
             }
             NewScreenStage::TeamNames => {
                 self.reset_common();

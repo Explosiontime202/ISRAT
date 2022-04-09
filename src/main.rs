@@ -32,276 +32,7 @@ fn main() {
 
     // TODO: Remove for productive builds
     #[cfg(debug_assertions)]
-    {
-        state.stage = ProgramStage::CurrentErgViewStage;
-        state.competition_data = Some(CompetitionData {
-            name: String::from("Mustermeisterschaft"),
-            date_string: String::from("01.01.2022"),
-            place: String::from("Musterstadt"),
-            executor: String::from("SV Musterverein"),
-            organizer: String::from("Musterverband"),
-            count_teams: 20,
-            team_distribution: [2, 11],
-            teams: Some(vec![
-                vec![
-                    Team {
-                        name: String::from("Musterteam A"),
-                        player_names: [
-                            Some(String::from("Mustername A.1")),
-                            Some(String::from("Mustername A.2")),
-                            Some(String::from("Mustername A.3")),
-                            Some(String::from("Mustername A.4")),
-                            Some(String::from("Mustername A.5")),
-                            Some(String::from("Mustername A.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam B"),
-                        player_names: [
-                            Some(String::from("Mustername B.1")),
-                            Some(String::from("Mustername B.2")),
-                            Some(String::from("Mustername B.3")),
-                            Some(String::from("Mustername B.4")),
-                            Some(String::from("Mustername B.5")),
-                            Some(String::from("Mustername B.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam C"),
-                        player_names: [
-                            Some(String::from("Mustername C.1")),
-                            Some(String::from("Mustername C.2")),
-                            Some(String::from("Mustername C.3")),
-                            Some(String::from("Mustername C.4")),
-                            Some(String::from("Mustername C.5")),
-                            Some(String::from("Mustername C.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam D"),
-                        player_names: [
-                            Some(String::from("Mustername D.1")),
-                            Some(String::from("Mustername D.2")),
-                            Some(String::from("Mustername D.3")),
-                            Some(String::from("Mustername D.4")),
-                            Some(String::from("Mustername D.5")),
-                            Some(String::from("Mustername D.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam E"),
-                        player_names: [
-                            Some(String::from("Mustername E.1")),
-                            Some(String::from("Mustername E.2")),
-                            Some(String::from("Mustername E.3")),
-                            Some(String::from("Mustername E.4")),
-                            Some(String::from("Mustername E.5")),
-                            Some(String::from("Mustername E.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam F"),
-                        player_names: [
-                            Some(String::from("Mustername F.1")),
-                            Some(String::from("Mustername F.2")),
-                            Some(String::from("Mustername F.3")),
-                            Some(String::from("Mustername F.4")),
-                            Some(String::from("Mustername F.5")),
-                            Some(String::from("Mustername F.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam G"),
-                        player_names: [
-                            Some(String::from("Mustername G.1")),
-                            Some(String::from("Mustername G.2")),
-                            Some(String::from("Mustername G.3")),
-                            Some(String::from("Mustername G.4")),
-                            Some(String::from("Mustername G.5")),
-                            Some(String::from("Mustername G.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam H"),
-                        player_names: [
-                            Some(String::from("Mustername H.1")),
-                            Some(String::from("Mustername H.2")),
-                            Some(String::from("Mustername H.3")),
-                            Some(String::from("Mustername H.4")),
-                            Some(String::from("Mustername H.5")),
-                            Some(String::from("Mustername H.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam I"),
-                        player_names: [
-                            Some(String::from("Mustername I.1")),
-                            Some(String::from("Mustername I.2")),
-                            Some(String::from("Mustername I.3")),
-                            Some(String::from("Mustername I.4")),
-                            Some(String::from("Mustername I.5")),
-                            Some(String::from("Mustername I.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam J"),
-                        player_names: [
-                            Some(String::from("Mustername J.1")),
-                            Some(String::from("Mustername J.2")),
-                            Some(String::from("Mustername J.3")),
-                            Some(String::from("Mustername J.4")),
-                            Some(String::from("Mustername J.5")),
-                            Some(String::from("Mustername J.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam K"),
-                        player_names: [
-                            Some(String::from("Mustername K.1")),
-                            Some(String::from("Mustername K.2")),
-                            Some(String::from("Mustername K.3")),
-                            Some(String::from("Mustername K.4")),
-                            Some(String::from("Mustername K.5")),
-                            Some(String::from("Mustername K.6")),
-                        ],
-                    },
-                ],
-                vec![
-                    Team {
-                        name: String::from("Musterteam N"),
-                        player_names: [
-                            Some(String::from("Mustername N.1")),
-                            Some(String::from("Mustername N.2")),
-                            Some(String::from("Mustername N.3")),
-                            Some(String::from("Mustername N.4")),
-                            Some(String::from("Mustername N.5")),
-                            Some(String::from("Mustername N.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam O"),
-                        player_names: [
-                            Some(String::from("Mustername O.1")),
-                            Some(String::from("Mustername O.2")),
-                            Some(String::from("Mustername O.3")),
-                            Some(String::from("Mustername O.4")),
-                            Some(String::from("Mustername O.5")),
-                            Some(String::from("Mustername O.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam P"),
-                        player_names: [
-                            Some(String::from("Mustername P.1")),
-                            Some(String::from("Mustername P.2")),
-                            Some(String::from("Mustername P.3")),
-                            Some(String::from("Mustername P.4")),
-                            Some(String::from("Mustername P.5")),
-                            Some(String::from("Mustername P.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam Q"),
-                        player_names: [
-                            Some(String::from("Mustername Q.1")),
-                            Some(String::from("Mustername Q.2")),
-                            Some(String::from("Mustername Q.3")),
-                            Some(String::from("Mustername Q.4")),
-                            Some(String::from("Mustername Q.5")),
-                            Some(String::from("Mustername Q.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam R"),
-                        player_names: [
-                            Some(String::from("Mustername R.1")),
-                            Some(String::from("Mustername R.2")),
-                            Some(String::from("Mustername R.3")),
-                            Some(String::from("Mustername R.4")),
-                            Some(String::from("Mustername R.5")),
-                            Some(String::from("Mustername R.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam S"),
-                        player_names: [
-                            Some(String::from("Mustername S.1")),
-                            Some(String::from("Mustername S.2")),
-                            Some(String::from("Mustername S.3")),
-                            Some(String::from("Mustername S.4")),
-                            Some(String::from("Mustername S.5")),
-                            Some(String::from("Mustername S.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam T"),
-                        player_names: [
-                            Some(String::from("Mustername T.1")),
-                            Some(String::from("Mustername T.2")),
-                            Some(String::from("Mustername T.3")),
-                            Some(String::from("Mustername T.4")),
-                            Some(String::from("Mustername T.5")),
-                            Some(String::from("Mustername T.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam U"),
-                        player_names: [
-                            Some(String::from("Mustername U.1")),
-                            Some(String::from("Mustername U.2")),
-                            Some(String::from("Mustername U.3")),
-                            Some(String::from("Mustername U.4")),
-                            Some(String::from("Mustername U.5")),
-                            Some(String::from("Mustername U.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam V"),
-                        player_names: [
-                            Some(String::from("Mustername V.1")),
-                            Some(String::from("Mustername V.2")),
-                            Some(String::from("Mustername V.3")),
-                            Some(String::from("Mustername V.4")),
-                            Some(String::from("Mustername V.5")),
-                            Some(String::from("Mustername V.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam W"),
-                        player_names: [
-                            Some(String::from("Mustername W.1")),
-                            Some(String::from("Mustername W.2")),
-                            Some(String::from("Mustername W.3")),
-                            Some(String::from("Mustername W.4")),
-                            Some(String::from("Mustername W.5")),
-                            Some(String::from("Mustername W.6")),
-                        ],
-                    },
-                    Team {
-                        name: String::from("Musterteam X"),
-                        player_names: [
-                            Some(String::from("Mustername X.1")),
-                            Some(String::from("Mustername X.2")),
-                            Some(String::from("Mustername X.3")),
-                            Some(String::from("Mustername X.4")),
-                            Some(String::from("Mustername X.5")),
-                            Some(String::from("Mustername X.6")),
-                        ],
-                    },
-                ],
-            ]),
-            group_names: Some(vec![
-                String::from("Gruppe BLAU"),
-                String::from("Gruppe ROT"),
-            ]),
-            current_interim_result: None,
-            matches: vec![],
-            current_batch: vec![0, 0],
-        });
-        state.new_screen_state = None;
-        state.erg_view_screen_state = Some(ErgScreenState::new());
-        state.competition_data.as_mut().unwrap().generate_matches();
-    }
+    initial_state(&mut state);
 
     // set color theme
     let style = system.imgui.style_mut();
@@ -380,6 +111,314 @@ fn main() {
     });
 }
 
+// TODO: Remove for productive builds
+#[cfg(debug_assertions)]
+fn initial_state(state: &mut ProgramState) {
+    use crate::data::MatchResult;
+
+    state.stage = ProgramStage::CurrentErgViewStage;
+    state.competition_data = Some(CompetitionData {
+        name: String::from("Mustermeisterschaft"),
+        date_string: String::from("01.01.2022"),
+        place: String::from("Musterstadt"),
+        executor: String::from("SV Musterverein"),
+        organizer: String::from("Musterverband"),
+        count_teams: 20,
+        team_distribution: [2, 10],
+        teams: Some(vec![
+            vec![
+                Team {
+                    name: String::from("Musterteam A"),
+                    player_names: [
+                        Some(String::from("Mustername A.1")),
+                        Some(String::from("Mustername A.2")),
+                        Some(String::from("Mustername A.3")),
+                        Some(String::from("Mustername A.4")),
+                        Some(String::from("Mustername A.5")),
+                        Some(String::from("Mustername A.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam B"),
+                    player_names: [
+                        Some(String::from("Mustername B.1")),
+                        Some(String::from("Mustername B.2")),
+                        Some(String::from("Mustername B.3")),
+                        Some(String::from("Mustername B.4")),
+                        Some(String::from("Mustername B.5")),
+                        Some(String::from("Mustername B.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam C"),
+                    player_names: [
+                        Some(String::from("Mustername C.1")),
+                        Some(String::from("Mustername C.2")),
+                        Some(String::from("Mustername C.3")),
+                        Some(String::from("Mustername C.4")),
+                        Some(String::from("Mustername C.5")),
+                        Some(String::from("Mustername C.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam D"),
+                    player_names: [
+                        Some(String::from("Mustername D.1")),
+                        Some(String::from("Mustername D.2")),
+                        Some(String::from("Mustername D.3")),
+                        Some(String::from("Mustername D.4")),
+                        Some(String::from("Mustername D.5")),
+                        Some(String::from("Mustername D.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam E"),
+                    player_names: [
+                        Some(String::from("Mustername E.1")),
+                        Some(String::from("Mustername E.2")),
+                        Some(String::from("Mustername E.3")),
+                        Some(String::from("Mustername E.4")),
+                        Some(String::from("Mustername E.5")),
+                        Some(String::from("Mustername E.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam F"),
+                    player_names: [
+                        Some(String::from("Mustername F.1")),
+                        Some(String::from("Mustername F.2")),
+                        Some(String::from("Mustername F.3")),
+                        Some(String::from("Mustername F.4")),
+                        Some(String::from("Mustername F.5")),
+                        Some(String::from("Mustername F.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam G"),
+                    player_names: [
+                        Some(String::from("Mustername G.1")),
+                        Some(String::from("Mustername G.2")),
+                        Some(String::from("Mustername G.3")),
+                        Some(String::from("Mustername G.4")),
+                        Some(String::from("Mustername G.5")),
+                        Some(String::from("Mustername G.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam H"),
+                    player_names: [
+                        Some(String::from("Mustername H.1")),
+                        Some(String::from("Mustername H.2")),
+                        Some(String::from("Mustername H.3")),
+                        Some(String::from("Mustername H.4")),
+                        Some(String::from("Mustername H.5")),
+                        Some(String::from("Mustername H.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam I"),
+                    player_names: [
+                        Some(String::from("Mustername I.1")),
+                        Some(String::from("Mustername I.2")),
+                        Some(String::from("Mustername I.3")),
+                        Some(String::from("Mustername I.4")),
+                        Some(String::from("Mustername I.5")),
+                        Some(String::from("Mustername I.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam J"),
+                    player_names: [
+                        Some(String::from("Mustername J.1")),
+                        Some(String::from("Mustername J.2")),
+                        Some(String::from("Mustername J.3")),
+                        Some(String::from("Mustername J.4")),
+                        Some(String::from("Mustername J.5")),
+                        Some(String::from("Mustername J.6")),
+                    ],
+                },
+                /*Team {
+                    name: String::from("Musterteam K"),
+                    player_names: [
+                        Some(String::from("Mustername K.1")),
+                        Some(String::from("Mustername K.2")),
+                        Some(String::from("Mustername K.3")),
+                        Some(String::from("Mustername K.4")),
+                        Some(String::from("Mustername K.5")),
+                        Some(String::from("Mustername K.6")),
+                    ],
+                },*/
+            ],
+            vec![
+                Team {
+                    name: String::from("Musterteam N"),
+                    player_names: [
+                        Some(String::from("Mustername N.1")),
+                        Some(String::from("Mustername N.2")),
+                        Some(String::from("Mustername N.3")),
+                        Some(String::from("Mustername N.4")),
+                        Some(String::from("Mustername N.5")),
+                        Some(String::from("Mustername N.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam O"),
+                    player_names: [
+                        Some(String::from("Mustername O.1")),
+                        Some(String::from("Mustername O.2")),
+                        Some(String::from("Mustername O.3")),
+                        Some(String::from("Mustername O.4")),
+                        Some(String::from("Mustername O.5")),
+                        Some(String::from("Mustername O.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam P"),
+                    player_names: [
+                        Some(String::from("Mustername P.1")),
+                        Some(String::from("Mustername P.2")),
+                        Some(String::from("Mustername P.3")),
+                        Some(String::from("Mustername P.4")),
+                        Some(String::from("Mustername P.5")),
+                        Some(String::from("Mustername P.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam Q"),
+                    player_names: [
+                        Some(String::from("Mustername Q.1")),
+                        Some(String::from("Mustername Q.2")),
+                        Some(String::from("Mustername Q.3")),
+                        Some(String::from("Mustername Q.4")),
+                        Some(String::from("Mustername Q.5")),
+                        Some(String::from("Mustername Q.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam R"),
+                    player_names: [
+                        Some(String::from("Mustername R.1")),
+                        Some(String::from("Mustername R.2")),
+                        Some(String::from("Mustername R.3")),
+                        Some(String::from("Mustername R.4")),
+                        Some(String::from("Mustername R.5")),
+                        Some(String::from("Mustername R.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam S"),
+                    player_names: [
+                        Some(String::from("Mustername S.1")),
+                        Some(String::from("Mustername S.2")),
+                        Some(String::from("Mustername S.3")),
+                        Some(String::from("Mustername S.4")),
+                        Some(String::from("Mustername S.5")),
+                        Some(String::from("Mustername S.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam T"),
+                    player_names: [
+                        Some(String::from("Mustername T.1")),
+                        Some(String::from("Mustername T.2")),
+                        Some(String::from("Mustername T.3")),
+                        Some(String::from("Mustername T.4")),
+                        Some(String::from("Mustername T.5")),
+                        Some(String::from("Mustername T.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam U"),
+                    player_names: [
+                        Some(String::from("Mustername U.1")),
+                        Some(String::from("Mustername U.2")),
+                        Some(String::from("Mustername U.3")),
+                        Some(String::from("Mustername U.4")),
+                        Some(String::from("Mustername U.5")),
+                        Some(String::from("Mustername U.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam V"),
+                    player_names: [
+                        Some(String::from("Mustername V.1")),
+                        Some(String::from("Mustername V.2")),
+                        Some(String::from("Mustername V.3")),
+                        Some(String::from("Mustername V.4")),
+                        Some(String::from("Mustername V.5")),
+                        Some(String::from("Mustername V.6")),
+                    ],
+                },
+                Team {
+                    name: String::from("Musterteam W"),
+                    player_names: [
+                        Some(String::from("Mustername W.1")),
+                        Some(String::from("Mustername W.2")),
+                        Some(String::from("Mustername W.3")),
+                        Some(String::from("Mustername W.4")),
+                        Some(String::from("Mustername W.5")),
+                        Some(String::from("Mustername W.6")),
+                    ],
+                },
+                /*Team {
+                    name: String::from("Musterteam X"),
+                    player_names: [
+                        Some(String::from("Mustername X.1")),
+                        Some(String::from("Mustername X.2")),
+                        Some(String::from("Mustername X.3")),
+                        Some(String::from("Mustername X.4")),
+                        Some(String::from("Mustername X.5")),
+                        Some(String::from("Mustername X.6")),
+                    ],
+                },*/
+            ],
+        ]),
+        group_names: Some(vec![
+            String::from("Gruppe BLAU"),
+            String::from("Gruppe ROT"),
+        ]),
+        current_interim_result: vec![None, None],
+        matches: vec![],
+        current_batch: vec![1, 0],
+        with_break: true,
+    });
+    state.new_screen_state = None;
+    state.erg_screen_state = Some(ErgScreenState::new(2));
+    state.competition_data.as_mut().unwrap().generate_matches();
+
+    let results = [
+        MatchResult::WinnerA,
+        MatchResult::WinnerB,
+        MatchResult::Draw,
+        MatchResult::WinnerB,
+        MatchResult::WinnerA,
+    ];
+    let points = [[17, 13], [3, 11], [9, 9], [9, 13], [11, 5]];
+
+    state.competition_data.as_mut().unwrap().matches[0]
+        .iter_mut()
+        .filter(|_match| _match.batch == 0)
+        .enumerate()
+        .for_each(|(idx, _match)| {
+            _match.result = results[idx];
+            _match.points = Some(points[idx]);
+        });
+
+    let mut hash_set = std::collections::HashSet::new();
+    state.competition_data.as_ref().unwrap().matches[0]
+        .iter()
+        .map(|_match| {
+            [
+                _match.team_a.min(_match.team_b),
+                _match.team_a.max(_match.team_b),
+            ]
+        })
+        .for_each(|arr| {
+            assert!(hash_set.insert(arr));
+            assert_ne!(arr[0], arr[1]);
+        });
+}
+
 // TODO: Use this method properly
 fn add_main_menu(ui: &Ui) {
     if let Some(main_menu_bar_token) = ui.begin_main_menu_bar() {
@@ -415,7 +454,7 @@ pub struct ProgramState {
     pub size: [f32; 2],
     pub competition_data: Option<CompetitionData>,
     pub new_screen_state: Option<NewScreenState>,
-    pub erg_view_screen_state: Option<ErgScreenState>,
+    pub erg_screen_state: Option<ErgScreenState>,
 }
 
 impl ProgramState {
@@ -425,7 +464,7 @@ impl ProgramState {
             size,
             competition_data: None,
             new_screen_state: None,
-            erg_view_screen_state: None,
+            erg_screen_state: None,
         }
     }
 
@@ -447,9 +486,16 @@ impl ProgramState {
                 // TODO: Add more state resets if needed
                 self.new_screen_state = None;
 
-                if self.erg_view_screen_state.is_none() {
-                    self.erg_view_screen_state = Some(ErgScreenState::new());
+                let group_count = self.competition_data.as_ref().unwrap().team_distribution[0];
+
+                if self.erg_screen_state.is_none() {
+                    self.erg_screen_state = Some(ErgScreenState::new(group_count as usize));
                 }
+
+                self.competition_data
+                    .as_mut()
+                    .unwrap()
+                    .current_interim_result = (0..group_count).map(|_| None).collect();
             }
             ProgramStage::AddNextGamesStage => todo!(),
             #[allow(unreachable_patterns)]
