@@ -1,6 +1,6 @@
 use imgui::{ChildWindow, Selectable, StyleColor, Ui};
 
-use crate::{CompetitionData, ProgramStage, ProgramState, Team, data::calc_group_possibilities};
+use crate::{data::calc_group_possibilities, CompetitionData, ProgramStage, ProgramState, Team};
 
 use super::my_input_text::MyTextInput;
 
@@ -19,6 +19,48 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
 
     window_bg_color.end();
     child_bg_color.end();
+}
+
+pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
+    assert!(program_state.new_screen_state.is_some());
+    let new_screen_state = program_state.new_screen_state.as_mut().unwrap();
+
+    if ui.button("New") {
+        ui.open_popup("##restart_competition_setup_wizard");
+        new_screen_state.restart_popup = true;
+    }
+
+    if new_screen_state.restart_popup {
+        if let Some(_popup_token) = ui.begin_popup("##restart_competition_setup_wizard") {
+            ui.text("This will delete all entered information");
+            ui.text("in this wizard to setup a new tournament.");
+            ui.text("You will be redirected to the start of the setup wizard.");
+            if ui.button("No") {
+                new_screen_state.restart_popup = false;
+                ui.close_current_popup();
+            }
+            ui.same_line();
+            if ui.button("Yes") {
+                // override state, deletes all information
+                *new_screen_state = NewScreenState::new();
+                program_state.competition_data = Some(CompetitionData::empty());
+                ui.close_current_popup();
+            }
+        } else {
+            new_screen_state.restart_popup = false;
+            ui.close_current_popup();
+        }
+    }
+
+    if ui.button("Open") {
+        new_screen_state.open_popup = true;
+        ui.open_popup("##open_popup");
+    }
+
+    if new_screen_state.open_popup {
+        // TODO: Implement open popup, e.g. in common for all screens
+        todo!();
+    }
 }
 
 // builder for different stages
@@ -133,7 +175,8 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
             // draw drop down menu for team distribution and check for changes
             ui.text(labels[6]);
             ui.same_line_with_pos(max_label_size + 20.0);
-            if let Some(_combo_token) = ui.begin_combo("##group_selection", &mut team_distribution) {
+            if let Some(_combo_token) = ui.begin_combo("##group_selection", &mut team_distribution)
+            {
                 group_possibilities.iter().for_each(|[g, t]| {
                     if Selectable::new(format!("{}x{}", *g, *t)).build(ui) {
                         data.team_distribution = [*g, *t];
@@ -619,6 +662,8 @@ pub struct NewScreenState {
     pub submit_failure_msg: Option<String>,
     pub reset_popup: bool,
     pub go_back_popup: bool,
+    pub restart_popup: bool,
+    pub open_popup: bool,
     pub selected_team: Option<usize>,
 }
 
@@ -629,6 +674,8 @@ impl NewScreenState {
             submit_failure_msg: None,
             reset_popup: false,
             go_back_popup: false,
+            restart_popup: false,
+            open_popup: false,
             selected_team: None,
         }
     }

@@ -31,8 +31,8 @@ fn main() {
     );
 
     // TODO: Remove for productive builds
-    #[cfg(debug_assertions)]
-    initial_state(&mut state);
+    //#[cfg(debug_assertions)]
+    //initial_state(&mut state);
 
     // set color theme
     let style = system.imgui.style_mut();
@@ -446,7 +446,6 @@ pub enum ProgramStage {
     StartScreenStage,
     NewScreenStage,
     CurrentErgViewStage,
-    AddNextGamesStage,
 }
 
 pub struct ProgramState {
@@ -497,7 +496,6 @@ impl ProgramState {
                     .unwrap()
                     .current_interim_result = (0..group_count).map(|_| None).collect();
             }
-            ProgramStage::AddNextGamesStage => todo!(),
             #[allow(unreachable_patterns)]
             _ => todo!("Implement stage switch for more stages!"),
         }

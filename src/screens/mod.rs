@@ -10,7 +10,6 @@ mod my_input_text;
 pub mod new_screen;
 pub mod start_screen;
 pub mod erg_screen;
-pub mod add_next_games_screen;
 
 pub fn build(ui: &Ui, program_state: &mut ProgramState) {
     let menu_bar_height = program_state.size[1] / 8.0;
@@ -20,7 +19,6 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState) {
         ProgramStage::StartScreenStage => start_screen::build(ui, program_state, menu_bar_height),
         ProgramStage::NewScreenStage => new_screen::build(ui, program_state, menu_bar_height),
         ProgramStage::CurrentErgViewStage => erg_screen::build(ui, program_state, menu_bar_height),
-        ProgramStage::AddNextGamesStage => add_next_games_screen::build(ui, program_state, menu_bar_height),
     };
 
     bottom_buttons(ui, program_state, menu_bar_height);
@@ -40,9 +38,17 @@ fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState, height: f32) {
         .no_nav()
         .build(ui, || {
             ui.menu_bar(|| {
+
+                match program_state.stage {
+                    ProgramStage::StartScreenStage => start_screen::bottom_buttons(ui, program_state),
+                    ProgramStage::NewScreenStage => new_screen::bottom_buttons(ui, program_state),
+                    ProgramStage::CurrentErgViewStage => erg_screen::bottom_buttons(ui, program_state),
+                    
+                }
+
                 // TODO: Replace with icon buttons (first create them^^ :D)
                 // TODO: Extract functionality in order to use it with upper menu buttons
-                if ui.button("New") {
+                /*if ui.button("New") {
                     program_state.switch_to_stage(ProgramStage::NewScreenStage);
                 }
                 if ui.button("Open") {
@@ -56,7 +62,7 @@ fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState, height: f32) {
                 }
                 if ui.button("Edit") {
                     // TODO: Implement edit competition button, only visible if competition already exists
-                }
+                }*/
             });
         });
     menu_bar_bg_color_token.pop();

@@ -1,6 +1,6 @@
 use imgui::{ChildWindow, Condition, StyleColor, Ui, Window};
 
-use crate::ProgramState;
+use crate::{ProgramState, ProgramStage};
 
 pub fn build(ui: &Ui, program_state: &ProgramState, menu_bar_height: f32) {
     let child_bg_color = ui.push_style_color(StyleColor::ChildBg, [0.0, 0.0, 0.0, 1.0]);
@@ -35,4 +35,14 @@ pub fn build(ui: &Ui, program_state: &ProgramState, menu_bar_height: f32) {
 
     window_bg_color.pop();
     child_bg_color.pop();
+}
+
+pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
+    if ui.button("New") {
+        program_state.switch_to_stage(ProgramStage::NewScreenStage);
+    }
+
+    if ui.button("Open") {
+        todo!();
+    }
 }

@@ -4,7 +4,7 @@ use imgui::{
 
 use crate::{
     data::{CompetitionData, InterimResultEntry, Match, MatchResult, Team},
-    ProgramState,
+    ProgramStage, ProgramState,
 };
 
 pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
@@ -66,6 +66,25 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
 
     window_bg_color.end();
     child_bg_color.end();
+}
+
+pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
+    if ui.button("New") {
+        // TODO: Open save screen, if necessary
+        program_state.switch_to_stage(ProgramStage::NewScreenStage);
+    }
+
+    if ui.button("Save") {
+        todo!();
+    }
+
+    if ui.button("Save as") {
+        todo!();
+    }
+
+    if ui.button("Open") {
+        todo!();
+    }
 }
 
 fn draw_erg_table(ui: &Ui, data: &CompetitionData, group_idx: usize) {

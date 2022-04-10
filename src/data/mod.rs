@@ -109,6 +109,7 @@ impl CompetitionData {
         // sort the table
         table.sort_by(|a, b| {
             // TODO: Verify that the ordering is correctly implemented!
+            // TODO: Implement possibility that two teams on the same place
             if a.match_points[0] > b.match_points[0] {
                 Ordering::Less
             } else if a.match_points[0] < b.match_points[0] {
@@ -117,9 +118,13 @@ impl CompetitionData {
                 Ordering::Less
             } else if a.quotient < b.quotient {
                 Ordering::Greater
-            } else if a.stock_points[0] > b.stock_points[0] {
+            } else if (a.stock_points[0] - a.stock_points[1])
+                > (b.stock_points[0] - b.stock_points[1])
+            {
                 Ordering::Less
-            } else if a.stock_points[0] < b.stock_points[0] {
+            } else if (a.stock_points[0] - a.stock_points[1])
+                < (b.stock_points[0] - b.stock_points[1])
+            {
                 Ordering::Greater
             } else {
                 Ordering::Equal
