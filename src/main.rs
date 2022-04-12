@@ -25,21 +25,21 @@ fn main() {
     let size = system.display.gl_window().window().inner_size();
 
     // initialize program state
-    let mut state = ProgramState::new(
+    system.program_state = Some(ProgramState::new(
         ProgramStage::StartScreenStage,
         [size.width as f32, size.height as f32],
-    );
+    ));
 
     // TODO: Remove for productive builds
     #[cfg(debug_assertions)]
-    initial_state(&mut state);
+    initial_state(system.program_state.as_mut().unwrap());
 
     // set color theme
     let style = system.imgui.style_mut();
     style.colors[StyleColor::TitleBgActive as usize] = style.colors[StyleColor::TitleBg as usize];
 
     // start main loop
-    system.main_loop(move |run, ui, window| {
+    system.main_loop(|run, ui, window, state| {
         let size = window.inner_size();
         state.size = [size.width as f32, size.height as f32];
 
@@ -55,7 +55,7 @@ fn main() {
             .resizable(false)
             .opened(run)
             .build(ui, || {
-                screens::build(ui, &mut state);
+                screens::build(ui, state);
 
                 // Escape is pressed, exit fullscreen mode
                 if ui.io().keys_down[36] {
@@ -381,6 +381,7 @@ fn initial_state(state: &mut ProgramState) {
         matches: vec![],
         current_batch: vec![1, 0],
         with_break: true,
+        export_threads: vec![],
     });
     state.new_screen_state = None;
     state.erg_screen_state = Some(ErgScreenState::new(2));

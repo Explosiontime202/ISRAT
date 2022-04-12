@@ -1,3 +1,7 @@
+/*
+Taken from imgui-rs examples, modified
+*/
+
 use glium::glutin;
 use glium::glutin::event::{Event, WindowEvent};
 use glium::glutin::event_loop::{ControlFlow, EventLoop};
@@ -9,6 +13,8 @@ use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use std::path::Path;
 use std::time::Instant;
 
+use crate::ProgramState;
+
 mod clipboard;
 
 pub struct System {
@@ -18,6 +24,7 @@ pub struct System {
     pub platform: WinitPlatform,
     pub renderer: Renderer,
     pub font_size: f32,
+    pub program_state: Option<ProgramState>,
 }
 
 pub fn init(title: &str) -> System {
@@ -81,11 +88,17 @@ pub fn init(title: &str) -> System {
         platform,
         renderer,
         font_size,
+        program_state: None,
     }
 }
 
 impl System {
-    pub fn main_loop<F: FnMut(&mut bool, &mut Ui, &winit::window::Window) + 'static>(self, mut run_ui: F) {
+    pub fn main_loop<
+        F: FnMut(&mut bool, &mut Ui, &winit::window::Window, &mut ProgramState) + 'static,
+    >(
+        mut self,
+        mut run_ui: F,
+    ) -> Self {
         let System {
             event_loop,
             display,
@@ -113,8 +126,26 @@ impl System {
                 let mut ui = imgui.frame();
 
                 let mut run = true;
-                run_ui(&mut run, &mut ui, display.gl_window().window());
+                run_ui(
+                    &mut run,
+                    &mut ui,
+                    display.gl_window().window(),
+                    self.program_state.as_mut().unwrap(),
+                );
                 if !run {
+                    // TODO: Is this wanted behavior?
+                    // wait for export threads to exit
+                    if let Some(data) = self
+                        .program_state
+                        .as_mut()
+                        .unwrap()
+                        .competition_data
+                        .as_mut()
+                    {
+                        data.export_threads
+                            .drain(0..)
+                            .for_each(|handle| handle.join().expect("Thread panicked!"));
+                    }
                     *control_flow = ControlFlow::Exit;
                 }
 

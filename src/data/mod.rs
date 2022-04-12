@@ -2,10 +2,10 @@ use chrono::offset::Local;
 use std::cmp::Ordering;
 use std::fs;
 use std::path::Path;
+use std::thread::{self, JoinHandle};
 use tectonic::config::PersistentConfig;
 use tectonic::driver::{OutputFormat, ProcessingSessionBuilder};
 use tectonic::status::NoopStatusBackend;
-
 pub struct CompetitionData {
     pub name: String,
     pub date_string: String,
@@ -20,6 +20,7 @@ pub struct CompetitionData {
     pub matches: Vec<Vec<Match>>, // a Match vector for each group
     pub current_batch: Vec<u32>,  // the current batch of matches played for each group
     pub with_break: bool, // defines whether theres a break for the teams, only important for a even team count
+    pub export_threads: Vec<JoinHandle<()>>, // stores the join handles to the threads used to export pdf and html documents
 }
 
 impl CompetitionData {
@@ -38,6 +39,7 @@ impl CompetitionData {
             matches: vec![],
             current_batch: vec![],
             with_break: true,
+            export_threads: vec![],
         }
     }
 
@@ -208,15 +210,47 @@ impl CompetitionData {
     }
 
     pub fn get_result_as_tex(&self) -> String {
+        let header = format!(
+            r"\begin{{center}}
+            \large \textbf{{
+            {}\\ {}\\ am {}\\ {} \\ Durchführer: {}
+            }}
+            \end{{center}}
+            \par\noindent\rule{{\linewidth}}{{0.4pt}}
+            \footnotesize ISRAT: \href{{https://www.github.com/Explosiontime202/ISRAT}}{{https://www.github.com/Explosiontime202/ISRAT}}
+            \hfill
+            \footnotesize {}
+            ",
+            self.organizer,
+            self.name,
+            self.date_string,
+            self.place,
+            self.executor,
+            Local::now().format("%d.%m.%Y %H:%M"),
+        );
+
         let groups = self.group_names.as_ref().unwrap().iter().enumerate().map(|(i, group_name)| {
             assert!(self.current_interim_result[i].is_some());
             let team_names = &self.teams.as_ref().unwrap()[i];
             let group_result = self.current_interim_result[i].as_ref().unwrap().iter().enumerate().map(|(rank, i_res)| {
                 let team = &team_names[i_res.team_idx];
+
+                // join player names, separate by ", ", but if no player name is given, enter "~" to force latex to actually draw the newline
+                let player_names = if team.player_names.iter()
+                .all(|x| x.is_none()) {
+                    String::from("~")
+                } else {team.player_names.iter()
+                    .filter_map(|name_opt| name_opt.as_ref().map(|name| {name.as_str()}))
+                    .collect::<Vec<&str>>()
+                    .join(", ")
+                };
+
                 // TODO: Add "Kreis" specifier from team, currently not implemented
-                format!(r"\large {}. & \large {} & \large {} & \large {} : {} & \large {:.3} & \large {} : {} \\",
+                format!(r"\large {}. & \large \makecell[l]{{\\{}\\ \footnotesize {}}} & \large {} & \large {} & \large {} & \large {:.3} & \large {} & \large {} \\
+                ",
                 rank + 1,
                 team.name,
+                player_names,
                 "202",
                 i_res.match_points[0],
                 i_res.match_points[1],
@@ -226,32 +260,55 @@ impl CompetitionData {
             }).collect::<Vec<String>>().join("");
 
             format!(r"
+            {}
             \begin{{center}}
-                \LARGE \textbf{{{group_name}}}
+                \LARGE \textbf{{Ergebnisliste {group_name}}}
                 \par
-                \begin{{tabularx}}{{0.9\textwidth}} {{
-                    >{{\hsize=0.5\hsize\linewidth=\hsize \centering\arraybackslash}}X
-                    >{{\hsize=3.0\hsize\linewidth=\hsize \raggedright\arraybackslash}}X
-                    >{{\hsize=0.5\hsize\linewidth=\hsize \centering\arraybackslash}}X
-                    >{{\hsize=0.5\hsize\linewidth=\hsize \centering\arraybackslash}}X
-                    >{{\hsize=0.5\hsize\linewidth=\hsize \centering\arraybackslash}}X
-                    >{{\hsize=1.0\hsize\linewidth=\hsize \centering\arraybackslash}}X
+                \small
+                \begin{{tabular}}{{
+                    >{{\centering\arraybackslash}}p{{0.0833\tablewidth}}
+		            >{{\raggedright\arraybackslash}}p{{0.5\tablewidth}}
+		            >{{\centering\arraybackslash}} p{{0.0833\tablewidth}}
+		            >{{\raggedleft\arraybackslash}}p{{\columnspielpunkte-2\tabcolsep}}@{{\large ~:~}}
+		            >{{\raggedright\arraybackslash}}p{{\columnspielpunkte-2\tabcolsep}}
+		            >{{\centering\arraybackslash}}p{{0.0833\tablewidth}}
+		            >{{\raggedleft\arraybackslash}}p{{\columnstockpunkte-2\tabcolsep}}@{{\large ~:~}}
+		            >{{\raggedright\arraybackslash}}p{{\columnstockpunkte-2\tabcolsep}}
                 }}
-                \small Rang & \small Mannschaft & \small Kreis & \small Punkte & \small Quotient & \small Stockpunkte \\
+                \small Rang & \small Mannschaft & \small Kreis & \multicolumn{{2}}{{c}}{{\small Punkte}} & \small Quotient & \multicolumn{{2}}{{c}}{{\small Stockpunkte}} \\
                 {}
-            \end{{tabularx}}
+            \end{{tabular}}
             \end{{center}}
-        ", group_result)})
-        .collect::<Vec<String>>().join(r"\vspace{1cm}");
+            \vfill
+            \par\noindent\rule{{\linewidth}}{{0.4pt}}
+            \clearpage
+        ", header, group_result)})
+        .collect::<Vec<String>>()
+        .join("");
 
         format!(
             r"\documentclass{{article}}
-            \setlength{{\oddsidemargin}}{{-40pt}}
-            \setlength{{\textwidth}}{{532pt}}
+
+            \usepackage{{array}}
+            \usepackage{{calc}}
             \usepackage{{fontspec}}
             \usepackage{{geometry}}
             \usepackage{{hyperref}}
+            \usepackage{{makecell}}
+            \usepackage{{multirow}}
             \usepackage{{tabularx}}
+            
+            \setlength{{\oddsidemargin}}{{-40pt}}
+            \setlength{{\textwidth}}{{532pt}}
+            \newlength{{\tablewidth}}
+            \setlength{{\tablewidth}}{{0.8\textwidth}}
+
+            \newlength{{\columnstockpunkte}}
+            \setlength{{\columnstockpunkte}}{{\widthof{{Stockpunkte}}}}
+
+            \newlength{{\columnspielpunkte}}
+            \setlength{{\columnspielpunkte}}{{\widthof{{Punkte}}}}
+
             \geometry{{
              a4paper,
              total={{190mm,257mm}},
@@ -261,23 +318,8 @@ impl CompetitionData {
             \setmainfont{{FreeSans}}
             \pagenumbering{{gobble}}
             \begin{{document}}
-            \begin{{center}}
-                \large \textbf{{
-            {}\\ {}\\ am {}\\ {} \\ Durchführer: {}
-            }}
-            \end{{center}}
-            \par\noindent\rule{{\linewidth}}{{0.4pt}}
-            \footnotesize ISRAT: \href{{https://github.com/Explosiontime202/ISRAT}}{{https://github.com/Explosiontime202/ISRAT}}
-            \hfill
-            \footnotesize {}
             {}
             \end{{document}}",
-            self.organizer,
-            self.name,
-            self.date_string,
-            self.place,
-            self.executor,
-            Local::now().date().format("%d.%m.%Y"),
             groups
         )
     }
@@ -286,40 +328,48 @@ impl CompetitionData {
         // TODO: Spawn thread to process latex document
         self.calc_all_interim_result();
         let latex = self.get_result_as_tex();
-        println!("{}", latex);
-        let mut status = NoopStatusBackend::default();
-        let config =
-            PersistentConfig::open(false).expect("failed to open the default configuration file");
 
-        let bundle = config
-            .default_bundle(false, &mut status)
-            .expect("failed to load the default resource bundle");
+        self.export_threads.push(thread::spawn(move || {
+            // TODO: Remove for productive builds
+            #[cfg(debug_assertions)]
+            {
+                println!("{}", latex);
+            }
 
-        let format_cache_path = config
-            .format_cache_path()
-            .expect("failed to set up the format cache");
-        if !Path::new("./exports").exists() {
-            fs::create_dir("./exports").expect("Failed to create directory \"exports!\"");
-        } else if !Path::new("./exports").is_dir() {
-            // TODO: handle this more beautiful, e.g. popup message
-            panic!("\"exports\" exists, but is no directory!");
-        }
-        let mut sb = ProcessingSessionBuilder::default();
-        sb.bundle(bundle)
-            .primary_input_buffer(latex.as_bytes())
-            .tex_input_name("result_list.tex")
-            .format_name("latex")
-            .format_cache_path(format_cache_path)
-            .keep_logs(false)
-            .keep_intermediates(false)
-            .print_stdout(false)
-            .output_format(OutputFormat::Pdf)
-            .output_dir("./exports");
+            let mut status = NoopStatusBackend::default();
+            let config = PersistentConfig::open(false)
+                .expect("failed to open the default configuration file");
 
-        let mut sess = sb
-            .create(&mut status)
-            .expect("failed to initialize the LaTeX processing session");
-        sess.run(&mut status).expect("the LaTeX engine failed");
+            let bundle = config
+                .default_bundle(false, &mut status)
+                .expect("failed to load the default resource bundle");
+
+            let format_cache_path = config
+                .format_cache_path()
+                .expect("failed to set up the format cache");
+            if !Path::new("./exports").exists() {
+                fs::create_dir("./exports").expect("Failed to create directory \"exports!\"");
+            } else if !Path::new("./exports").is_dir() {
+                // TODO: handle this more beautiful, e.g. popup message
+                panic!(r#""exports" exists, but is no directory!"#);
+            }
+            let mut sb = ProcessingSessionBuilder::default();
+            sb.bundle(bundle)
+                .primary_input_buffer(latex.as_bytes())
+                .tex_input_name("result_list.tex")
+                .format_name("latex")
+                .format_cache_path(format_cache_path)
+                .keep_logs(false)
+                .keep_intermediates(false)
+                .print_stdout(false)
+                .output_format(OutputFormat::Pdf)
+                .output_dir("./exports");
+
+            let mut sess = sb
+                .create(&mut status)
+                .expect("failed to initialize the LaTeX processing session");
+            sess.run(&mut status).expect("the LaTeX engine failed");
+        }));
     }
 }
 
@@ -337,8 +387,6 @@ pub struct InterimResultEntry {
 
 pub struct Match {
     // the both opponents
-    //pub team_a: &'a Team,
-    //pub team_b: &'a Team,
     pub team_a: usize,
     pub team_b: usize,
     pub points: Option<[i32; 2]>, // the points of the teams if the match was already played
