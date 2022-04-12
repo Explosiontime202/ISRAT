@@ -75,7 +75,11 @@ pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
     }
 
     if ui.button("Save") {
-        todo!();
+        program_state
+            .competition_data
+            .as_mut()
+            .unwrap()
+            .export_pdf();
     }
 
     if ui.button("Save as") {

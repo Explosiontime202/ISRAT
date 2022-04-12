@@ -1,4 +1,10 @@
+use chrono::offset::Local;
 use std::cmp::Ordering;
+use std::fs;
+use std::path::Path;
+use tectonic::config::PersistentConfig;
+use tectonic::driver::{OutputFormat, ProcessingSessionBuilder};
+use tectonic::status::NoopStatusBackend;
 
 pub struct CompetitionData {
     pub name: String,
@@ -191,6 +197,129 @@ impl CompetitionData {
                 self.matches.push(group);
             }
         }
+    }
+
+    pub fn get_result_as_html(&self) -> String {
+        /*format!(
+            r#"<html><head> This is sparta! {}<\head> <\html>"#,
+            self.name
+        )*/
+        todo!();
+    }
+
+    pub fn get_result_as_tex(&self) -> String {
+        let groups = self.group_names.as_ref().unwrap().iter().enumerate().map(|(i, group_name)| {
+            assert!(self.current_interim_result[i].is_some());
+            let team_names = &self.teams.as_ref().unwrap()[i];
+            let group_result = self.current_interim_result[i].as_ref().unwrap().iter().enumerate().map(|(rank, i_res)| {
+                let team = &team_names[i_res.team_idx];
+                // TODO: Add "Kreis" specifier from team, currently not implemented
+                format!(r"\large {}. & \large {} & \large {} & \large {} : {} & \large {:.3} & \large {} : {} \\",
+                rank + 1,
+                team.name,
+                "202",
+                i_res.match_points[0],
+                i_res.match_points[1],
+                i_res.quotient,
+                i_res.stock_points[0],
+                i_res.stock_points[1])
+            }).collect::<Vec<String>>().join("");
+
+            format!(r"
+            \begin{{center}}
+                \LARGE \textbf{{{group_name}}}
+                \par
+                \begin{{tabularx}}{{0.9\textwidth}} {{
+                    >{{\hsize=0.5\hsize\linewidth=\hsize \centering\arraybackslash}}X
+                    >{{\hsize=3.0\hsize\linewidth=\hsize \raggedright\arraybackslash}}X
+                    >{{\hsize=0.5\hsize\linewidth=\hsize \centering\arraybackslash}}X
+                    >{{\hsize=0.5\hsize\linewidth=\hsize \centering\arraybackslash}}X
+                    >{{\hsize=0.5\hsize\linewidth=\hsize \centering\arraybackslash}}X
+                    >{{\hsize=1.0\hsize\linewidth=\hsize \centering\arraybackslash}}X
+                }}
+                \small Rang & \small Mannschaft & \small Kreis & \small Punkte & \small Quotient & \small Stockpunkte \\
+                {}
+            \end{{tabularx}}
+            \end{{center}}
+        ", group_result)})
+        .collect::<Vec<String>>().join(r"\vspace{1cm}");
+
+        format!(
+            r"\documentclass{{article}}
+            \setlength{{\oddsidemargin}}{{-40pt}}
+            \setlength{{\textwidth}}{{532pt}}
+            \usepackage{{fontspec}}
+            \usepackage{{geometry}}
+            \usepackage{{hyperref}}
+            \usepackage{{tabularx}}
+            \geometry{{
+             a4paper,
+             total={{190mm,257mm}},
+             left=10mm,
+             top=7.5mm,
+             }}
+            \setmainfont{{FreeSans}}
+            \pagenumbering{{gobble}}
+            \begin{{document}}
+            \begin{{center}}
+                \large \textbf{{
+            {}\\ {}\\ am {}\\ {} \\ Durchführer: {}
+            }}
+            \end{{center}}
+            \par\noindent\rule{{\linewidth}}{{0.4pt}}
+            \footnotesize ISRAT: \href{{https://github.com/Explosiontime202/ISRAT}}{{https://github.com/Explosiontime202/ISRAT}}
+            \hfill
+            \footnotesize {}
+            {}
+            \end{{document}}",
+            self.organizer,
+            self.name,
+            self.date_string,
+            self.place,
+            self.executor,
+            Local::now().date().format("%d.%m.%Y"),
+            groups
+        )
+    }
+
+    pub fn export_pdf(&mut self) {
+        // TODO: Spawn thread to process latex document
+        self.calc_all_interim_result();
+        let latex = self.get_result_as_tex();
+        println!("{}", latex);
+        let mut status = NoopStatusBackend::default();
+        let config =
+            PersistentConfig::open(false).expect("failed to open the default configuration file");
+
+        let bundle = config
+            .default_bundle(false, &mut status)
+            .expect("failed to load the default resource bundle");
+
+        let format_cache_path = config
+            .format_cache_path()
+            .expect("failed to set up the format cache");
+        if !Path::new("./exports").exists() {
+            fs::create_dir("./exports").expect("Failed to create directory \"exports!\"");
+        } else if !Path::new("./exports").is_dir() {
+            // TODO: handle this more beautiful, e.g. popup message
+            panic!("\"exports\" exists, but is no directory!");
+        }
+        let mut sb = ProcessingSessionBuilder::default();
+        sb.bundle(bundle)
+            .primary_input_buffer(latex.as_bytes())
+            .tex_input_name("result_list.tex")
+            .format_name("latex")
+            .format_cache_path(format_cache_path)
+            .keep_logs(false)
+            .keep_intermediates(false)
+            .print_stdout(false)
+            .output_format(OutputFormat::Pdf)
+            .output_dir("./exports");
+
+        let mut sess = sb
+            .create(&mut status)
+            .expect("failed to initialize the LaTeX processing session");
+        sess.run(&mut status).expect("the LaTeX engine failed");
     }
 }
 

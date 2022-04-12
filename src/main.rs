@@ -31,8 +31,8 @@ fn main() {
     );
 
     // TODO: Remove for productive builds
-    //#[cfg(debug_assertions)]
-    //initial_state(&mut state);
+    #[cfg(debug_assertions)]
+    initial_state(&mut state);
 
     // set color theme
     let style = system.imgui.style_mut();
