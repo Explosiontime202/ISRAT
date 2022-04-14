@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use data::{CompetitionData, Team};
 use imgui::*;
 use screens::{erg_screen::ErgScreenState, new_screen::NewScreenState};

@@ -1,0 +1,6 @@
+[build]
+rustflags = ["-Ctarget-feature=+crt-static"]
+
+[env]
+VCPKG_ROOT = { value = "target/vcpkg", relative = true }
+TECTONIC_DEP_BACKEND = "vcpkg"
