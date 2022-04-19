@@ -1,6 +1,6 @@
 use imgui::{ChildWindow, Condition, StyleColor, Ui, Window};
 
-use crate::{ProgramState, ProgramStage};
+use crate::{ProgramStage, ProgramState};
 
 pub fn build(ui: &Ui, program_state: &ProgramState, menu_bar_height: f32) {
     let child_bg_color = ui.push_style_color(StyleColor::ChildBg, [0.0, 0.0, 0.0, 1.0]);

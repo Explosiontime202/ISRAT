@@ -6,10 +6,10 @@ use imgui::Window;
 use crate::ProgramStage;
 use crate::ProgramState;
 
+pub mod erg_screen;
 mod my_input_text;
 pub mod new_screen;
 pub mod start_screen;
-pub mod erg_screen;
 
 pub fn build(ui: &Ui, program_state: &mut ProgramState) {
     let menu_bar_height = program_state.size[1] / 8.0;
@@ -38,12 +38,14 @@ fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState, height: f32) {
         .no_nav()
         .build(ui, || {
             ui.menu_bar(|| {
-
                 match program_state.stage {
-                    ProgramStage::StartScreenStage => start_screen::bottom_buttons(ui, program_state),
+                    ProgramStage::StartScreenStage => {
+                        start_screen::bottom_buttons(ui, program_state)
+                    }
                     ProgramStage::NewScreenStage => new_screen::bottom_buttons(ui, program_state),
-                    ProgramStage::CurrentErgViewStage => erg_screen::bottom_buttons(ui, program_state),
-                    
+                    ProgramStage::CurrentErgViewStage => {
+                        erg_screen::bottom_buttons(ui, program_state)
+                    }
                 }
 
                 // TODO: Replace with icon buttons (first create them^^ :D)
@@ -69,4 +71,3 @@ fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState, height: f32) {
     window_bg_color_token.pop();
     child_bg_color_token.pop();
 }
-

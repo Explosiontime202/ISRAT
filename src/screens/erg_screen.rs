@@ -71,15 +71,27 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
 pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
     if ui.button("New") {
         // TODO: Open save screen, if necessary
+
+        // resets competition data, add open popup to confirm choice
+        program_state.competition_data = None;
         program_state.switch_to_stage(ProgramStage::NewScreenStage);
     }
 
-    if ui.button("Save") {
+    if ui.button("Edit") {
+        program_state.switch_to_stage(ProgramStage::NewScreenStage);
+    }
+
+    if ui.button("Exports") {
         program_state
-            .competition_data
+            .erg_screen_state
             .as_mut()
             .unwrap()
-            .export_pdf();
+            .export_popup = true;
+        ui.open_popup("##export_popup");
+    }
+
+    if ui.button("Save") {
+        todo!();
     }
 
     if ui.button("Save as") {
@@ -88,6 +100,40 @@ pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
 
     if ui.button("Open") {
         todo!();
+    }
+
+    let erg_screen_state = program_state.erg_screen_state.as_mut().unwrap();
+    if erg_screen_state.export_popup {
+        let data = program_state.competition_data.as_mut().unwrap();
+        if let Some(_token) = ui.begin_popup("##export_popup") {
+            let mut close = false;
+            if ui.button("Result list") {
+                data.export_result_list();
+                close = true;
+            }
+
+            if ui.button("Start list") {
+                data.export_start_list();
+                close = true;
+            }
+
+            if ui.button("Team Match Plans") {
+                data.export_team_match_plans();
+                close = true;
+            }
+
+            if ui.button("Lane Match Plans") {
+                data.export_lane_match_plans();
+                close = true;
+            }
+
+            if close {
+                erg_screen_state.export_popup = false;
+                ui.close_current_popup();
+            }
+        } else {
+            erg_screen_state.export_popup = false;
+        }
     }
 }
 
@@ -422,6 +468,7 @@ fn center<T: AsRef<str>>(ui: &Ui, text: T) {
 pub struct ErgScreenState {
     intermediate_results: Vec<Vec<IntermediateResult>>, // for each group a vector of entered, but not submitted match results for the current batch
     failure_msg: Option<String>,
+    export_popup: bool,
 }
 
 impl ErgScreenState {
@@ -429,6 +476,7 @@ impl ErgScreenState {
         Self {
             intermediate_results: (0..group_count).map(|_| vec![]).collect(),
             failure_msg: None,
+            export_popup: false,
         }
     }
 }

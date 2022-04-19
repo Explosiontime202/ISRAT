@@ -125,12 +125,17 @@ fn initial_state(state: &mut ProgramState) {
         place: String::from("Musterstadt"),
         executor: String::from("SV Musterverein"),
         organizer: String::from("Musterverband"),
+        referee: String::from("Max Muterschiedsrichter"),
+        competition_manager: String::from("Erika Musterwettbewerbsleiter"),
+        clerk: String::from("Max Musterschriftführer"),
+        additional_text : String::from("Der SV Musterverein bedankt sich für die Teilnahme\nund wünscht ein sichere Heimreise!"),
         count_teams: 20,
         team_distribution: [2, 10],
         teams: Some(vec![
             vec![
                 Team {
                     name: String::from("Musterteam A"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername A.1")),
                         Some(String::from("Mustername A.2")),
@@ -142,6 +147,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam B"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername B.1")),
                         Some(String::from("Mustername B.2")),
@@ -153,6 +159,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam C"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername C.1")),
                         Some(String::from("Mustername C.2")),
@@ -164,6 +171,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam D"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername D.1")),
                         Some(String::from("Mustername D.2")),
@@ -175,6 +183,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam E"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername E.1")),
                         Some(String::from("Mustername E.2")),
@@ -186,6 +195,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam F"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername F.1")),
                         Some(String::from("Mustername F.2")),
@@ -197,6 +207,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam G"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername G.1")),
                         Some(String::from("Mustername G.2")),
@@ -208,6 +219,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam H"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername H.1")),
                         Some(String::from("Mustername H.2")),
@@ -219,6 +231,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam I"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername I.1")),
                         Some(String::from("Mustername I.2")),
@@ -230,6 +243,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam J"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername J.1")),
                         Some(String::from("Mustername J.2")),
@@ -241,6 +255,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 /*Team {
                     name: String::from("Musterteam K"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername K.1")),
                         Some(String::from("Mustername K.2")),
@@ -254,6 +269,7 @@ fn initial_state(state: &mut ProgramState) {
             vec![
                 Team {
                     name: String::from("Musterteam N"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername N.1")),
                         Some(String::from("Mustername N.2")),
@@ -265,6 +281,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam O"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername O.1")),
                         Some(String::from("Mustername O.2")),
@@ -276,6 +293,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam P"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername P.1")),
                         Some(String::from("Mustername P.2")),
@@ -287,6 +305,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam Q"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername Q.1")),
                         Some(String::from("Mustername Q.2")),
@@ -298,6 +317,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam R"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername R.1")),
                         Some(String::from("Mustername R.2")),
@@ -309,6 +329,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam S"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername S.1")),
                         Some(String::from("Mustername S.2")),
@@ -320,6 +341,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam T"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername T.1")),
                         Some(String::from("Mustername T.2")),
@@ -331,6 +353,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam U"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername U.1")),
                         Some(String::from("Mustername U.2")),
@@ -342,6 +365,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam V"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername V.1")),
                         Some(String::from("Mustername V.2")),
@@ -353,6 +377,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 Team {
                     name: String::from("Musterteam W"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername W.1")),
                         Some(String::from("Mustername W.2")),
@@ -364,6 +389,7 @@ fn initial_state(state: &mut ProgramState) {
                 },
                 /*Team {
                     name: String::from("Musterteam X"),
+                    region: String::from("202"),
                     player_names: [
                         Some(String::from("Mustername X.1")),
                         Some(String::from("Mustername X.2")),
@@ -499,6 +525,7 @@ impl ProgramState {
                     .unwrap()
                     .current_interim_result = (0..group_count).map(|_| None).collect();
             }
+
             #[allow(unreachable_patterns)]
             _ => todo!("Implement stage switch for more stages!"),
         }

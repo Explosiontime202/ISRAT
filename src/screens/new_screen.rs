@@ -2,7 +2,7 @@ use imgui::{ChildWindow, Selectable, StyleColor, Ui};
 
 use crate::{data::calc_group_possibilities, CompetitionData, ProgramStage, ProgramState, Team};
 
-use super::my_input_text::MyTextInput;
+use super::my_input_text::{MyMultilineTextInput, MyTextInput};
 
 pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
     assert!(program_state.new_screen_state.is_some());
@@ -78,6 +78,8 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
             let new_screen_state = program_state.new_screen_state.as_mut().unwrap();
             let data = program_state.competition_data.as_mut().unwrap();
 
+            let text_input_width = 2.0 / 3.0 * program_state.size[0];
+
             let labels = [
                 "Competition Name:",
                 "Date:",
@@ -86,6 +88,10 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
                 "Organizer:",
                 "Count teams:",
                 "Team distribution:",
+                "Referee:",
+                "Competition Manager:",
+                "Clerk:",
+                "Additional text:"
             ];
 
             let mut my_input_boxes = [
@@ -114,6 +120,21 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
                     "Enter the organzier of the competition",
                     &mut data.organizer,
                 ),
+                MyTextInput::new(
+                    labels[7],
+                    "Enter the referee of the competition, leave empty if none should be displayed.",
+                    &mut data.referee
+                ),
+                MyTextInput::new(
+                    labels[8],
+                    "Enter the manager of the competition, leave empty if none should be displayed.",
+                    &mut data.competition_manager,
+                ),
+                MyTextInput::new(
+                    labels[9],
+                    "Enter the clerk of the competition, leave empty if none should be displayed.",
+                    &mut data.clerk
+                )
             ];
 
             // find the maximal length of a label used
@@ -131,21 +152,31 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
             ui.text("Create new competition");
             ui.set_window_font_scale(1.0);
 
-            // TODO: Move the focus to the next input on TAB or ESC
-            // draw InputText boxes and check wether changes happen
             let mut anything_changed = false;
-            my_input_boxes.iter_mut().for_each(|b| {
-                let changed = b.build(ui, max_label_size);
-                anything_changed = anything_changed || changed;
-                // ui.set_keyboard_focus_here();
-            });
+            {
+                let width_token = ui.push_item_width(text_input_width);
+                // TODO: Move the focus to the next input on TAB or ESC
+                // draw InputText boxes and check wether changes happen
+
+                my_input_boxes.iter_mut().for_each(|b| {
+                    let changed = b.build(ui, max_label_size);
+                    anything_changed = anything_changed || changed;
+                    // ui.set_keyboard_focus_here();
+                });
+
+                width_token.pop(ui);
+            }
 
             // draw count teams integer input box
             let mut count_teams_helper = data.count_teams as i32;
             ui.text(labels[5]);
             ui.same_line_with_pos(max_label_size + 20.0);
-            ui.input_int("##count_teams", &mut count_teams_helper)
+            {
+                let width_token = ui.push_item_width(text_input_width);
+                ui.input_int("##count_teams", &mut count_teams_helper)
                 .build();
+                width_token.pop(ui);
+            }
 
             // store data and check for changes or negative inputs
             if count_teams_helper < 0 {
@@ -175,19 +206,29 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
             // draw drop down menu for team distribution and check for changes
             ui.text(labels[6]);
             ui.same_line_with_pos(max_label_size + 20.0);
-            if let Some(_combo_token) = ui.begin_combo("##group_selection", &mut team_distribution)
             {
-                group_possibilities.iter().for_each(|[g, t]| {
-                    if Selectable::new(format!("{}x{}", *g, *t)).build(ui) {
-                        data.team_distribution = [*g, *t];
-                        anything_changed = true;
-                    }
-                });
+                let width_token = ui.push_item_width(text_input_width);
+                if let Some(_combo_token) = ui.begin_combo("##group_selection", &mut team_distribution)
+                {
+                    group_possibilities.iter().for_each(|[g, t]| {
+                        if Selectable::new(format!("{}x{}", *g, *t)).build(ui) {
+                            data.team_distribution = [*g, *t];
+                            anything_changed = true;
+                        }
+                    });
+                }
+                width_token.pop(ui);
             }
 
             if data.team_distribution[1] != 0 && data.team_distribution[1] % 2 == 0 {
                 ui.same_line();
                 ui.checkbox("With Breaks", &mut data.with_break);
+            }
+
+            {
+                let width_token = ui.push_item_width(text_input_width);
+                MyMultilineTextInput::new(labels[10], &mut data.additional_text).build(ui, max_label_size, [text_input_width,ui.current_font_size() * 4.0]);
+                width_token.pop(ui);
             }
 
             // reset submit failure message
@@ -253,7 +294,7 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
             // Write headline
             ui.new_line();
             ui.set_window_font_scale(2.0);
-            ui.text("Enter group and team names:");
+            ui.text("Enter group and team names");
             ui.set_window_font_scale(1.0);
 
             let new_screen_state = program_state.new_screen_state.as_mut().unwrap();
@@ -267,6 +308,7 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
                             (1..=data.team_distribution[1])
                                 .map(|_| Team {
                                     name: String::from(""),
+                                    region: String::from(""),
                                     player_names: [None, None, None, None, None, None],
                                 })
                                 .collect()
@@ -288,11 +330,17 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
             let max_label_size = ui.calc_text_size("Group Name")[0]
                 .max(ui.calc_text_size(format!("Team {}", data.team_distribution[1]))[0]);
 
+            let name_text_input_width = program_state.size[0] / 2.0;
+            let region_label_size = ui.calc_text_size("Region:")[0];
+            let region_text_input_width = program_state.size[0] / 5.0;
+            let region_label_offset = name_text_input_width + max_label_size + 20.0;
+
             // create tab bar for all groups and add text input boxes for setting group and team names
-            if let Some(team_names) = data.teams.as_mut() {
+            if let Some(teams) = data.teams.as_mut() {
                 if let Some(group_names) = data.group_names.as_mut() {
                     if let Some(_tab_bar_token) = ui.tab_bar("Choose the group:") {
                         for group_idx in 1..=data.team_distribution[0] {
+                            let item_width_token = ui.push_item_width(name_text_input_width);
                             // TODO: Find a way to dynamically change tab item name, but keep focus on input text
                             if let Some(_tab_item_token) = ui.tab_item(format!("Group {group_idx}"))
                             {
@@ -304,22 +352,42 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
                                 )
                                 .build(ui, max_label_size);
 
-                                let team_names_for_group =
-                                    team_names.get_mut((group_idx - 1) as usize).unwrap();
+                                let teams_for_group =
+                                    teams.get_mut((group_idx - 1) as usize).unwrap();
 
-                                // draw input text boxes for team names
+                                // draw input text boxes for team names and team region
                                 for team_idx in 1..=data.team_distribution[1] {
                                     MyTextInput::new(
                                         format!("Team {team_idx}").as_str(),
-                                        "",
-                                        &mut team_names_for_group
+                                        "Enter team name, must not be empty.",
+                                        &mut teams_for_group
                                             .get_mut((team_idx - 1) as usize)
                                             .unwrap()
                                             .name,
                                     )
                                     .build(ui, max_label_size);
+
+                                    ui.same_line();
+
+                                    {
+                                        let item_width_token =
+                                            ui.push_item_width(region_text_input_width);
+                                        MyTextInput::new(
+                                            "Region:",
+                                            "Enter region, can be empty.",
+                                            &mut teams_for_group
+                                                .get_mut((team_idx - 1) as usize)
+                                                .unwrap()
+                                                .region,
+                                        )
+                                        .offset(region_label_offset)
+                                        .text_input_label(format!("##team_{team_idx}_region"))
+                                        .build(ui, region_label_size);
+                                        item_width_token.pop(ui);
+                                    }
                                 }
                             }
+                            item_width_token.pop(ui);
                         }
                     }
                 }

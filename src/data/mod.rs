@@ -12,6 +12,10 @@ pub struct CompetitionData {
     pub place: String,
     pub executor: String,
     pub organizer: String,
+    pub referee: String,
+    pub competition_manager: String,
+    pub clerk: String,
+    pub additional_text: String,
     pub count_teams: u32,
     pub team_distribution: [u32; 2], // count_groups x count_teams_per_group
     pub teams: Option<Vec<Vec<Team>>>, // for each group a vector of teams, ordered by ids
@@ -31,6 +35,10 @@ impl CompetitionData {
             place: String::from(""),
             executor: String::from(""),
             organizer: String::from(""),
+            referee: String::from(""),
+            competition_manager: String::from(""),
+            clerk: String::from(""),
+            additional_text: String::from(""),
             count_teams: 0,
             team_distribution: [0, 0],
             teams: None,
@@ -209,8 +217,37 @@ impl CompetitionData {
         todo!();
     }
 
-    pub fn get_result_as_tex(&self) -> String {
-        let header = format!(
+    pub fn export_result_list(&mut self) {
+        self.calc_all_interim_result();
+        self.export_pdf(
+            format!("result-{}", Local::now().format("%Y%m%d-%H%M")),
+            self.get_result_as_latex(),
+        );
+    }
+
+    pub fn export_start_list(&mut self) {
+        self.export_pdf(
+            format!("startlist-{}", Local::now().format("%Y%m%d-%H%M")),
+            self.get_start_list_as_latex(),
+        );
+    }
+
+    pub fn export_team_match_plans(&mut self) {
+        self.export_pdf(
+            format!("team_matchplans-{}", Local::now().format("%Y%m%d-%H%M")),
+            self.get_team_match_plans_as_latex(),
+        );
+    }
+
+    pub fn export_lane_match_plans(&mut self) {
+        self.export_pdf(
+            format!("team_matchplans-{}", Local::now().format("%Y%m%d-%H%M")),
+            self.get_lane_match_plans_as_latex(),
+        );
+    }
+
+    fn get_header_as_latex(&self) -> String {
+        format!(
             r"\begin{{center}}
             \large \textbf{{
             {}\\ {}\\ am {}\\ {} \\ Durchführer: {}
@@ -227,31 +264,75 @@ impl CompetitionData {
             self.place,
             self.executor,
             Local::now().format("%d.%m.%Y %H:%M"),
+        )
+    }
+
+    fn get_result_as_latex(&self) -> String {
+        // make this configurable by the user
+        let player_names_until = 3; // index of the first team which has NO player names displayed
+
+        let header = self.get_header_as_latex();
+
+        let footnote = format!(
+            r"
+        \vspace{{1cm}}
+        \begin{{center}}
+        \normalsize
+            {}\\
+        \end{{center}}
+        \vfill
+        \par\noindent\rule{{\linewidth}}{{0.4pt}}
+        \large
+        \begin{{center}}
+            \begin{{tabular}}{{
+                >{{\centering\arraybackslash}} p{{0.333\tablewidth}}
+                >{{\centering\arraybackslash}} p{{0.333\tablewidth}}
+                >{{\centering\arraybackslash}} p{{0.333\tablewidth}}}}
+                {} & {} & {} \\
+                {{[Schiedsrichter]}} & [Wettbewerbsleiter] & [Schriftführer]
+            \end{{tabular}}
+        \end{{center}}
+        \clearpage
+        ",
+            self.additional_text.replace("\n", r"\\"),
+            self.referee,
+            self.competition_manager,
+            self.clerk
         );
+
+        let mut count_teams_with_name = 0;
+        let mut count_teams_without_name = 0;
+        let mut previous_new_page = true; // determines whether the header is printed, for first team true
 
         let groups = self.group_names.as_ref().unwrap().iter().enumerate().map(|(i, group_name)| {
             assert!(self.current_interim_result[i].is_some());
             let team_names = &self.teams.as_ref().unwrap()[i];
             let group_result = self.current_interim_result[i].as_ref().unwrap().iter().enumerate().map(|(rank, i_res)| {
                 let team = &team_names[i_res.team_idx];
+                let display_player_names = rank < player_names_until;
 
                 // join player names, separate by ", ", but if no player name is given, enter "~" to force latex to actually draw the newline
-                let player_names = if team.player_names.iter()
-                .all(|x| x.is_none()) {
-                    String::from("~")
-                } else {team.player_names.iter()
-                    .filter_map(|name_opt| name_opt.as_ref().map(|name| {name.as_str()}))
-                    .collect::<Vec<&str>>()
-                    .join(", ")
+                let player_names = if !display_player_names {
+                    count_teams_without_name += 1;
+                    String::from("")
+                } else {
+                    count_teams_with_name += 1;
+                    if team.player_names.iter().all(|x| x.is_none()) {
+                        String::from("~")
+                    } else {team.player_names.iter()
+                        .filter_map(|name_opt| name_opt.as_ref().map(|name| {name.as_str()}))
+                        .collect::<Vec<&str>>()
+                        .join(", ")
+                    }
                 };
 
-                // TODO: Add "Kreis" specifier from team, currently not implemented
-                format!(r"\large {}. & \large \makecell[l]{{\\{}\\ \footnotesize {}}} & \large {} & \large {} & \large {} & \large {:.3} & \large {} & \large {} \\
+                format!(r"\large {}. & \large \makecell[l]{{{}{}{}}} & \large {} & \large {} & \large {} & \large {:.3} & \large {} & \large {} \\
                 ",
                 rank + 1,
+                if display_player_names {r"\\"} else {""},
                 team.name,
-                player_names,
-                "202",
+                if display_player_names {format!(r"\\ \footnotesize {}", player_names)} else {String::from("")},
+                team.region,
                 i_res.match_points[0],
                 i_res.match_points[1],
                 i_res.quotient,
@@ -279,10 +360,18 @@ impl CompetitionData {
                 {}
             \end{{tabular}}
             \end{{center}}
-            \vfill
-            \par\noindent\rule{{\linewidth}}{{0.4pt}}
-            \clearpage
-        ", header, group_result)})
+            {}
+        ",
+        if previous_new_page {header.as_str()} else {""},
+        group_result,
+        if 3 * count_teams_with_name + count_teams_without_name > 16 {
+            previous_new_page = true;
+            footnote.as_str()
+        } else {
+            previous_new_page = false;
+            r"\vspace{0.5cm}"
+        }
+        )})
         .collect::<Vec<String>>()
         .join("");
 
@@ -314,6 +403,7 @@ impl CompetitionData {
              total={{190mm,257mm}},
              left=10mm,
              top=7.5mm,
+             bottom=10mm
              }}
             \setmainfont{{FreeSans}}
             \pagenumbering{{gobble}}
@@ -324,11 +414,115 @@ impl CompetitionData {
         )
     }
 
-    pub fn export_pdf(&mut self) {
-        // TODO: Spawn thread to process latex document
-        self.calc_all_interim_result();
-        let latex = self.get_result_as_tex();
+    fn get_start_list_as_latex(&self) -> String {
+        let header = self.get_header_as_latex();
 
+        let mut previous_new_page = true; // determines whether the header is printed, for first team true
+
+        assert!(self.group_names.is_some());
+        assert!(self.teams.is_some());
+
+        let groups = self
+            .teams
+            .as_ref()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .map(|(group_idx, teams_in_group)| {
+                let group_result = teams_in_group
+                    .iter()
+                    .enumerate()
+                    .map(|(rank, team)| {
+                        format!(
+                            r"\large {}. & \large \makecell[l]{{\\{}\\}} & \large {} \\
+                ",
+                            rank + 1,
+                            team.name,
+                            team.region,
+                        )
+                    })
+                    .collect::<Vec<String>>()
+                    .join("");
+
+                format!(
+                    r"
+            {}
+            \begin{{center}}
+                \LARGE \textbf{{Startliste {}}}
+                \par
+                \small
+                \begin{{tabular}}{{
+                    >{{\centering\arraybackslash}}p{{0.125\tablewidth}}
+		            >{{\raggedright\arraybackslash}}p{{0.75\tablewidth}}
+		            >{{\centering\arraybackslash}} p{{0.125\tablewidth}}
+                }}
+                \small Startnummer & \small Mannschaft & \small Kreis \\
+                {}
+            \end{{tabular}}
+            \end{{center}}
+            {}
+        ",
+                    if previous_new_page {
+                        header.as_str()
+                    } else {
+                        ""
+                    },
+                    self.group_names.as_ref().unwrap()[group_idx],
+                    group_result,
+                    if self.team_distribution[1] > 15 {
+                        previous_new_page = true;
+                        ""
+                    } else {
+                        previous_new_page = false;
+                        r"\vspace{0.5cm}"
+                    }
+                )
+            })
+            .collect::<Vec<String>>()
+            .join("");
+
+        format!(
+            r"\documentclass{{article}}
+
+            \usepackage{{array}}
+            \usepackage{{calc}}
+            \usepackage{{fontspec}}
+            \usepackage{{geometry}}
+            \usepackage{{hyperref}}
+            \usepackage{{makecell}}
+            \usepackage{{multirow}}
+            \usepackage{{tabularx}}
+            
+            \setlength{{\oddsidemargin}}{{-40pt}}
+            \setlength{{\textwidth}}{{532pt}}
+            \newlength{{\tablewidth}}
+            \setlength{{\tablewidth}}{{0.8\textwidth}}
+
+            \geometry{{
+             a4paper,
+             total={{190mm,257mm}},
+             left=10mm,
+             top=7.5mm,
+             bottom=10mm
+             }}
+            \setmainfont{{FreeSans}}
+            \pagenumbering{{gobble}}
+            \begin{{document}}
+            {}
+            \end{{document}}",
+            groups
+        )
+    }
+
+    fn get_team_match_plans_as_latex(&self) -> String {
+        todo!();
+    }
+
+    fn get_lane_match_plans_as_latex(&self) -> String {
+        todo!();
+    }
+
+    fn export_pdf(&mut self, filename: String, latex: String) {
         self.export_threads.push(thread::spawn(move || {
             // TODO: Remove for productive builds
             #[cfg(debug_assertions)]
@@ -356,7 +550,7 @@ impl CompetitionData {
             let mut sb = ProcessingSessionBuilder::default();
             sb.bundle(bundle)
                 .primary_input_buffer(latex.as_bytes())
-                .tex_input_name("result_list.tex")
+                .tex_input_name(format!("{}.tex", filename).as_str())
                 .format_name("latex")
                 .format_cache_path(format_cache_path)
                 .keep_logs(false)
@@ -375,6 +569,7 @@ impl CompetitionData {
 
 pub struct Team {
     pub name: String,
+    pub region: String,
     pub player_names: [Option<String>; 6], // maximal 6 possible players per team
 }
 
