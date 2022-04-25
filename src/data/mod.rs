@@ -399,9 +399,9 @@ impl CompetitionData {
             \setlength{{\columnspielpunkte}}{{\widthof{{Punkte}}}}
 
             \geometry{{
-             a4paper,
-             total={{190mm,257mm}},
-             left=10mm,
+                a4paper,
+                total={{190mm,257mm}},
+                left=10mm,
              top=7.5mm,
              bottom=10mm
              }}
@@ -499,12 +499,12 @@ impl CompetitionData {
             \setlength{{\tablewidth}}{{0.8\textwidth}}
 
             \geometry{{
-             a4paper,
-             total={{190mm,257mm}},
-             left=10mm,
-             top=7.5mm,
-             bottom=10mm
-             }}
+                a4paper,
+                total={{190mm,257mm}},
+                left=10mm,
+                top=7.5mm,
+                bottom=10mm
+            }}
             \setmainfont{{FreeSans}}
             \pagenumbering{{gobble}}
             \begin{{document}}
@@ -515,7 +515,91 @@ impl CompetitionData {
     }
 
     fn get_team_match_plans_as_latex(&self) -> String {
-        todo!();
+        let matchplans = self.teams.as_ref().unwrap().iter().enumerate().map(|(group_idx, group)| {
+            format!("
+                {}
+                ",
+                group.iter().enumerate().map(|(team_idx, team)| {
+                    let mut matches : Vec<&Match> = 
+                        self.matches[group_idx]
+                        .iter()
+                        .filter(|&_match| {
+                            _match.team_a == team_idx || _match.team_b == team_idx
+                        })
+                        .collect();
+
+                    matches.sort_by(|a, b| { a.batch.cmp(&b.batch) });
+
+                    let matches_string =
+                        matches
+                        .iter()
+                        .map(|_match| {
+                            let (opponent_idx, start_of_match) = if _match.team_a == team_idx {(_match.team_b, true)} else {(_match.team_a, false)};
+                            format!(
+    r"
+    \small {} & \small {} & \small {} & & & & & & & & & & & & & & & & & \small {} \\
+    \hline",
+                            format!("{}{}", if start_of_match {"@"} else {""}, opponent_idx + 1),
+                            _match.lane + 1,
+                            _match.team_a + 1,
+                            self.teams.as_ref().unwrap()[group_idx][opponent_idx].name
+                            )
+                        }).collect::<Vec<String>>().join("");
+
+                    format!(
+    r#"
+    \begin{{tabularx}}{{\textwidth}}{{
+        *{{3}}{{|>{{\centering\arraybackslash\hsize=0.06\hsize}}X}}
+        *{{8}}{{|>{{\centering\arraybackslash\hsize=0.0325\hsize}}X}}
+        "
+        *{{8}}{{>{{\centering\arraybackslash\hsize=0.0325\hsize}}X|}}
+        >{{\centering\arraybackslash\hsize=0.3\hsize}}X|
+    }}
+        \multicolumn{{20}}{{>{{\hsize=\dimexpr\textwidth-2\tabcolsep-2\arrayrulewidth\relax}}X}}{{\small {}. {}}} \\
+        \hline
+        \small Geg. & \small Bahn & \small Ans & \multicolumn{{16}}{{>{{\hsize=\dimexpr0.4875\hsize\relax}}X|}}{{~}} & \small Verein  \\
+        \hline
+        {matches_string}
+    \end{{tabularx}}"#,
+                        team_idx + 1,
+                        team.name
+                    )
+                }).collect::<Vec<String>>().join(r"\\[2cm]
+            "))
+        }).collect::<Vec<String>>().join(r"\\[2cm]
+        ");
+        format!(
+    r#"
+    \documentclass{{article}}
+
+    \usepackage[a4paper]{{geometry}}
+    \usepackage{{fontspec}}
+    \usepackage{{tabularx}}
+
+    \geometry{{
+        a4paper,
+        total={{200mm,290mm}},
+        left=0mm,
+        top=2mm,
+    }}
+
+    \newcommand{{\thickhline}}{{
+        \noalign {{\ifnum 0=`}}\fi \hrule height 1.5pt
+        \futurelet \reserved@a \@xhline
+    }}
+    \newcolumntype{{"}}{{@{{\hskip\tabcolsep\vrule width 1.5pt\hskip\tabcolsep}}}}
+
+    \setmainfont{{FreeSans}}
+    \pagenumbering{{gobble}}
+
+    \begin{{document}}
+    \Large
+    
+    {matchplans}
+
+    \end{{document}}
+    "#
+        )
     }
 
     fn get_lane_match_plans_as_latex(&self) -> String {
