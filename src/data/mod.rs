@@ -277,7 +277,7 @@ impl CompetitionData {
 
     pub fn export_lane_match_plans(&mut self) {
         self.export_pdf(
-            format!("team_matchplans-{}", Local::now().format("%Y%m%d-%H%M")),
+            format!("lane_matchplans-{}", Local::now().format("%Y%m%d-%H%M")),
             self.get_lane_match_plans_as_latex(),
         );
     }
@@ -646,7 +646,88 @@ impl CompetitionData {
     }
 
     fn get_lane_match_plans_as_latex(&self) -> String {
-        todo!();
+        let matchplans = self
+            .matches
+            .iter()
+            .enumerate()
+            .map(|(group_idx, group_matches)| {
+                let group_name = &self.group_names.as_ref().unwrap()[group_idx];
+                group_matches
+                .iter()
+                .filter(|&_match| _match.result != MatchResult::Break)
+                .map(|_match| {
+                    let team_a_name = &self.teams.as_ref().unwrap()[group_idx][_match.team_a].name;
+                    let team_b_name = &self.teams.as_ref().unwrap()[group_idx][_match.team_b].name;
+                    format!(
+r"
+    \LARGE
+    \begin{{tabularx}}{{\textwidth}}{{
+        |>{{\centering\arraybackslash\hsize=0.1\hsize}}X
+        *{{6}}{{|>{{\centering\arraybackslash\hsize=0.0458\hsize}}X}}
+        |>{{\centering\arraybackslash\hsize=0.1\hsize}}X
+        |
+        *{{6}}{{>{{\centering\arraybackslash\hsize=0.0458\hsize}}X|}}
+        >{{\centering\arraybackslash\hsize=0.1\hsize}}X|
+        >{{\centering\arraybackslash\hsize=0.15\hsize}}X|
+        }}
+        \hline
+        \multicolumn{{8}}{{|l|}}{{\large \textbf{{{}. {}}}}} & \multicolumn{{8}}{{r|}}{{\large \textbf{{{}. {}}}}} \\
+        \hline
+        & \small 1 & \small 2 & \small 3 & \small 4 & \small 5 & \small 6 & \small Summe & \small 1 & \small 2 & \small 3 & \small 4 & \small 5 & \small 6 & \small Summe & \small Anspiel {} \\
+        \hline
+        + & & & & & & & & & & & & & & & \small  Bahn {} \\
+        \hline
+        -- &&&&&&&&&&&&&&& \small Spiel {} \\
+        \hline
+        &&&&&&&&&&&&&&& \small {} \\
+        \hline
+        \multicolumn{{8}}{{|c|}}{{\multirow{{2}}{{*}}{{\shortstack[c]{{\small \\[0.75cm]\rule{{0.8\dimexpr0.475\textwidth}}{{0.4pt}}\\\footnotesize Unterschrift {}}}}}}} & \multicolumn{{8}}{{c|}}{{\multirow{{2}}{{*}}{{\shortstack[c]{{\small \\[0.75cm]\rule{{0.8\dimexpr0.525\textwidth}}{{0.4pt}}\\\footnotesize Unterschrift {}}}}}}} \\
+        \multicolumn{{8}}{{|c|}}{{}} & \multicolumn{{8}}{{c|}}{{}} \\
+        \hline
+    \end{{tabularx}}
+",
+                    _match.team_a + 1,
+                    team_a_name,
+                    _match.team_b + 1,
+                    team_b_name,
+                    _match.team_a + 1,
+                    _match.lane + 1,
+                    _match.batch + 1,
+                    group_name,
+                    team_b_name,
+                    team_a_name,
+                    )
+                }).collect::<Vec<String>>().join(r"    \\[2cm]
+    ")
+            })
+            .collect::<Vec<String>>()
+            .join(r"    \\[2cm]
+    ");
+
+        format!(
+            r"
+\documentclass{{article}}
+\usepackage[a4paper]{{geometry}}
+\usepackage{{fontspec}}
+\usepackage{{tabularx}}
+\usepackage{{diagbox}}
+\usepackage{{multirow}}
+
+\geometry{{
+    a4paper,
+    total={{200mm,290mm}},
+    left=0mm,
+    top=2mm,
+}}
+\setmainfont{{FreeSans}}
+\pagenumbering{{gobble}}
+
+\begin{{document}}
+    {}
+\end{{document}}
+",
+            matchplans
+        )
     }
 
     fn export_pdf(&mut self, filename: String, latex: String) {
