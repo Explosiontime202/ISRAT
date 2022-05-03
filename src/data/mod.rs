@@ -72,7 +72,9 @@ impl CompetitionData {
         // evaluate the match results for this group
         self.matches[group_idx]
             .iter()
-            .filter(|_match| _match.result != MatchResult::NotPlayed)
+            .filter(|_match| {
+                _match.result != MatchResult::NotPlayed && _match.result != MatchResult::Break
+            })
             .for_each(|_match| {
                 assert!(_match.points.is_some());
                 let points = _match.points.unwrap();
@@ -83,13 +85,13 @@ impl CompetitionData {
                         MatchResult::WinnerA => 2,
                         MatchResult::Draw => 1,
                         MatchResult::WinnerB => 0,
-                        MatchResult::NotPlayed => panic!(),
+                        MatchResult::NotPlayed | MatchResult::Break => panic!(),
                     };
                     entry_a.match_points[1] += match _match.result {
                         MatchResult::WinnerA => 0,
                         MatchResult::Draw => 1,
                         MatchResult::WinnerB => 2,
-                        MatchResult::NotPlayed => panic!(),
+                        MatchResult::NotPlayed | MatchResult::Break => panic!(),
                     };
                     entry_a.stock_points[0] += points[0];
                     entry_a.stock_points[1] += points[1];
@@ -100,13 +102,13 @@ impl CompetitionData {
                         MatchResult::WinnerA => 0,
                         MatchResult::Draw => 1,
                         MatchResult::WinnerB => 2,
-                        MatchResult::NotPlayed => panic!(),
+                        MatchResult::NotPlayed | MatchResult::Break => panic!(),
                     };
                     entry_b.match_points[1] += match _match.result {
                         MatchResult::WinnerA => 2,
                         MatchResult::Draw => 1,
                         MatchResult::WinnerB => 0,
-                        MatchResult::NotPlayed => panic!(),
+                        MatchResult::NotPlayed | MatchResult::Break => panic!(),
                     };
                     entry_b.stock_points[0] += points[1];
                     entry_b.stock_points[1] += points[0];
@@ -176,11 +178,33 @@ impl CompetitionData {
                                 lane: lane_idx as u32,
                             })
                         }
+
+                        if batch_idx >= team_count / 2 {
+                            batch.push(Match {
+                                team_a: (team_count / 2 - batch_idx).rem_euclid(team_count)
+                                    as usize,
+                                team_b: (team_count / 2 - batch_idx).rem_euclid(team_count)
+                                    as usize,
+                                points: None,
+                                result: MatchResult::Break,
+                                batch: batch_idx as u32,
+                                lane: u32::MAX,
+                            });
+                            batch.push(Match {
+                                team_a: (team_count - batch_idx) as usize,
+                                team_b: (team_count - batch_idx) as usize,
+                                points: None,
+                                result: MatchResult::Break,
+                                batch: batch_idx as u32,
+                                lane: u32::MAX,
+                            });
+                        }
                         group.append(&mut batch);
                     }
                     self.matches.push(group);
                 }
             } else {
+                // TODO: Implement match generation for even team count per group without breaks
                 todo!();
             }
         } else {
@@ -200,8 +224,20 @@ impl CompetitionData {
                             result: MatchResult::NotPlayed,
                             batch: batch_idx as u32,
                             lane: lane_idx as u32,
-                        })
+                        });
                     }
+
+                    // add break from this batch
+                    let break_idx = self.team_distribution[1] - (batch_idx as u32) - 1;
+                    batch.push(Match {
+                        team_a: break_idx as usize,
+                        team_b: break_idx as usize,
+                        points: None,
+                        result: MatchResult::Break,
+                        batch: batch_idx as u32,
+                        lane: u32::MAX,
+                    });
+
                     group.append(&mut batch);
                 }
                 self.matches.push(group);
@@ -378,38 +414,38 @@ impl CompetitionData {
         format!(
             r"\documentclass{{article}}
 
-            \usepackage{{array}}
-            \usepackage{{calc}}
-            \usepackage{{fontspec}}
-            \usepackage{{geometry}}
-            \usepackage{{hyperref}}
-            \usepackage{{makecell}}
-            \usepackage{{multirow}}
-            \usepackage{{tabularx}}
-            
-            \setlength{{\oddsidemargin}}{{-40pt}}
-            \setlength{{\textwidth}}{{532pt}}
-            \newlength{{\tablewidth}}
-            \setlength{{\tablewidth}}{{0.8\textwidth}}
+    \usepackage{{array}}
+    \usepackage{{calc}}
+    \usepackage{{fontspec}}
+    \usepackage{{geometry}}
+    \usepackage{{hyperref}}
+    \usepackage{{makecell}}
+    \usepackage{{multirow}}
+    \usepackage{{tabularx}}
+    
+    \setlength{{\oddsidemargin}}{{-40pt}}
+    \setlength{{\textwidth}}{{532pt}}
+    \newlength{{\tablewidth}}
+    \setlength{{\tablewidth}}{{0.8\textwidth}}
 
-            \newlength{{\columnstockpunkte}}
-            \setlength{{\columnstockpunkte}}{{\widthof{{Stockpunkte}}}}
+    \newlength{{\columnstockpunkte}}
+    \setlength{{\columnstockpunkte}}{{\widthof{{Stockpunkte}}}}
 
-            \newlength{{\columnspielpunkte}}
-            \setlength{{\columnspielpunkte}}{{\widthof{{Punkte}}}}
+    \newlength{{\columnspielpunkte}}
+    \setlength{{\columnspielpunkte}}{{\widthof{{Punkte}}}}
 
-            \geometry{{
-                a4paper,
-                total={{190mm,257mm}},
-                left=10mm,
-             top=7.5mm,
-             bottom=10mm
-             }}
-            \setmainfont{{FreeSans}}
-            \pagenumbering{{gobble}}
-            \begin{{document}}
-            {}
-            \end{{document}}",
+    \geometry{{
+        a4paper,
+        total={{190mm,257mm}},
+        left=10mm,
+        top=7.5mm,
+        bottom=10mm
+        }}
+    \setmainfont{{FreeSans}}
+    \pagenumbering{{gobble}}
+    \begin{{document}}
+        {}
+    \end{{document}}",
             groups
         )
     }
@@ -520,7 +556,7 @@ impl CompetitionData {
                 {}
                 ",
                 group.iter().enumerate().map(|(team_idx, team)| {
-                    let mut matches : Vec<&Match> = 
+                    let mut matches : Vec<&Match> =
                         self.matches[group_idx]
                         .iter()
                         .filter(|&_match| {
@@ -528,23 +564,29 @@ impl CompetitionData {
                         })
                         .collect();
 
+                    // TODO: Is matcehes vector already sorted, e.g. is sorting necessary?
                     matches.sort_by(|a, b| { a.batch.cmp(&b.batch) });
 
                     let matches_string =
                         matches
                         .iter()
                         .map(|_match| {
+                            if _match.result == MatchResult::Break {
+                                String::from(r"\rule[3pt]{\dimexpr0.8\textwidth - \tabcolsep}{0.4pt} & & & & & & & & & & & & & & & & & & & \small Pause \\
+        ")
+                            } else {
                             let (opponent_idx, start_of_match) = if _match.team_a == team_idx {(_match.team_b, true)} else {(_match.team_a, false)};
-                            format!(
-    r"
-    \small {} & \small {} & \small {} & & & & & & & & & & & & & & & & & \small {} \\
-    \hline",
-                            format!("{}{}", if start_of_match {"@"} else {""}, opponent_idx + 1),
-                            _match.lane + 1,
-                            _match.team_a + 1,
-                            self.teams.as_ref().unwrap()[group_idx][opponent_idx].name
-                            )
-                        }).collect::<Vec<String>>().join("");
+                                format!(
+        r"
+        \small {} & \small {} & \small {} & & & & & & & & & & & & & & & & & \small {} \\
+        ",
+                                format!("{}{}", if start_of_match {"@"} else {""}, opponent_idx + 1),
+                                _match.lane + 1,
+                                _match.team_a + 1,
+                                self.teams.as_ref().unwrap()[group_idx][opponent_idx].name
+                                )
+                            }
+                        }).collect::<Vec<String>>().join(r"\hline");
 
                     format!(
     r#"
@@ -560,6 +602,7 @@ impl CompetitionData {
         \small Geg. & \small Bahn & \small Ans & \multicolumn{{16}}{{>{{\hsize=\dimexpr0.4875\hsize\relax}}X|}}{{~}} & \small Verein  \\
         \hline
         {matches_string}
+        \hline
     \end{{tabularx}}"#,
                         team_idx + 1,
                         team.name
@@ -569,7 +612,7 @@ impl CompetitionData {
         }).collect::<Vec<String>>().join(r"\\[2cm]
         ");
         format!(
-    r#"
+            r#"
     \documentclass{{article}}
 
     \usepackage[a4paper]{{geometry}}
@@ -647,6 +690,7 @@ impl CompetitionData {
                 .create(&mut status)
                 .expect("failed to initialize the LaTeX processing session");
             sess.run(&mut status).expect("the LaTeX engine failed");
+            println!("Finished export!");
         }));
     }
 }
@@ -680,6 +724,7 @@ pub enum MatchResult {
     Draw,
     WinnerB,
     NotPlayed,
+    Break,
 }
 
 pub fn calc_group_possibilities(count_teams: u32) -> Vec<[u32; 2]> {

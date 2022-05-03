@@ -426,7 +426,7 @@ fn initial_state(state: &mut ProgramState) {
 
     state.competition_data.as_mut().unwrap().matches[0]
         .iter_mut()
-        .filter(|_match| _match.batch == 0)
+        .filter(|_match| _match.batch == 0 && _match.result != MatchResult::Break)
         .enumerate()
         .for_each(|(idx, _match)| {
             _match.result = results[idx];
@@ -436,6 +436,7 @@ fn initial_state(state: &mut ProgramState) {
     let mut hash_set = std::collections::HashSet::new();
     state.competition_data.as_ref().unwrap().matches[0]
         .iter()
+        .filter(|&_match| _match.result != MatchResult::Break)
         .map(|_match| {
             [
                 _match.team_a.min(_match.team_b),
