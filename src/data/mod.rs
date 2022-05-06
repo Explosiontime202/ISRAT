@@ -304,10 +304,21 @@ impl CompetitionData {
     }
 
     fn get_result_as_latex(&self) -> String {
-        // make this configurable by the user
+        // TODO: make this configurable by the user
         let player_names_until = 3; // index of the first team which has NO player names displayed
 
         let header = self.get_header_as_latex();
+
+        // analyse if all matches were played
+        let is_final_result = self
+            .matches
+            .iter()
+            .map(|group_matches| {
+                group_matches
+                    .iter()
+                    .all(|_match| _match.result != MatchResult::NotPlayed)
+            })
+            .all(|b| b);
 
         let footnote = format!(
             r"
@@ -379,7 +390,7 @@ impl CompetitionData {
             format!(r"
             {}
             \begin{{center}}
-                \LARGE \textbf{{Ergebnisliste {group_name}}}
+                \LARGE \textbf{{{} {group_name}}}
                 \par
                 \small
                 \begin{{tabular}}{{
@@ -399,6 +410,7 @@ impl CompetitionData {
             {}
         ",
         if previous_new_page {header.as_str()} else {""},
+        if is_final_result {"Ergebnisliste"} else {"Zwischenliste"},
         group_result,
         if 3 * count_teams_with_name + count_teams_without_name > 16 {
             previous_new_page = true;
