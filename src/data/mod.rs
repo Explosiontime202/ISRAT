@@ -6,6 +6,123 @@ use std::thread::{self, JoinHandle};
 use tectonic::config::PersistentConfig;
 use tectonic::driver::{OutputFormat, ProcessingSessionBuilder};
 use tectonic::status::NoopStatusBackend;
+
+mod io;
+
+pub struct Competition {
+    pub data: Option<CompetitionData>,
+    pub export_threads: Vec<JoinHandle<()>>, // stores the join handles to the threads used to export pdf and html documents
+    pub current_interim_result: Vec<Option<Vec<InterimResultEntry>>>, // a ResultEntry vector for each group in descending order
+}
+
+impl Competition {
+    pub fn empty() -> Self {
+        Competition {
+            data: None,
+            export_threads: vec![],
+            current_interim_result: vec![],
+        }
+    }
+
+    pub fn get_current_interim_result_for_group(
+        &mut self,
+        group_idx: usize,
+    ) -> &Option<Vec<InterimResultEntry>> {
+        // calculate interim result if not available
+        if self.current_interim_result[group_idx].is_none() {
+            debug_assert!(self.data.is_some());
+            self.current_interim_result[group_idx] = Some(
+                self.data
+                    .as_mut()
+                    .unwrap()
+                    .calc_interim_result_for_group(group_idx),
+            );
+        }
+        &self.current_interim_result[group_idx]
+    }
+
+    pub fn export_result_list(&mut self) {
+        debug_assert!(self.data.is_some());
+        self.current_interim_result = self.data.as_mut().unwrap().calc_all_interim_result();
+        self.export_pdf(
+            format!("result-{}", Local::now().format("%Y%m%d-%H%M")),
+            self.data
+                .as_ref()
+                .unwrap()
+                .get_result_as_latex(&self.current_interim_result),
+        );
+    }
+
+    pub fn export_start_list(&mut self) {
+        debug_assert!(self.data.is_some());
+        self.export_pdf(
+            format!("startlist-{}", Local::now().format("%Y%m%d-%H%M")),
+            self.data.as_ref().unwrap().get_start_list_as_latex(),
+        );
+    }
+
+    pub fn export_team_match_plans(&mut self) {
+        debug_assert!(self.data.is_some());
+        self.export_pdf(
+            format!("team_matchplans-{}", Local::now().format("%Y%m%d-%H%M")),
+            self.data.as_ref().unwrap().get_team_match_plans_as_latex(),
+        );
+    }
+
+    pub fn export_lane_match_plans(&mut self) {
+        debug_assert!(self.data.is_some());
+        self.export_pdf(
+            format!("lane_matchplans-{}", Local::now().format("%Y%m%d-%H%M")),
+            self.data.as_ref().unwrap().get_lane_match_plans_as_latex(),
+        );
+    }
+
+    fn export_pdf(&mut self, filename: String, latex: String) {
+        self.export_threads.push(thread::spawn(move || {
+            // TODO: Remove for productive builds
+            #[cfg(debug_assertions)]
+            {
+                println!("{}", latex);
+            }
+
+            let mut status = NoopStatusBackend::default();
+            let config = PersistentConfig::open(false)
+                .expect("failed to open the default configuration file");
+
+            let bundle = config
+                .default_bundle(false, &mut status)
+                .expect("failed to load the default resource bundle");
+
+            let format_cache_path = config
+                .format_cache_path()
+                .expect("failed to set up the format cache");
+            if !Path::new("./exports").exists() {
+                fs::create_dir("./exports").expect("Failed to create directory \"exports!\"");
+            } else if !Path::new("./exports").is_dir() {
+                // TODO: handle this more beautiful, e.g. popup message
+                panic!(r#""exports" exists, but is no directory!"#);
+            }
+            let mut sb = ProcessingSessionBuilder::default();
+            sb.bundle(bundle)
+                .primary_input_buffer(latex.as_bytes())
+                .tex_input_name(format!("{}.tex", filename).as_str())
+                .format_name("latex")
+                .format_cache_path(format_cache_path)
+                .keep_logs(false)
+                .keep_intermediates(false)
+                .print_stdout(false)
+                .output_format(OutputFormat::Pdf)
+                .output_dir("./exports");
+
+            let mut sess = sb
+                .create(&mut status)
+                .expect("failed to initialize the LaTeX processing session");
+            sess.run(&mut status).expect("the LaTeX engine failed");
+            println!("Finished export!");
+        }));
+    }
+}
+
 pub struct CompetitionData {
     pub name: String,
     pub date_string: String,
@@ -20,11 +137,9 @@ pub struct CompetitionData {
     pub team_distribution: [u32; 2], // count_groups x count_teams_per_group
     pub teams: Option<Vec<Vec<Team>>>, // for each group a vector of teams, ordered by ids
     pub group_names: Option<Vec<String>>, // a vector of the group names, ordered by id
-    pub current_interim_result: Vec<Option<Vec<InterimResultEntry>>>, // a ResultEntry vector for each group in descending order
-    pub matches: Vec<Vec<Match>>, // a Match vector for each group
-    pub current_batch: Vec<u32>,  // the current batch of matches played for each group
+    pub matches: Vec<Vec<Match>>,    // a Match vector for each group
+    pub current_batch: Vec<u32>,     // the current batch of matches played for each group
     pub with_break: bool, // defines whether theres a break for the teams, only important for a even team count
-    pub export_threads: Vec<JoinHandle<()>>, // stores the join handles to the threads used to export pdf and html documents
 }
 
 impl CompetitionData {
@@ -43,18 +158,16 @@ impl CompetitionData {
             team_distribution: [0, 0],
             teams: None,
             group_names: None,
-            current_interim_result: vec![],
             matches: vec![],
             current_batch: vec![],
             with_break: true,
-            export_threads: vec![],
         }
     }
 
-    pub fn calc_all_interim_result(&mut self) {
-        self.current_interim_result = (0..self.teams.as_ref().unwrap().len())
+    fn calc_all_interim_result(&mut self) -> Vec<Option<Vec<InterimResultEntry>>> {
+        (0..self.teams.as_ref().unwrap().len())
             .map(|group_idx| Some(self.calc_interim_result_for_group(group_idx)))
-            .collect();
+            .collect()
     }
 
     pub fn calc_interim_result_for_group(&self, group_idx: usize) -> Vec<InterimResultEntry> {
@@ -253,35 +366,6 @@ impl CompetitionData {
         todo!();
     }
 
-    pub fn export_result_list(&mut self) {
-        self.calc_all_interim_result();
-        self.export_pdf(
-            format!("result-{}", Local::now().format("%Y%m%d-%H%M")),
-            self.get_result_as_latex(),
-        );
-    }
-
-    pub fn export_start_list(&mut self) {
-        self.export_pdf(
-            format!("startlist-{}", Local::now().format("%Y%m%d-%H%M")),
-            self.get_start_list_as_latex(),
-        );
-    }
-
-    pub fn export_team_match_plans(&mut self) {
-        self.export_pdf(
-            format!("team_matchplans-{}", Local::now().format("%Y%m%d-%H%M")),
-            self.get_team_match_plans_as_latex(),
-        );
-    }
-
-    pub fn export_lane_match_plans(&mut self) {
-        self.export_pdf(
-            format!("lane_matchplans-{}", Local::now().format("%Y%m%d-%H%M")),
-            self.get_lane_match_plans_as_latex(),
-        );
-    }
-
     fn get_header_as_latex(&self) -> String {
         format!(
             r"\begin{{center}}
@@ -303,7 +387,10 @@ impl CompetitionData {
         )
     }
 
-    fn get_result_as_latex(&self) -> String {
+    fn get_result_as_latex(
+        &self,
+        current_interim_result: &Vec<Option<Vec<InterimResultEntry>>>,
+    ) -> String {
         // TODO: make this configurable by the user
         let player_names_until = 3; // index of the first team which has NO player names displayed
 
@@ -352,9 +439,9 @@ impl CompetitionData {
         let mut previous_new_page = true; // determines whether the header is printed, for first team true
 
         let groups = self.group_names.as_ref().unwrap().iter().enumerate().map(|(i, group_name)| {
-            assert!(self.current_interim_result[i].is_some());
+            assert!(current_interim_result[i].is_some());
             let team_names = &self.teams.as_ref().unwrap()[i];
-            let group_result = self.current_interim_result[i].as_ref().unwrap().iter().enumerate().map(|(rank, i_res)| {
+            let group_result = current_interim_result[i].as_ref().unwrap().iter().enumerate().map(|(rank, i_res)| {
                 let team = &team_names[i_res.team_idx];
                 let display_player_names = rank < player_names_until;
 
@@ -740,51 +827,6 @@ r"
 ",
             matchplans
         )
-    }
-
-    fn export_pdf(&mut self, filename: String, latex: String) {
-        self.export_threads.push(thread::spawn(move || {
-            // TODO: Remove for productive builds
-            #[cfg(debug_assertions)]
-            {
-                println!("{}", latex);
-            }
-
-            let mut status = NoopStatusBackend::default();
-            let config = PersistentConfig::open(false)
-                .expect("failed to open the default configuration file");
-
-            let bundle = config
-                .default_bundle(false, &mut status)
-                .expect("failed to load the default resource bundle");
-
-            let format_cache_path = config
-                .format_cache_path()
-                .expect("failed to set up the format cache");
-            if !Path::new("./exports").exists() {
-                fs::create_dir("./exports").expect("Failed to create directory \"exports!\"");
-            } else if !Path::new("./exports").is_dir() {
-                // TODO: handle this more beautiful, e.g. popup message
-                panic!(r#""exports" exists, but is no directory!"#);
-            }
-            let mut sb = ProcessingSessionBuilder::default();
-            sb.bundle(bundle)
-                .primary_input_buffer(latex.as_bytes())
-                .tex_input_name(format!("{}.tex", filename).as_str())
-                .format_name("latex")
-                .format_cache_path(format_cache_path)
-                .keep_logs(false)
-                .keep_intermediates(false)
-                .print_stdout(false)
-                .output_format(OutputFormat::Pdf)
-                .output_dir("./exports");
-
-            let mut sess = sb
-                .create(&mut status)
-                .expect("failed to initialize the LaTeX processing session");
-            sess.run(&mut status).expect("the LaTeX engine failed");
-            println!("Finished export!");
-        }));
     }
 }
 

@@ -5,8 +5,8 @@ use crate::{data::calc_group_possibilities, CompetitionData, ProgramStage, Progr
 use super::my_input_text::{MyMultilineTextInput, MyTextInput};
 
 pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
-    assert!(program_state.new_screen_state.is_some());
-    assert!(program_state.competition_data.is_some());
+    debug_assert!(program_state.new_screen_state.is_some());
+    debug_assert!(program_state.competition.data.is_some());
 
     let child_bg_color = ui.push_style_color(StyleColor::ChildBg, [0.0, 0.0, 0.0, 1.0]);
     let window_bg_color = ui.push_style_color(StyleColor::WindowBg, [0.0, 0.0, 0.0, 1.0]);
@@ -43,7 +43,7 @@ pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
             if ui.button("Yes") {
                 // override state, deletes all information
                 *new_screen_state = NewScreenState::new();
-                program_state.competition_data = Some(CompetitionData::empty());
+                program_state.competition.data = Some(CompetitionData::empty());
                 ui.close_current_popup();
             }
         } else {
@@ -76,7 +76,7 @@ fn build_init_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: 
         .build(ui, || {
             // init references and data structures
             let new_screen_state = program_state.new_screen_state.as_mut().unwrap();
-            let data = program_state.competition_data.as_mut().unwrap();
+            let data = program_state.competition.data.as_mut().unwrap();
 
             let text_input_width = 2.0 / 3.0 * program_state.size[0];
 
@@ -298,7 +298,7 @@ fn build_teams_stage(ui: &Ui, program_state: &mut ProgramState, menu_bar_height:
             ui.set_window_font_scale(1.0);
 
             let new_screen_state = program_state.new_screen_state.as_mut().unwrap();
-            let data = program_state.competition_data.as_mut().unwrap();
+            let data = program_state.competition.data.as_mut().unwrap();
 
             // init team names vector if not yet done
             if data.teams.is_none() {
@@ -487,7 +487,7 @@ fn build_player_names(ui: &Ui, program_state: &mut ProgramState, menu_bar_height
 
             {
                 let new_screen_state = program_state.new_screen_state.as_mut().unwrap();
-                let data = program_state.competition_data.as_mut().unwrap();
+                let data = program_state.competition.data.as_mut().unwrap();
                 assert!(data.teams.is_some());
 
                 // get all teams sorted
@@ -551,7 +551,7 @@ fn build_player_names(ui: &Ui, program_state: &mut ProgramState, menu_bar_height
             if ui.button("Submit") {
                 {
                     let new_screen_state = program_state.new_screen_state.as_mut().unwrap();
-                    let data = program_state.competition_data.as_mut().unwrap();
+                    let data = program_state.competition.data.as_mut().unwrap();
                     assert!(check_valid_inputs(data, new_screen_state.stage).is_none());
                 }
 
@@ -567,7 +567,7 @@ fn build_player_names(ui: &Ui, program_state: &mut ProgramState, menu_bar_height
 
             {
                 let new_screen_state = program_state.new_screen_state.as_mut().unwrap();
-                let data = program_state.competition_data.as_mut().unwrap();
+                let data = program_state.competition.data.as_mut().unwrap();
 
                 ui.same_line();
                 if ui.button("Reset") {

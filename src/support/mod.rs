@@ -135,17 +135,14 @@ impl System {
                 if !run {
                     // TODO: Is this wanted behavior?
                     // wait for export threads to exit
-                    if let Some(data) = self
-                        .program_state
+                    self.program_state
                         .as_mut()
                         .unwrap()
-                        .competition_data
-                        .as_mut()
-                    {
-                        data.export_threads
-                            .drain(0..)
-                            .for_each(|handle| handle.join().expect("Thread panicked!"));
-                    }
+                        .competition
+                        .export_threads
+                        .drain(0..)
+                        .for_each(|handle| handle.join().expect("Thread panicked!"));
+
                     *control_flow = ControlFlow::Exit;
                 }
 

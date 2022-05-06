@@ -18,22 +18,36 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
         .no_nav()
         .bring_to_front_on_focus(false)
         .build(ui, || {
-            assert!(program_state.competition_data.is_some());
-            let data = program_state.competition_data.as_mut().unwrap();
+            debug_assert!(program_state.competition.data.is_some());
 
-            assert!(data.current_interim_result.len() == data.team_distribution[0] as usize);
+            {
+                let competition = &mut program_state.competition;
+
+                debug_assert!(
+                    competition.current_interim_result.len()
+                        == competition.data.as_ref().unwrap().team_distribution[0] as usize
+                );
+            }
+
+            let data = program_state.competition.data.as_mut().unwrap();
 
             if let Some(_tab_bar_token) = ui.tab_bar("##group_selector") {
                 for (idx, group_name) in data.group_names.as_ref().unwrap().iter().enumerate() {
                     if let Some(_tab_item_token) = ui.tab_item(group_name) {
                         let erg_screen_state = program_state.erg_screen_state.as_mut().unwrap();
+
                         // calculate interim result if not available
-                        if data.current_interim_result[idx].is_none() {
-                            data.current_interim_result[idx] =
+                        if program_state.competition.current_interim_result[idx].is_none() {
+                            program_state.competition.current_interim_result[idx] =
                                 Some(data.calc_interim_result_for_group(idx));
                         }
 
-                        draw_erg_table(ui, data, idx);
+                        draw_erg_table(
+                            ui,
+                            &mut program_state.competition.current_interim_result[idx],
+                            data,
+                            idx,
+                        );
 
                         ui.new_line();
                         ui.new_line();
@@ -54,9 +68,9 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState, menu_bar_height: f32) {
                         draw_submit_button(
                             ui,
                             erg_screen_state,
+                            &mut program_state.competition.current_interim_result[idx],
                             &mut data.matches[idx],
                             &mut data.current_batch[idx],
-                            &mut data.current_interim_result[idx],
                             idx,
                         );
                     }
@@ -73,7 +87,7 @@ pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
         // TODO: Open save screen, if necessary
 
         // resets competition data, add open popup to confirm choice
-        program_state.competition_data = None;
+        program_state.competition.data = None;
         program_state.switch_to_stage(ProgramStage::NewScreenStage);
     }
 
@@ -104,26 +118,25 @@ pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
 
     let erg_screen_state = program_state.erg_screen_state.as_mut().unwrap();
     if erg_screen_state.export_popup {
-        let data = program_state.competition_data.as_mut().unwrap();
         if let Some(_token) = ui.begin_popup("##export_popup") {
             let mut close = false;
             if ui.button("Result list") {
-                data.export_result_list();
+                program_state.competition.export_result_list();
                 close = true;
             }
 
             if ui.button("Start list") {
-                data.export_start_list();
+                program_state.competition.export_start_list();
                 close = true;
             }
 
             if ui.button("Team Match Plans") {
-                data.export_team_match_plans();
+                program_state.competition.export_team_match_plans();
                 close = true;
             }
 
             if ui.button("Lane Match Plans") {
-                data.export_lane_match_plans();
+                program_state.competition.export_lane_match_plans();
                 close = true;
             }
 
@@ -137,7 +150,12 @@ pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
     }
 }
 
-fn draw_erg_table(ui: &Ui, data: &CompetitionData, group_idx: usize) {
+fn draw_erg_table(
+    ui: &Ui,
+    current_interim_result: &mut Option<Vec<InterimResultEntry>>,
+    data: &CompetitionData,
+    group_idx: usize,
+) {
     let column_widths = [
         ui.calc_text_size("Place")[0] * 1.5,
         0.0,
@@ -203,7 +221,7 @@ fn draw_erg_table(ui: &Ui, data: &CompetitionData, group_idx: usize) {
         center(ui, "Stock Points");
 
         // draw the rows and center the entries
-        data.current_interim_result[group_idx]
+        current_interim_result
             .as_ref()
             .unwrap()
             .iter()
@@ -294,7 +312,7 @@ fn draw_upcoming_matches(
                 .iter()
                 .find(|&_match| _match.batch == current_batch && _match.lane == lane_idx)
             {
-                assert!(_match.result == MatchResult::NotPlayed);
+                debug_assert!(_match.result == MatchResult::NotPlayed);
 
                 // draw team names
                 let team_a_name = &teams[_match.team_a].name;
@@ -387,9 +405,9 @@ fn draw_upcoming_matches(
 fn draw_submit_button(
     ui: &Ui,
     erg_screen_state: &mut ErgScreenState,
+    current_interim_result: &mut Option<Vec<InterimResultEntry>>,
     matches: &mut Vec<Match>,
     current_batch: &mut u32,
-    current_interim_result: &mut Option<Vec<InterimResultEntry>>,
     group_idx: usize,
 ) {
     // align submit button right, with some indent and draw it

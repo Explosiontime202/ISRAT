@@ -1,6 +1,6 @@
 #![windows_subsystem = "windows"]
 
-use data::{CompetitionData, Team};
+use data::{Competition, CompetitionData, Team};
 use imgui::*;
 use screens::{erg_screen::ErgScreenState, new_screen::NewScreenState};
 use winit::window::Fullscreen;
@@ -119,7 +119,7 @@ fn initial_state(state: &mut ProgramState) {
     use crate::data::MatchResult;
 
     state.stage = ProgramStage::CurrentErgViewStage;
-    state.competition_data = Some(CompetitionData {
+    state.competition.data = Some(CompetitionData {
         name: String::from("Mustermeisterschaft"),
         date_string: String::from("01.01.2022"),
         place: String::from("Musterstadt"),
@@ -405,15 +405,14 @@ fn initial_state(state: &mut ProgramState) {
             String::from("Gruppe BLAU"),
             String::from("Gruppe ROT"),
         ]),
-        current_interim_result: vec![None, None],
         matches: vec![],
         current_batch: vec![1, 0],
         with_break: true,
-        export_threads: vec![],
     });
     state.new_screen_state = None;
     state.erg_screen_state = Some(ErgScreenState::new(2));
-    state.competition_data.as_mut().unwrap().generate_matches();
+    state.competition.data.as_mut().unwrap().generate_matches();
+    state.competition.current_interim_result = vec![None, None];
 
     let results = [
         MatchResult::WinnerA,
@@ -424,7 +423,7 @@ fn initial_state(state: &mut ProgramState) {
     ];
     let points = [[17, 13], [3, 11], [9, 9], [9, 13], [11, 5]];
 
-    state.competition_data.as_mut().unwrap().matches[0]
+    state.competition.data.as_mut().unwrap().matches[0]
         .iter_mut()
         .filter(|_match| _match.batch == 0 && _match.result != MatchResult::Break)
         .enumerate()
@@ -434,7 +433,7 @@ fn initial_state(state: &mut ProgramState) {
         });
 
     let mut hash_set = std::collections::HashSet::new();
-    state.competition_data.as_ref().unwrap().matches[0]
+    state.competition.data.as_ref().unwrap().matches[0]
         .iter()
         .filter(|&_match| _match.result != MatchResult::Break)
         .map(|_match| {
@@ -481,7 +480,8 @@ pub enum ProgramStage {
 pub struct ProgramState {
     pub stage: ProgramStage,
     pub size: [f32; 2],
-    pub competition_data: Option<CompetitionData>,
+    //pub competition_data: Option<CompetitionData>,
+    pub competition: Competition,
     pub new_screen_state: Option<NewScreenState>,
     pub erg_screen_state: Option<ErgScreenState>,
 }
@@ -491,7 +491,7 @@ impl ProgramState {
         ProgramState {
             stage,
             size,
-            competition_data: None,
+            competition: Competition::empty(),
             new_screen_state: None,
             erg_screen_state: None,
         }
@@ -506,8 +506,8 @@ impl ProgramState {
                 if self.new_screen_state.is_none() {
                     self.new_screen_state = Some(NewScreenState::new());
                 }
-                if self.competition_data.is_none() {
-                    self.competition_data = Some(CompetitionData::empty());
+                if self.competition.data.is_none() {
+                    self.competition.data = Some(CompetitionData::empty());
                 }
             }
 
@@ -515,16 +515,13 @@ impl ProgramState {
                 // TODO: Add more state resets if needed
                 self.new_screen_state = None;
 
-                let group_count = self.competition_data.as_ref().unwrap().team_distribution[0];
+                let group_count = self.competition.data.as_ref().unwrap().team_distribution[0];
 
                 if self.erg_screen_state.is_none() {
                     self.erg_screen_state = Some(ErgScreenState::new(group_count as usize));
                 }
 
-                self.competition_data
-                    .as_mut()
-                    .unwrap()
-                    .current_interim_result = (0..group_count).map(|_| None).collect();
+                self.competition.current_interim_result = (0..group_count).map(|_| None).collect();
             }
 
             #[allow(unreachable_patterns)]
