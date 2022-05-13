@@ -1,4 +1,6 @@
 target/
+tmp/
 exports/
+documents/
 .vscode/
 Cargo.lock

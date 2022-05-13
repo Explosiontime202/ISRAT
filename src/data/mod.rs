@@ -1,5 +1,7 @@
 use chrono::offset::Local;
+use serde::Deserialize;
 use std::cmp::Ordering;
+use std::fmt::Display;
 use std::fs;
 use std::path::Path;
 use std::thread::{self, JoinHandle};
@@ -7,7 +9,7 @@ use tectonic::config::PersistentConfig;
 use tectonic::driver::{OutputFormat, ProcessingSessionBuilder};
 use tectonic::status::NoopStatusBackend;
 
-mod io;
+pub mod import_export;
 
 pub struct Competition {
     pub data: Option<CompetitionData>,
@@ -123,6 +125,7 @@ impl Competition {
     }
 }
 
+#[derive(Deserialize)]
 pub struct CompetitionData {
     pub name: String,
     pub date_string: String,
@@ -828,8 +831,163 @@ r"
             matchplans
         )
     }
+
+    fn get_as_json_string(&self) -> String {
+        let teams = if let Some(teams_vec) = self.teams.as_ref() {
+            teams_vec
+                .iter()
+                .map(|group| {
+                    format!(
+                        r"[
+            {}
+        ]",
+                        group
+                            .iter()
+                            .map(|team| {
+                                format!(
+                                    r#"{{
+                "name": "{}",
+                "region": "{}",
+                "player_names": [
+                    {}
+                ]
+            }}"#,
+                                    &team.name,
+                                    &team.region,
+                                    team.player_names
+                                        .iter()
+                                        .map(|player_name_opt| {
+                                            if let Some(player_name) = player_name_opt {
+                                                format!("\"{player_name}\"")
+                                            } else {
+                                                String::from("null")
+                                            }
+                                        })
+                                        .collect::<Vec<String>>()
+                                        .join(",\n                    ")
+                                )
+                            })
+                            .collect::<Vec<String>>()
+                            .join(",\n            ")
+                    )
+                })
+                .collect::<Vec<String>>()
+                .join(",\n        ")
+        } else {
+            String::from("")
+        };
+
+        let group_names = if let Some(group_names) = self.group_names.as_ref() {
+            group_names
+                .iter()
+                .map(|group_name| format!("\"{group_name}\""))
+                .collect::<Vec<String>>()
+                .join(",\n        ")
+        } else {
+            String::from("")
+        };
+
+        let matches = self
+            .matches
+            .iter()
+            .map(|group| {
+                format!(
+                    "[
+            {}
+        ]",
+                    group
+                        .iter()
+                        .map(|_match| {
+                            let points = if let Some(points) = _match.points {
+                                format!(
+                                    r#"[
+                    {},
+                    {}
+                ]"#,
+                                    points[0], points[1]
+                                )
+                            } else {
+                                String::from("null")
+                            };
+                            format!(
+                                r#"{{
+                "team_a": {},
+                "team_b": {},
+                "points": {points},
+                "result": "{}",
+                "batch": {},
+                "lane": {}
+            }}"#,
+                                _match.team_a,
+                                _match.team_b,
+                                _match.result,
+                                _match.batch,
+                                _match.lane,
+                            )
+                        })
+                        .collect::<Vec<String>>()
+                        .join(",\n            ")
+                )
+            })
+            .collect::<Vec<String>>()
+            .join(",\n        ");
+
+        let current_batch = self
+            .current_batch
+            .iter()
+            .map(|batch| batch.to_string())
+            .collect::<Vec<String>>()
+            .join(",\n        ");
+
+        format!(
+            r#"{{
+    "name": "{}",
+    "date_string": "{}",
+    "place": "{}",
+    "executor": "{}",
+    "organizer": "{}",
+    "referee": "{}",
+    "competition_manager": "{}",
+    "clerk": "{}",
+    "additional_text": "{}",
+    "count_teams": {},
+    "team_distribution": [
+        {},
+        {}
+    ],
+    "teams": [
+        {teams}
+    ],
+    "group_names": [
+        {group_names}
+    ],
+    "matches": [
+        {matches}
+    ],
+    "current_batch": [
+        {current_batch}
+    ],
+    "with_break": {}
+}}
+"#,
+            self.name,
+            self.date_string,
+            self.place,
+            self.executor,
+            self.organizer,
+            self.referee,
+            self.competition_manager,
+            self.clerk,
+            self.additional_text.replace("\n", r"\n"),
+            self.count_teams,
+            self.team_distribution[0],
+            self.team_distribution[1],
+            self.with_break,
+        )
+    }
 }
 
+#[derive(Deserialize)]
 pub struct Team {
     pub name: String,
     pub region: String,
@@ -843,6 +1001,7 @@ pub struct InterimResultEntry {
     pub quotient: f32,
 }
 
+#[derive(Deserialize)]
 pub struct Match {
     // the both opponents
     pub team_a: usize,
@@ -853,13 +1012,29 @@ pub struct Match {
     pub lane: u32,                // the number of the lane the match is played on, e.g. "Bahn 2"
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MatchResult {
     WinnerA,
     Draw,
     WinnerB,
     NotPlayed,
     Break,
+}
+
+impl Display for MatchResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                MatchResult::WinnerA => "WinnerA",
+                MatchResult::Draw => "Draw",
+                MatchResult::WinnerB => "WinnerB",
+                MatchResult::NotPlayed => "NotPlayed",
+                MatchResult::Break => "Break",
+            }
+        )
+    }
 }
 
 pub fn calc_group_possibilities(count_teams: u32) -> Vec<[u32; 2]> {

@@ -1,125 +1,37 @@
-#![windows_subsystem = "windows"]
+use std::{
+    fs,
+    path::Path,
+    thread::{self, JoinHandle},
+};
 
-use data::{Competition, CompetitionData, Team};
-use imgui::*;
-use screens::{erg_screen::ErgScreenState, new_screen::NewScreenState};
-use winit::window::Fullscreen;
+#[cfg(test)]
+use super::Team;
 
-mod screens;
+use super::CompetitionData;
 
-mod support;
-
-mod data;
-
-// TODO: Add auto saving
-
-fn main() {
-    let mut system = support::init("ISRAT");
-
-    // set borderless full screen at start
-    system
-        .display
-        .gl_window()
-        .window()
-        .set_fullscreen(Some(Fullscreen::Borderless(None)));
-
-    // ger monitor size
-    let size = system.display.gl_window().window().inner_size();
-
-    // initialize program state
-    system.program_state = Some(ProgramState::new(
-        ProgramStage::StartScreenStage,
-        [size.width as f32, size.height as f32],
-    ));
-
-    // TODO: Remove for productive builds
-    #[cfg(debug_assertions)]
-    initial_state(system.program_state.as_mut().unwrap());
-
-    // set color theme
-    let style = system.imgui.style_mut();
-    style.colors[StyleColor::TitleBgActive as usize] = style.colors[StyleColor::TitleBg as usize];
-
-    // start main loop
-    system.main_loop(|run, ui, window, state| {
-        let size = window.inner_size();
-        state.size = [size.width as f32, size.height as f32];
-
-        let window_border_size_token = ui.push_style_var(StyleVar::WindowBorderSize(0.0));
-        let window_padding_token = ui.push_style_var(StyleVar::WindowPadding([0.0, 0.0]));
-        Window::new("ISRAT")
-            .size(state.size, Condition::Always)
-            .position([0.0, 0.0], Condition::Always)
-            .no_decoration()
-            .title_bar(true)
-            .no_nav()
-            .bring_to_front_on_focus(false)
-            .resizable(false)
-            .opened(run)
-            .build(ui, || {
-                screens::build(ui, state);
-
-                // Escape is pressed, exit fullscreen mode
-                if ui.io().keys_down[36] {
-                    window.set_fullscreen(None);
-                }
-
-                // F11 is pressed, enter fullscreen mode
-                if ui.io().keys_down[47] {
-                    window.set_fullscreen(Some(Fullscreen::Borderless(None)));
-                }
-
-                //if let Some(key) = ui.io().keys_down.iter().position(|&k| k == true) {
-                //    println!("pressed_key = {}", key);
-                //}
-
-                /*add_main_menu(ui);
-                ui.text("Hello world!");
-                ui.text("こんにちは世界！");
-                ui.text("This...is...imgui-rs!");
-                ui.separator();
-                let mouse_pos = ui.io().mouse_pos;
-                ui.text(format!(
-                    "Mouse Position: ({:.1},{:.1})",
-                    mouse_pos[0], mouse_pos[1]
-                ));
-                let bg_color = ui.push_style_color(StyleColor::ChildBg, [1.0, 0.0, 0.0, 1.0]);*/
-                /*Window::new("Hello Welt")
-                .size([200.0, 200.0], Condition::Always)
-                .no_decoration()
-                .position([200.0, 100.0], Condition::Always)
-                .build(ui, || {
-                    let text_color =
-                        ui.push_style_color(StyleColor::Text, [0.0, 1.0, 0.0, 1.0]);
-                    ui.text(format!("Screen Size: ({:.1}, {:.1})", width, height));
-                    let c = ui.style_color(StyleColor::Text);
-                    ui.text(format!("{} {} {} {}", c[0], c[1], c[2], c[3]));
-                    text_color.pop();
-                });*/
-                /*ChildWindow::new("Hello Welt")
-                    .size([200.0, 200.0])
-                    .build(ui, || {
-                        let text_color =
-                            ui.push_style_color(StyleColor::Text, [0.0, 1.0, 0.0, 1.0]);
-                        ui.text(format!("Screen Size: ({:.1}, {:.1})", 0.0, 0.0));
-                        let c = ui.style_color(StyleColor::Text);
-                        ui.text(format!("{} {} {} {}", c[0], c[1], c[2], c[3]));
-                        text_color.pop();
-                    });
-                bg_color.pop();*/
-            });
-        window_padding_token.pop();
-        window_border_size_token.pop();
-    });
+pub fn save_to_file(filename: &'static str, data: &CompetitionData) -> JoinHandle<()> {
+    // TODO: Handle error messages more beautiful
+    let json = data.get_as_json_string();
+    thread::spawn(move || {
+        if let Some(parent) = Path::new(filename).parent() {
+            fs::create_dir_all(parent).expect("Creation of parents dir failed!");
+        }
+        fs::write(filename, json).expect("Write to file failed!");
+    })
 }
 
-// TODO: Remove for productive builds
-#[cfg(debug_assertions)]
-fn initial_state(state: &mut ProgramState) {
-    use crate::data::MatchResult;
+pub fn read_from_file(filename: &str) -> CompetitionData {
+    let json_bytes =
+        &fs::read(filename).expect(format!("Error whilst reading file: {}", filename).as_str());
+    let json_file = std::str::from_utf8(&json_bytes).expect("Conversion to utf8 string failed!");
+    println!("{}", json_file);
+    serde_json::from_str(json_file).expect("JSON was not well-formatted")
+}
 
-    state.stage = ProgramStage::CurrentErgViewStage;
-    state.competition.data = Some(CompetitionData {
+#[cfg(test)]
+#[test]
+fn test_read_write() {
+    let mut data = CompetitionData {
         name: String::from("Mustermeisterschaft"),
         date_string: String::from("01.01.2022"),
         place: String::from("Musterstadt"),
@@ -410,125 +322,67 @@ fn initial_state(state: &mut ProgramState) {
         matches: vec![],
         current_batch: vec![1, 0],
         with_break: true,
-    });
-    state.new_screen_state = None;
-    state.erg_screen_state = Some(ErgScreenState::new(2));
-    state.competition.data.as_mut().unwrap().generate_matches();
-    state.competition.current_interim_result = vec![None, None];
+    };
 
-    let results = [
-        MatchResult::WinnerA,
-        MatchResult::WinnerB,
-        MatchResult::Draw,
-        MatchResult::WinnerB,
-        MatchResult::WinnerA,
-    ];
-    let points = [[17, 13], [3, 11], [9, 9], [9, 13], [11, 5]];
+    data.generate_matches();
 
-    state.competition.data.as_mut().unwrap().matches[0]
-        .iter_mut()
-        .filter(|_match| _match.batch == 0 && _match.result != MatchResult::Break)
-        .enumerate()
-        .for_each(|(idx, _match)| {
-            _match.result = results[idx];
-            _match.points = Some(points[idx]);
-        });
+    save_to_file("./tmp/documents/save.json", &data)
+        .join()
+        .expect("");
 
-    let mut hash_set = std::collections::HashSet::new();
-    state.competition.data.as_ref().unwrap().matches[0]
-        .iter()
-        .filter(|&_match| _match.result != MatchResult::Break)
-        .map(|_match| {
-            [
-                _match.team_a.min(_match.team_b),
-                _match.team_a.max(_match.team_b),
-            ]
-        })
-        .for_each(|arr| {
-            assert!(hash_set.insert(arr));
-            assert_ne!(arr[0], arr[1]);
-        });
-}
+    let read_data = read_from_file("./tmp/documents/save.json");
 
-// TODO: Use this method properly
-fn add_main_menu(ui: &Ui) {
-    if let Some(main_menu_bar_token) = ui.begin_main_menu_bar() {
-        if let Some(file_menu_token) = ui.begin_menu("File") {
-            if MenuItem::new("New").build(ui) {
-                // TODO: Implement new call
-            }
-            if MenuItem::new("Open").build(ui) {
-                // TODO: Implement open saved data
-            }
-            if MenuItem::new("Save").build(ui) {
-                // TODO: Implement save data, same as "Save as" if no file to save is specified
-            }
-            if MenuItem::new("Save as").build(ui) {
-                // TODO: Implement save data as file (specify file)
-            }
-            file_menu_token.end();
-        }
-        main_menu_bar_token.end();
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum ProgramStage {
-    StartScreenStage,
-    NewScreenStage,
-    CurrentErgViewStage,
-}
-
-pub struct ProgramState {
-    pub stage: ProgramStage,
-    pub size: [f32; 2],
-    //pub competition_data: Option<CompetitionData>,
-    pub competition: Competition,
-    pub new_screen_state: Option<NewScreenState>,
-    pub erg_screen_state: Option<ErgScreenState>,
-}
-
-impl ProgramState {
-    pub fn new(stage: ProgramStage, size: [f32; 2]) -> ProgramState {
-        ProgramState {
-            stage,
-            size,
-            competition: Competition::empty(),
-            new_screen_state: None,
-            erg_screen_state: None,
+    debug_assert_eq!(data.name, read_data.name);
+    debug_assert_eq!(data.date_string, read_data.date_string);
+    debug_assert_eq!(data.place, read_data.place);
+    debug_assert_eq!(data.executor, read_data.executor);
+    debug_assert_eq!(data.organizer, read_data.organizer);
+    debug_assert_eq!(data.referee, read_data.referee);
+    debug_assert_eq!(data.competition_manager, read_data.competition_manager);
+    debug_assert_eq!(data.clerk, read_data.clerk);
+    debug_assert_eq!(data.additional_text, read_data.additional_text);
+    debug_assert_eq!(data.count_teams, read_data.count_teams);
+    debug_assert_eq!(data.team_distribution, read_data.team_distribution);
+    debug_assert_eq!(data.teams.is_none(), read_data.teams.is_none());
+    if let Some(data_teams) = data.teams.as_ref() {
+        if let Some(read_teams) = read_data.teams.as_ref() {
+            debug_assert_eq!(data_teams.len(), read_teams.len());
+            data_teams
+                .iter()
+                .zip(read_teams.iter())
+                .for_each(|(data_group, read_group)| {
+                    debug_assert_eq!(data_group.len(), read_group.len());
+                    data_group
+                        .iter()
+                        .zip(read_group.iter())
+                        .for_each(|(data_team, read_team)| {
+                            debug_assert_eq!(data_team.name, read_team.name);
+                            debug_assert_eq!(data_team.region, read_team.region);
+                            debug_assert_eq!(data_team.player_names, read_team.player_names);
+                        });
+                });
         }
     }
+    debug_assert_eq!(data.group_names, read_data.group_names);
+    debug_assert_eq!(data.matches.len(), read_data.matches.len());
 
-    pub fn switch_to_stage(&mut self, new_stage: ProgramStage) {
-        match new_stage {
-            ProgramStage::StartScreenStage => {
-                todo!("Currently not implemented StartScreenStage init!")
-            }
-            ProgramStage::NewScreenStage => {
-                if self.new_screen_state.is_none() {
-                    self.new_screen_state = Some(NewScreenState::new());
-                }
-                if self.competition.data.is_none() {
-                    self.competition.data = Some(CompetitionData::empty());
-                }
-            }
+    data.matches.iter().zip(read_data.matches.iter()).for_each(
+        |(data_group_matches, read_group_matches)| {
+            debug_assert_eq!(data_group_matches.len(), read_group_matches.len());
+            data_group_matches
+                .iter()
+                .zip(read_group_matches.iter())
+                .for_each(|(data_match, read_match)| {
+                    debug_assert_eq!(data_match.team_a, read_match.team_a);
+                    debug_assert_eq!(data_match.team_b, read_match.team_b);
+                    debug_assert_eq!(data_match.points, read_match.points);
+                    debug_assert_eq!(data_match.result, read_match.result);
+                    debug_assert_eq!(data_match.batch, read_match.batch);
+                    debug_assert_eq!(data_match.lane, read_match.lane);
+                });
+        },
+    );
 
-            ProgramStage::CurrentErgViewStage => {
-                // TODO: Add more state resets if needed
-                self.new_screen_state = None;
-
-                let group_count = self.competition.data.as_ref().unwrap().team_distribution[0];
-
-                if self.erg_screen_state.is_none() {
-                    self.erg_screen_state = Some(ErgScreenState::new(group_count as usize));
-                }
-
-                self.competition.current_interim_result = (0..group_count).map(|_| None).collect();
-            }
-
-            #[allow(unreachable_patterns)]
-            _ => todo!("Implement stage switch for more stages!"),
-        }
-        self.stage = new_stage;
-    }
+    debug_assert_eq!(data.current_batch, read_data.current_batch);
+    debug_assert_eq!(data.with_break, read_data.with_break);
 }
