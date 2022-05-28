@@ -4,6 +4,7 @@ use imgui::{
 
 use crate::{
     data::{CompetitionData, InterimResultEntry, Match, MatchResult, Team},
+    screens::buttons,
     ProgramStage, ProgramState,
 };
 
@@ -104,17 +105,11 @@ pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
         ui.open_popup("##export_popup");
     }
 
-    if ui.button("Save") {
-        todo!();
-    }
+    buttons::save_button(ui, program_state);
 
-    if ui.button("Save as") {
-        todo!();
-    }
+    buttons::save_as_button(ui, program_state);
 
-    if ui.button("Open") {
-        todo!();
-    }
+    buttons::open_button(ui, program_state);
 
     let erg_screen_state = program_state.erg_screen_state.as_mut().unwrap();
     if erg_screen_state.export_popup {

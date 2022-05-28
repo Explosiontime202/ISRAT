@@ -1,6 +1,6 @@
 use imgui::{ChildWindow, Selectable, StyleColor, Ui};
 
-use crate::{data::calc_group_possibilities, CompetitionData, ProgramStage, ProgramState, Team};
+use crate::{data::calc_group_possibilities, CompetitionData, ProgramStage, ProgramState, Team, screens::buttons};
 
 use super::my_input_text::{MyMultilineTextInput, MyTextInput};
 
@@ -52,15 +52,7 @@ pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
         }
     }
 
-    if ui.button("Open") {
-        new_screen_state.open_popup = true;
-        ui.open_popup("##open_popup");
-    }
-
-    if new_screen_state.open_popup {
-        // TODO: Implement open popup, e.g. in common for all screens
-        todo!();
-    }
+    buttons::open_button(ui, program_state);
 }
 
 // builder for different stages
@@ -731,7 +723,6 @@ pub struct NewScreenState {
     pub reset_popup: bool,
     pub go_back_popup: bool,
     pub restart_popup: bool,
-    pub open_popup: bool,
     pub selected_team: Option<usize>,
 }
 
@@ -743,7 +734,6 @@ impl NewScreenState {
             reset_popup: false,
             go_back_popup: false,
             restart_popup: false,
-            open_popup: false,
             selected_team: None,
         }
     }

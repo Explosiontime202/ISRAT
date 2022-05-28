@@ -6,8 +6,10 @@ use imgui::Window;
 use crate::ProgramStage;
 use crate::ProgramState;
 
-pub mod erg_screen;
 mod my_input_text;
+
+pub mod buttons;
+pub mod erg_screen;
 pub mod new_screen;
 pub mod start_screen;
 
@@ -22,6 +24,8 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState) {
     };
 
     bottom_buttons(ui, program_state, menu_bar_height);
+
+    buttons::draw_button_windows_and_popups(ui, program_state);
 }
 
 fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState, height: f32) {

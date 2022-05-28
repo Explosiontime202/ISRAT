@@ -7,14 +7,14 @@ edition = "2021"
 
 [dependencies]
 
+clipboard = "0.5"
+chrono = "0.4.19"
+glium = { version = "0.30.2", default-features = true }
 imgui = {version = "0.8.2",features = ["tables-api"]}
 imgui-glium-renderer = "0.8.2"
-glium = { version = "0.30.2", default-features = true }
 imgui-winit-support = "0.8.2"
-winit = "0.25.0"
-clipboard = "0.5"
-tectonic = "0.9.0"
-chrono = "0.4.19"
-
+native-dialog = "0.6.3"
 serde =  {version = "1.0.137", features = ["derive"]}
 serde_json = "1.0.81"
+tectonic = "0.9.0"
+winit = "0.25.0"

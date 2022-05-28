@@ -2,7 +2,8 @@
 
 use data::{Competition, CompetitionData, Team};
 use imgui::*;
-use screens::{erg_screen::ErgScreenState, new_screen::NewScreenState};
+use native_dialog::FileDialog;
+use screens::{buttons::ButtonState, erg_screen::ErgScreenState, new_screen::NewScreenState};
 use winit::window::Fullscreen;
 
 mod screens;
@@ -116,6 +117,8 @@ fn main() {
 // TODO: Remove for productive builds
 #[cfg(debug_assertions)]
 fn initial_state(state: &mut ProgramState) {
+    use std::path::Path;
+
     use crate::data::MatchResult;
 
     state.stage = ProgramStage::CurrentErgViewStage;
@@ -416,6 +419,24 @@ fn initial_state(state: &mut ProgramState) {
     state.competition.data.as_mut().unwrap().generate_matches();
     state.competition.current_interim_result = vec![None, None];
 
+    {
+        let relative_path = Path::new("./documents");
+        if !relative_path.exists() {
+            std::fs::create_dir_all(relative_path).expect("Directory creation failed!");
+        }
+        state.competition.absolute_dir_path =
+            Some(std::fs::canonicalize(Path::new("./documents/")).expect("Canonicalize failed!"));
+
+        state.competition.absolute_file_path = Some(
+            state
+                .competition
+                .absolute_dir_path
+                .as_ref()
+                .unwrap()
+                .join("mustermeisterschaft.json"),
+        );
+    }
+
     let results = [
         MatchResult::WinnerA,
         MatchResult::WinnerB,
@@ -482,10 +503,10 @@ pub enum ProgramStage {
 pub struct ProgramState {
     pub stage: ProgramStage,
     pub size: [f32; 2],
-    //pub competition_data: Option<CompetitionData>,
     pub competition: Competition,
     pub new_screen_state: Option<NewScreenState>,
     pub erg_screen_state: Option<ErgScreenState>,
+    pub button_state: ButtonState,
 }
 
 impl ProgramState {
@@ -496,6 +517,7 @@ impl ProgramState {
             competition: Competition::empty(),
             new_screen_state: None,
             erg_screen_state: None,
+            button_state: ButtonState::empty(),
         }
     }
 

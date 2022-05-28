@@ -1,6 +1,6 @@
 use std::{
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     thread::{self, JoinHandle},
 };
 
@@ -9,23 +9,35 @@ use super::Team;
 
 use super::CompetitionData;
 
-pub fn save_to_file(filename: &'static str, data: &CompetitionData) -> JoinHandle<()> {
-    // TODO: Handle error messages more beautiful
+pub fn save_to_file(file_path: String, data: &CompetitionData) -> JoinHandle<Result<(), String>> {
     let json = data.get_as_json_string();
     thread::spawn(move || {
-        if let Some(parent) = Path::new(filename).parent() {
-            fs::create_dir_all(parent).expect("Creation of parents dir failed!");
+        if let Some(parent) = Path::new(&file_path).parent() {
+            match fs::create_dir_all(parent) {
+                Ok(_) => (),
+                Err(_) => return Err(String::from("Creation of parents dir failed!")),
+            };
         }
-        fs::write(filename, json).expect("Write to file failed!");
+        match fs::write(file_path, json) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(String::from("Write to file failed!")),
+        }
     })
 }
 
-pub fn read_from_file(filename: &str) -> CompetitionData {
-    let json_bytes =
-        &fs::read(filename).expect(format!("Error whilst reading file: {}", filename).as_str());
-    let json_file = std::str::from_utf8(&json_bytes).expect("Conversion to utf8 string failed!");
-    println!("{}", json_file);
-    serde_json::from_str(json_file).expect("JSON was not well-formatted")
+pub fn read_from_file(path: PathBuf) -> Result<CompetitionData, String> {
+    let json_string = &fs::read_to_string(&path);
+    let json_string = match json_string {
+        Ok(bytes) => bytes,
+        Err(_) => return Err(format!("Error whilst reading file: {}", path.display())),
+    };
+
+    dbg!("{}", json_string);
+
+    match serde_json::from_str(json_string) {
+        Ok(competition_data) => Ok(competition_data),
+        Err(_) => Err(String::from("JSON was not well-formatted")),
+    }
 }
 
 #[cfg(test)]
@@ -326,11 +338,16 @@ fn test_read_write() {
 
     data.generate_matches();
 
-    save_to_file("./tmp/documents/save.json", &data)
+    let export_result = save_to_file(String::from("./tmp/documents/save.json"), &data)
         .join()
-        .expect("");
+        .expect("Save to file returned an error!");
 
-    let read_data = read_from_file("./tmp/documents/save.json");
+    assert!(export_result.is_ok());
+
+    let read_data = read_from_file(Path::new("./tmp/documents/save.json").to_path_buf());
+
+    assert!(read_data.is_ok());
+    let read_data = read_data.unwrap();
 
     debug_assert_eq!(data.name, read_data.name);
     debug_assert_eq!(data.date_string, read_data.date_string);

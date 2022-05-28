@@ -3,11 +3,15 @@ use serde::Deserialize;
 use std::cmp::Ordering;
 use std::fmt::Display;
 use std::fs;
-use std::path::Path;
+use std::path::PathBuf;
 use std::thread::{self, JoinHandle};
 use tectonic::config::PersistentConfig;
 use tectonic::driver::{OutputFormat, ProcessingSessionBuilder};
 use tectonic::status::NoopStatusBackend;
+
+use crate::data::import_export::save_to_file;
+
+use self::import_export::read_from_file;
 
 pub mod import_export;
 
@@ -15,6 +19,8 @@ pub struct Competition {
     pub data: Option<CompetitionData>,
     pub export_threads: Vec<JoinHandle<()>>, // stores the join handles to the threads used to export pdf and html documents
     pub current_interim_result: Vec<Option<Vec<InterimResultEntry>>>, // a ResultEntry vector for each group in descending order
+    pub absolute_dir_path: Option<PathBuf>, // absolute path to the folder to store the export documents and autosaves
+    pub absolute_file_path: Option<PathBuf>, // absolute path to the data file, must not be in absolute_dir_path
 }
 
 impl Competition {
@@ -23,6 +29,8 @@ impl Competition {
             data: None,
             export_threads: vec![],
             current_interim_result: vec![],
+            absolute_dir_path: None,
+            absolute_file_path: None,
         }
     }
 
@@ -41,6 +49,59 @@ impl Competition {
             );
         }
         &self.current_interim_result[group_idx]
+    }
+
+    pub fn handle_open_file(&mut self, path: PathBuf) -> Result<(), String> {
+        if !path.exists() {
+            return Err(format!("Path does not exists: {}", path.display()));
+        } else if !path.is_absolute() {
+            return Err(format!(
+                "An absolute file path is required. This path is not absolute: {}",
+                path.display()
+            ));
+        }
+
+        let data_res = read_from_file(path.clone());
+        let competition_data = match data_res {
+            Ok(data) => data,
+            Err(msg) => return Err(msg),
+        };
+
+        self.data = Some(competition_data);
+
+        self.absolute_dir_path = match path.parent() {
+            Some(parent_path) => Some(parent_path.to_path_buf()),
+            None => {
+                return Err(String::from(
+                    "Could not retrieve absolute path to parent folder!",
+                ))
+            }
+        };
+
+        self.absolute_file_path = Some(path);
+
+        Ok(())
+    }
+
+    pub fn handle_save_file(&self, mut path: PathBuf) -> Result<(), String> {
+        if path.exists() && path.is_dir() {
+            return Err(String::from("Path references a directory!"));
+        }
+        dbg!(format!("{}", path.display()));
+
+        if self.data.is_none() {
+            return Err(String::from("No competition data available!"));
+        }
+
+        // adjust file name to have the right extension
+        path.set_extension("json");
+
+        save_to_file(
+            String::from(path.to_str().unwrap()),
+            self.data.as_ref().unwrap(),
+        );
+
+        Ok(())
     }
 
     pub fn export_result_list(&mut self) {
@@ -80,6 +141,8 @@ impl Competition {
     }
 
     fn export_pdf(&mut self, filename: String, latex: String) {
+        self.verify_paths();
+        let dir_path = self.absolute_dir_path.as_ref().unwrap().clone();
         self.export_threads.push(thread::spawn(move || {
             // TODO: Remove for productive builds
             #[cfg(debug_assertions)]
@@ -98,13 +161,17 @@ impl Competition {
             let format_cache_path = config
                 .format_cache_path()
                 .expect("failed to set up the format cache");
-            if !Path::new("./exports").exists() {
-                fs::create_dir("./exports").expect("Failed to create directory \"exports!\"");
-            } else if !Path::new("./exports").is_dir() {
+
+            let mut sb = ProcessingSessionBuilder::default();
+            let export_dir_path = dir_path.join("exports");
+
+            if !export_dir_path.exists() {
+                fs::create_dir(&export_dir_path).expect("Export directory creation failed.");
+            } else if !export_dir_path.is_dir() {
                 // TODO: handle this more beautiful, e.g. popup message
                 panic!(r#""exports" exists, but is no directory!"#);
             }
-            let mut sb = ProcessingSessionBuilder::default();
+
             sb.bundle(bundle)
                 .primary_input_buffer(latex.as_bytes())
                 .tex_input_name(format!("{}.tex", filename).as_str())
@@ -114,7 +181,7 @@ impl Competition {
                 .keep_intermediates(false)
                 .print_stdout(false)
                 .output_format(OutputFormat::Pdf)
-                .output_dir("./exports");
+                .output_dir(export_dir_path);
 
             let mut sess = sb
                 .create(&mut status)
@@ -122,6 +189,23 @@ impl Competition {
             sess.run(&mut status).expect("the LaTeX engine failed");
             println!("Finished export!");
         }));
+    }
+
+    fn verify_paths(&self) {
+        debug_assert!(self.absolute_file_path.is_some());
+        if let Some(absolute_file_path) = self.absolute_file_path.as_ref() {
+            if absolute_file_path.exists() {
+                debug_assert!(absolute_file_path.is_file());
+                debug_assert!(absolute_file_path.is_absolute());
+            }
+        }
+
+        debug_assert!(self.absolute_dir_path.is_some());
+        if let Some(absolute_dir_path) = self.absolute_dir_path.as_ref() {
+            debug_assert!(absolute_dir_path.exists());
+            debug_assert!(absolute_dir_path.is_dir());
+            debug_assert!(absolute_dir_path.is_absolute());
+        }
     }
 }
 

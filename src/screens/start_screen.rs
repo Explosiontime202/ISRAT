@@ -2,6 +2,8 @@ use imgui::{ChildWindow, Condition, StyleColor, Ui, Window};
 
 use crate::{ProgramStage, ProgramState};
 
+use super::buttons;
+
 pub fn build(ui: &Ui, program_state: &ProgramState, menu_bar_height: f32) {
     let child_bg_color = ui.push_style_color(StyleColor::ChildBg, [0.0, 0.0, 0.0, 1.0]);
     let window_bg_color = ui.push_style_color(StyleColor::WindowBg, [0.0, 0.0, 0.0, 1.0]);
@@ -42,7 +44,5 @@ pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
         program_state.switch_to_stage(ProgramStage::NewScreenStage);
     }
 
-    if ui.button("Open") {
-        todo!();
-    }
+    buttons::open_button(ui, program_state);
 }
