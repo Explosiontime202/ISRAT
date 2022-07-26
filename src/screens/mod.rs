@@ -24,8 +24,6 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState) {
     };
 
     bottom_buttons(ui, program_state, menu_bar_height);
-
-    buttons::draw_button_windows_and_popups(ui, program_state);
 }
 
 fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState, height: f32) {

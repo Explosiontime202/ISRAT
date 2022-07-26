@@ -2,16 +2,15 @@
 
 use data::{Competition, CompetitionData, Team};
 use imgui::*;
-use native_dialog::FileDialog;
+use main_menu_bar::MainMenuBarState;
 use screens::{buttons::ButtonState, erg_screen::ErgScreenState, new_screen::NewScreenState};
 use winit::window::Fullscreen;
 
-mod screens;
-
-mod support;
-
+mod common;
 mod data;
-
+mod main_menu_bar;
+mod screens;
+mod support;
 // TODO: Add auto saving
 
 fn main() {
@@ -74,8 +73,9 @@ fn main() {
                 //    println!("pressed_key = {}", key);
                 //}
 
-                /*add_main_menu(ui);
-                ui.text("Hello world!");
+                main_menu_bar::draw_main_menu_bar(ui, state);
+
+                /*ui.text("Hello world!");
                 ui.text("こんにちは世界！");
                 ui.text("This...is...imgui-rs!");
                 ui.separator();
@@ -471,28 +471,6 @@ fn initial_state(state: &mut ProgramState) {
         });
 }
 
-// TODO: Use this method properly
-fn add_main_menu(ui: &Ui) {
-    if let Some(main_menu_bar_token) = ui.begin_main_menu_bar() {
-        if let Some(file_menu_token) = ui.begin_menu("File") {
-            if MenuItem::new("New").build(ui) {
-                // TODO: Implement new call
-            }
-            if MenuItem::new("Open").build(ui) {
-                // TODO: Implement open saved data
-            }
-            if MenuItem::new("Save").build(ui) {
-                // TODO: Implement save data, same as "Save as" if no file to save is specified
-            }
-            if MenuItem::new("Save as").build(ui) {
-                // TODO: Implement save data as file (specify file)
-            }
-            file_menu_token.end();
-        }
-        main_menu_bar_token.end();
-    }
-}
-
 #[derive(Clone, Copy)]
 pub enum ProgramStage {
     StartScreenStage,
@@ -507,6 +485,7 @@ pub struct ProgramState {
     pub new_screen_state: Option<NewScreenState>,
     pub erg_screen_state: Option<ErgScreenState>,
     pub button_state: ButtonState,
+    pub main_menu_bar_state: MainMenuBarState,
 }
 
 impl ProgramState {
@@ -518,6 +497,7 @@ impl ProgramState {
             new_screen_state: None,
             erg_screen_state: None,
             button_state: ButtonState::empty(),
+            main_menu_bar_state: MainMenuBarState::empty(),
         }
     }
 

@@ -1,8 +1,10 @@
 use imgui::{
-    ChildWindow, Id, StyleColor, TableColumnFlags, TableColumnSetup, TableFlags, TableRowFlags, Ui,
+    ChildWindow, Id, Key, StyleColor, TableColumnFlags, TableColumnSetup, TableFlags,
+    TableRowFlags, Ui,
 };
 
 use crate::{
+    common::center,
     data::{CompetitionData, InterimResultEntry, Match, MatchResult, Team},
     screens::buttons,
     ProgramStage, ProgramState,
@@ -260,6 +262,13 @@ fn draw_upcoming_matches(
     current_batch: u32,
     count_lanes: u32,
 ) {
+    let tab_pressed = if ui.is_key_pressed(Key::Tab) {
+        move_focus_for_input(erg_screen_state, group_idx, current_batch, count_lanes);
+        true
+    } else {
+        false
+    };
+
     center(ui, "Next Matches:");
     ui.new_line();
 
@@ -359,33 +368,50 @@ fn draw_upcoming_matches(
                     }
                 };
 
-                // align and draw text input fields to enter the points
                 let available_space = ui.content_region_avail()[0];
-                let _token = ui.push_item_width(available_space * 0.4);
-                if ui
-                    .input_text(format!("##result_{lane_idx}_team_a"), &mut points_str[0])
-                    .chars_decimal(true)
-                    .chars_hexadecimal(false)
-                    .chars_noblank(true)
-                    .chars_uppercase(false)
-                    .build()
-                {
-                    save_results(&points_str[0], &points_str[1]);
-                }
+
+                let mut draw_input_text = |idx: u32, id: &str| {
+                    // check if input text should be focused
+                    if let Some(s_index) = erg_screen_state.selected_field_index.as_ref() {
+                        if tab_pressed
+                            && s_index[0] == group_idx as u32
+                            && s_index[1] == current_batch
+                            && s_index[2] == lane_idx
+                            && s_index[3] == idx
+                        {
+                            ui.set_keyboard_focus_here();
+                        }
+                    }
+
+                    // align and draw text input fields to enter the points
+                    let _token = ui.push_item_width(available_space * 0.4);
+                    if ui
+                        .input_text(format!("##result_{lane_idx}_{id}"), &mut points_str[0])
+                        .chars_decimal(true)
+                        .chars_hexadecimal(false)
+                        .chars_noblank(true)
+                        .chars_uppercase(false)
+                        .allow_tab_input(false)
+                        .build()
+                    {
+                        save_results(&points_str[0], &points_str[1]);
+                    }
+
+                    // update state if new input text was clicked
+                    if ui.is_item_clicked() {
+                        erg_screen_state.selected_field_index =
+                            Some([group_idx as u32, current_batch, lane_idx, idx]);
+                    }
+                };
+
+                draw_input_text(0, "team_a");
+
                 let text_width = ui.calc_text_size(":")[0];
                 ui.same_line_with_pos(available_space * 0.5 - text_width / 2.0);
                 ui.text(":");
                 ui.same_line_with_pos(available_space * 0.6);
-                if ui
-                    .input_text(format!("##result_{lane_idx}_team_b"), &mut points_str[1])
-                    .chars_decimal(true)
-                    .chars_hexadecimal(false)
-                    .chars_noblank(true)
-                    .chars_uppercase(false)
-                    .build()
-                {
-                    save_results(&points_str[0], &points_str[1]);
-                }
+
+                draw_input_text(1, "team_b");
             } else {
                 // ... else display that there is no match on this lane
                 center(ui, "Empty");
@@ -394,6 +420,30 @@ fn draw_upcoming_matches(
                 ui.table_next_column();
             }
         });
+    }
+}
+
+fn move_focus_for_input(
+    erg_screen_state: &mut ErgScreenState,
+    group_idx: usize,
+    current_batch: u32,
+    count_lanes: u32,
+) {
+    if erg_screen_state.selected_field_index.is_none() {
+        return;
+    }
+
+    let s_index = erg_screen_state.selected_field_index.as_mut().unwrap();
+
+    if s_index[3] == 1 {
+        s_index[3] = 0;
+        s_index[2] += 1;
+    } else {
+        s_index[3] += 1;
+    }
+
+    if s_index[0] != group_idx as u32 || s_index[1] != current_batch || s_index[2] >= count_lanes {
+        erg_screen_state.selected_field_index = None;
     }
 }
 
@@ -468,20 +518,11 @@ fn draw_submit_button(
     }
 }
 
-// Helper
-
-fn center<T: AsRef<str>>(ui: &Ui, text: T) {
-    ui.set_cursor_pos([
-        ui.cursor_pos()[0] + (ui.content_region_avail()[0] - ui.calc_text_size(&text)[0]) / 2.0,
-        ui.cursor_pos()[1],
-    ]);
-    ui.text(&text);
-}
-
 pub struct ErgScreenState {
     intermediate_results: Vec<Vec<IntermediateResult>>, // for each group a vector of entered, but not submitted match results for the current batch
     failure_msg: Option<String>,
     export_popup: bool,
+    selected_field_index: Option<[u32; 4]>, // if not none stores the current focused input text box for the results
 }
 
 impl ErgScreenState {
@@ -490,6 +531,7 @@ impl ErgScreenState {
             intermediate_results: (0..group_count).map(|_| vec![]).collect(),
             failure_msg: None,
             export_popup: false,
+            selected_field_index: None,
         }
     }
 }

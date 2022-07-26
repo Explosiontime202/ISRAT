@@ -83,7 +83,7 @@ impl Competition {
         Ok(())
     }
 
-    pub fn handle_save_file(&self, mut path: PathBuf) -> Result<(), String> {
+    pub fn handle_save_file(&mut self, mut path: PathBuf) -> Result<(), String> {
         if path.exists() && path.is_dir() {
             return Err(String::from("Path references a directory!"));
         }
@@ -95,6 +95,15 @@ impl Competition {
 
         // adjust file name to have the right extension
         path.set_extension("json");
+
+        // update path
+        self.absolute_file_path = Some(path.clone());
+        self.absolute_dir_path = self
+            .absolute_file_path
+            .as_ref()
+            .unwrap()
+            .parent()
+            .map(|path| path.to_path_buf());
 
         save_to_file(
             String::from(path.to_str().unwrap()),
