@@ -262,12 +262,14 @@ fn draw_upcoming_matches(
     current_batch: u32,
     count_lanes: u32,
 ) {
-    let tab_pressed = if ui.is_key_pressed(Key::Tab) {
+    let is_focus_to_move = if ui.is_key_pressed(Key::Tab) || ui.is_key_pressed(Key::Enter) {
         move_focus_for_input(erg_screen_state, group_idx, current_batch, count_lanes);
         true
     } else {
         false
     };
+
+
 
     center(ui, "Next Matches:");
     ui.new_line();
@@ -373,7 +375,7 @@ fn draw_upcoming_matches(
                 let mut draw_input_text = |idx: u32, id: &str| {
                     // check if input text should be focused
                     if let Some(s_index) = erg_screen_state.selected_field_index.as_ref() {
-                        if tab_pressed
+                        if is_focus_to_move
                             && s_index[0] == group_idx as u32
                             && s_index[1] == current_batch
                             && s_index[2] == lane_idx
@@ -386,7 +388,7 @@ fn draw_upcoming_matches(
                     // align and draw text input fields to enter the points
                     let _token = ui.push_item_width(available_space * 0.4);
                     if ui
-                        .input_text(format!("##result_{lane_idx}_{id}"), &mut points_str[0])
+                        .input_text(format!("##result_{lane_idx}_{id}"), &mut points_str[idx as usize])
                         .chars_decimal(true)
                         .chars_hexadecimal(false)
                         .chars_noblank(true)
