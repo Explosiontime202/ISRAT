@@ -1,6 +1,8 @@
-use crate::{data::import_export::save_to_file, ProgramStage, ProgramState};
+use std::{sync::mpsc, thread};
+
+use crate::ProgramState;
 use imgui::Ui;
-use native_dialog::{FileDialog, MessageType};
+use native_dialog::FileDialog;
 
 // this crate defines functions to draw common buttons and their windows & popups
 
@@ -36,13 +38,13 @@ pub fn new_action(program_state: &mut ProgramState) {
 
 pub fn save_action(program_state: &mut ProgramState) {
     if let Some(file_path) = program_state.competition.absolute_file_path.as_ref() {
+        let file_path = file_path.clone();
         // save to file if file_name is known, e.g. if file was opened or previously saved to this file_path
-        let data = program_state.competition.data.as_ref().unwrap();
-        let export_result = save_to_file(String::from(file_path.to_str().unwrap()), data)
-            .join()
-            .expect("Join on export thread thrown an unexpected error!");
+        let export_res = program_state
+            .competition
+            .handle_save_file(file_path.to_path_buf());
 
-        match export_result {
+        match export_res {
             Ok(_) => (),
             Err(msg) => program_state.button_state.export_err_msg = Some(msg),
         }
@@ -54,62 +56,69 @@ pub fn save_action(program_state: &mut ProgramState) {
 
 pub fn save_as_action(program_state: &mut ProgramState) {
     debug_assert!(program_state.competition.data.is_some());
-    // constructs and shows the os save as dialog
-    let mut dialog = FileDialog::new();
 
-    // set competition name as filename suggestion
-    let data = program_state.competition.data.as_ref().unwrap();
-    let filename_suggestion = format!("{}.json", data.name.replace(" ", "_").to_lowercase());
-    dialog = dialog.set_filename(filename_suggestion.as_str());
+    let (tx, rx) = mpsc::channel();
 
-    if let Some(dir_path) = &program_state.competition.absolute_dir_path {
-        dialog = dialog.set_location(dir_path.as_path());
-    }
+    // clone values to be able to use them safely inside the thread
+    let competition_name = program_state
+        .competition
+        .data
+        .as_ref()
+        .unwrap()
+        .name
+        .clone();
+    let absolute_dir_path = program_state.competition.absolute_dir_path.clone();
 
-    let save_res = dialog.show_save_single_file();
+    // open os save as file dialog in separate thread in order to not stop the GUI rendering
+    thread::Builder::new()
+        .name(String::from("Save as dialog thread"))
+        .spawn(move || {
+            let mut dialog = FileDialog::new();
 
-    // check for error and else save the data to the given path
-    match save_res {
-        Ok(path_opt) => match path_opt {
-            Some(path) => match program_state.competition.handle_save_file(path) {
-                Ok(_) => (),
-                Err(msg) => show_error_message("save_as_button", msg),
-            },
-            None => eprintln!("[save_as_button]: FileDialog returned None path!"),
-        },
-        Err(msg) => show_error_message("save_as_button", msg.to_string()),
-    }
+            let filename_suggestion =
+                format!("{}.json", competition_name.replace(" ", "_").to_lowercase());
+            dialog = dialog.set_filename(filename_suggestion.as_str());
+
+            // set path to directory iff available
+            if let Some(dir_path) = absolute_dir_path.as_ref() {
+                dialog = dialog.set_location(dir_path);
+            }
+
+            let dialog_res = dialog.show_save_single_file();
+
+            // inform main (GUI) Thread about closed dialog
+            tx.send(dialog_res)
+                .expect("Channel is closed, this is not expected");
+        })
+        .expect("This shouldn't happen!");
+
+    program_state.threads.save_channels.push(rx);
 }
 
 pub fn open_action(program_state: &mut ProgramState) {
-    // create and open the os file open dialog
-    let mut open_dialog = FileDialog::new().add_filter("ISRAT Data Files", &["json", "isra"]);
+    let (tx, rx) = mpsc::channel();
+    let absolute_dir_path = program_state.competition.absolute_dir_path.clone();
 
-    if let Some(dir_path) = program_state.competition.absolute_dir_path.as_ref() {
-        open_dialog = open_dialog.set_location(dir_path);
-    }
+    // open os open file dialog in separate thread in order to not stop the GUI rendering
+    thread::Builder::new()
+        .name(String::from("Open dialog thread"))
+        .spawn(move || {
+            let mut open_dialog =
+                FileDialog::new().add_filter("ISRAT Data Files", &["json", "isra"]);
 
-    let path_res = open_dialog.show_open_single_file();
+            if let Some(dir_path) = absolute_dir_path.as_ref() {
+                open_dialog = open_dialog.set_location(dir_path);
+            }
 
-    // check for errors and else load the data from the file and switch to the CurrentErgViewStage
-    match path_res {
-        Ok(path_opt) => match path_opt {
-            Some(path) => match program_state.competition.handle_open_file(path) {
-                Ok(_) => program_state.switch_to_stage(ProgramStage::CurrentErgViewStage),
-                Err(msg) => show_error_message("open_button", msg),
-            },
-            None => eprintln!("[open_button]: FileDialog returned None path!"),
-        },
-        Err(msg) => show_error_message("open_button", msg.to_string()),
-    }
-}
+            let dialog_res = open_dialog.show_open_single_file();
 
-// helper for showing error messages
-fn show_error_message(function: &str, msg: String) {
-    match native_dialog::MessageDialog::new().set_type(MessageType::Error).set_title("Error occurred!").set_text(format!("An error occurred during opening the file open dialog. Please try again.\nError Message:\n{msg}").as_str()).show_alert() {
-        Ok(_) => (),
-        Err(_) => eprintln!("[{function}]: Could not open message dialog! Error message: {msg}"),
-    }
+            // inform main (GUI) Thread about closed dialog
+            tx.send(dialog_res)
+                .expect("Channel is closed, this is not expected");
+        })
+        .expect("This shouldn't happen!");
+
+    program_state.threads.open_channels.push(rx);
 }
 
 pub struct ButtonState {

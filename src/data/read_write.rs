@@ -1,28 +1,26 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    thread::{self, JoinHandle},
-};
+use std::{fs, path::PathBuf};
+
+use native_dialog::MessageType;
+
+use crate::{ProgramStage, ProgramState};
 
 #[cfg(test)]
 use super::Team;
 
 use super::CompetitionData;
 
-pub fn save_to_file(file_path: String, data: &CompetitionData) -> JoinHandle<Result<(), String>> {
+pub fn save_to_file(file_path: PathBuf, data: &CompetitionData) -> Result<(), String> {
     let json = data.get_as_json_string();
-    thread::spawn(move || {
-        if let Some(parent) = Path::new(&file_path).parent() {
-            match fs::create_dir_all(parent) {
-                Ok(_) => (),
-                Err(_) => return Err(String::from("Creation of parents dir failed!")),
-            };
-        }
-        match fs::write(file_path, json) {
-            Ok(_) => Ok(()),
-            Err(_) => Err(String::from("Write to file failed!")),
-        }
-    })
+    if let Some(parent) = file_path.parent() {
+        match fs::create_dir_all(parent) {
+            Ok(_) => (),
+            Err(_) => return Err(String::from("Creation of parents dir failed!")),
+        };
+    }
+    match fs::write(file_path, json) {
+        Ok(_) => Ok(()),
+        Err(_) => Err(String::from("Write to file failed!")),
+    }
 }
 
 pub fn read_from_file(path: PathBuf) -> Result<CompetitionData, String> {
@@ -338,13 +336,11 @@ fn test_read_write() {
 
     data.generate_matches();
 
-    let export_result = save_to_file(String::from("./tmp/documents/save.json"), &data)
-        .join()
-        .expect("Save to file returned an error!");
+    let export_result = save_to_file(PathBuf::from("./tmp/documents/save.json"), &data);
 
     assert!(export_result.is_ok());
 
-    let read_data = read_from_file(Path::new("./tmp/documents/save.json").to_path_buf());
+    let read_data = read_from_file(PathBuf::from("./tmp/documents/save.json").to_path_buf());
 
     assert!(read_data.is_ok());
     let read_data = read_data.unwrap();
@@ -402,4 +398,68 @@ fn test_read_write() {
 
     debug_assert_eq!(data.current_batch, read_data.current_batch);
     debug_assert_eq!(data.with_break, read_data.with_break);
+}
+
+pub fn check_read_write_threads(program_state: &mut ProgramState) {
+    // check if any of the save threads send a new message and remove the corresponding entry iff the thread has finished its work
+    let mut i = 0;
+    while i < program_state.threads.save_channels.len() {
+        let channel = &program_state.threads.save_channels[i];
+        let path_res = match channel.try_recv() {
+            Ok(path_res) => path_res,
+            Err(_) => {
+                i += 1;
+                continue;
+            }
+        };
+
+        // check for error and else save the data to the given path
+        match path_res {
+            Ok(path_opt) => match path_opt {
+                Some(path) => match program_state.competition.handle_save_file(path) {
+                    Ok(_) => (),
+                    Err(msg) => show_error_message("save_as_button", msg),
+                },
+                None => eprintln!("[save_as_button]: FileDialog returned None path!"),
+            },
+            Err(msg) => show_error_message("save_as_button", msg.to_string()),
+        };
+
+        program_state.threads.save_channels.remove(i);
+    }
+
+    // check if any of the open threads send a new message and remove the corresponding entry iff the thread has finished its work
+    i = 0;
+    while i < program_state.threads.open_channels.len() {
+        let channel = &program_state.threads.open_channels[i];
+        let path_res = match channel.try_recv() {
+            Ok(path_res) => path_res,
+            Err(_) => {
+                i += 1;
+                continue;
+            }
+        };
+
+        // check for errors and else load the data from the file and switch to the CurrentErgViewStage
+        match path_res {
+            Ok(path_opt) => match path_opt {
+                Some(path) => match program_state.competition.handle_open_file(path) {
+                    Ok(_) => program_state.switch_to_stage(ProgramStage::CurrentErgViewStage),
+                    Err(msg) => show_error_message("open_button", msg),
+                },
+                None => eprintln!("[open_button]: FileDialog returned None path!"),
+            },
+            Err(msg) => show_error_message("open_button", msg.to_string()),
+        }
+
+        program_state.threads.open_channels.remove(i);
+    }
+}
+
+// helper for showing error messages
+fn show_error_message(function: &str, msg: String) {
+    match native_dialog::MessageDialog::new().set_type(MessageType::Error).set_title("Error occurred!").set_text(format!("An error occurred during opening the file open dialog. Please try again.\nError Message:\n{msg}").as_str()).show_alert() {
+        Ok(_) => (),
+        Err(_) => eprintln!("[{function}]: Could not open message dialog! Error message: {msg}"),
+    }
 }

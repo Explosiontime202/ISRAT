@@ -139,7 +139,7 @@ impl System {
                         .as_mut()
                         .unwrap()
                         .competition
-                        .export_threads
+                        .spawned_threads
                         .drain(0..)
                         .for_each(|handle| handle.join().expect("Thread panicked!"));
 

@@ -9,15 +9,15 @@ use tectonic::config::PersistentConfig;
 use tectonic::driver::{OutputFormat, ProcessingSessionBuilder};
 use tectonic::status::NoopStatusBackend;
 
-use crate::data::import_export::save_to_file;
+use crate::data::read_write::save_to_file;
 
-use self::import_export::read_from_file;
+use self::read_write::read_from_file;
 
-pub mod import_export;
+pub mod read_write;
 
 pub struct Competition {
     pub data: Option<CompetitionData>,
-    pub export_threads: Vec<JoinHandle<()>>, // stores the join handles to the threads used to export pdf and html documents
+    pub spawned_threads: Vec<JoinHandle<()>>, // stores the join handles to the threads used to export pdf and html documents
     pub current_interim_result: Vec<Option<Vec<InterimResultEntry>>>, // a ResultEntry vector for each group in descending order
     pub absolute_dir_path: Option<PathBuf>, // absolute path to the folder to store the export documents and autosaves
     pub absolute_file_path: Option<PathBuf>, // absolute path to the data file, must not be in absolute_dir_path
@@ -27,7 +27,7 @@ impl Competition {
     pub fn empty() -> Self {
         Competition {
             data: None,
-            export_threads: vec![],
+            spawned_threads: vec![],
             current_interim_result: vec![],
             absolute_dir_path: None,
             absolute_file_path: None,
@@ -106,11 +106,9 @@ impl Competition {
             .map(|path| path.to_path_buf());
 
         save_to_file(
-            String::from(path.to_str().unwrap()),
+            path,
             self.data.as_ref().unwrap(),
-        );
-
-        Ok(())
+        )
     }
 
     pub fn export_result_list(&mut self) {
@@ -152,7 +150,7 @@ impl Competition {
     fn export_pdf(&mut self, filename: String, latex: String) {
         self.verify_paths();
         let dir_path = self.absolute_dir_path.as_ref().unwrap().clone();
-        self.export_threads.push(thread::spawn(move || {
+        self.spawned_threads.push(thread::spawn(move || {
             // TODO: Remove for productive builds
             #[cfg(debug_assertions)]
             {
@@ -218,7 +216,7 @@ impl Competition {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct CompetitionData {
     pub name: String,
     pub date_string: String,
@@ -1080,7 +1078,7 @@ r"
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct Team {
     pub name: String,
     pub region: String,
@@ -1094,7 +1092,7 @@ pub struct InterimResultEntry {
     pub quotient: f32,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct Match {
     // the both opponents
     pub team_a: usize,

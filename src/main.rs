@@ -1,8 +1,11 @@
 #![windows_subsystem = "windows"]
 
-use data::{Competition, CompetitionData, Team};
+use std::{path::PathBuf, sync::mpsc::Receiver};
+
+use data::{read_write::check_read_write_threads, Competition, CompetitionData, Team};
 use imgui::*;
 use main_menu_bar::MainMenuBarState;
+use native_dialog::Error;
 use screens::{buttons::ButtonState, erg_screen::ErgScreenState, new_screen::NewScreenState};
 use winit::window::Fullscreen;
 
@@ -74,7 +77,7 @@ fn main() {
                 //}
 
                 main_menu_bar::draw_main_menu_bar(ui, state);
-
+                check_threads(state);
                 /*ui.text("Hello world!");
                 ui.text("こんにちは世界！");
                 ui.text("This...is...imgui-rs!");
@@ -112,6 +115,10 @@ fn main() {
         window_padding_token.pop();
         window_border_size_token.pop();
     });
+}
+
+fn check_threads(program_state: &mut ProgramState) {
+    check_read_write_threads(program_state);
 }
 
 // TODO: Remove for productive builds
@@ -486,6 +493,7 @@ pub struct ProgramState {
     pub erg_screen_state: Option<ErgScreenState>,
     pub button_state: ButtonState,
     pub main_menu_bar_state: MainMenuBarState,
+    pub threads: ThreadState,
 }
 
 impl ProgramState {
@@ -498,6 +506,7 @@ impl ProgramState {
             erg_screen_state: None,
             button_state: ButtonState::empty(),
             main_menu_bar_state: MainMenuBarState::empty(),
+            threads: ThreadState::new(),
         }
     }
 
@@ -532,5 +541,19 @@ impl ProgramState {
             _ => todo!("Implement stage switch for more stages!"),
         }
         self.stage = new_stage;
+    }
+}
+
+pub struct ThreadState {
+    pub save_channels: Vec<Receiver<Result<Option<PathBuf>, Error>>>,
+    pub open_channels: Vec<Receiver<Result<Option<PathBuf>, Error>>>,
+}
+
+impl ThreadState {
+    pub fn new() -> Self {
+        Self {
+            save_channels: Vec::new(),
+            open_channels: Vec::new(),
+        }
     }
 }
