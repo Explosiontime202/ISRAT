@@ -1,0 +1,8 @@
+dark theme:
+
+main background: 1d2126
+evelated background: 232425
+highlight color: d65307
+line color: 333333
+text color: cccccc
+scroll bar color: 2d2e2f
