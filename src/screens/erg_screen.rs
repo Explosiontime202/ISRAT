@@ -269,8 +269,6 @@ fn draw_upcoming_matches(
         false
     };
 
-
-
     center(ui, "Next Matches:");
     ui.new_line();
 
@@ -388,7 +386,10 @@ fn draw_upcoming_matches(
                     // align and draw text input fields to enter the points
                     let _token = ui.push_item_width(available_space * 0.4);
                     if ui
-                        .input_text(format!("##result_{lane_idx}_{id}"), &mut points_str[idx as usize])
+                        .input_text(
+                            format!("##result_{lane_idx}_{id}"),
+                            &mut points_str[idx as usize],
+                        )
                         .chars_decimal(true)
                         .chars_hexadecimal(false)
                         .chars_noblank(true)

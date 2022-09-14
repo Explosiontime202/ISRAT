@@ -105,10 +105,7 @@ impl Competition {
             .parent()
             .map(|path| path.to_path_buf());
 
-        save_to_file(
-            path,
-            self.data.as_ref().unwrap(),
-        )
+        save_to_file(path, self.data.as_ref().unwrap())
     }
 
     pub fn export_result_list(&mut self) {
@@ -532,10 +529,10 @@ impl CompetitionData {
         let mut count_teams_without_name = 0;
         let mut previous_new_page = true; // determines whether the header is printed, for first team true
 
-        let groups = self.group_names.as_ref().unwrap().iter().enumerate().map(|(i, group_name)| {
-            assert!(current_interim_result[i].is_some());
-            let team_names = &self.teams.as_ref().unwrap()[i];
-            let group_result = current_interim_result[i].as_ref().unwrap().iter().enumerate().map(|(rank, i_res)| {
+        let groups = self.group_names.as_ref().unwrap().iter().enumerate().map(|(group_idx, group_name)| {
+            assert!(current_interim_result[group_idx].is_some());
+            let team_names = &self.teams.as_ref().unwrap()[group_idx];
+            let group_result = current_interim_result[group_idx].as_ref().unwrap().iter().enumerate().map(|(rank, i_res)| {
                 let team = &team_names[i_res.team_idx];
                 let display_player_names = rank < player_names_until;
 
@@ -591,7 +588,7 @@ impl CompetitionData {
             {}
         ",
         if previous_new_page {header.as_str()} else {""},
-        if is_final_result {"Ergebnisliste"} else {"Zwischenliste"},
+        if is_final_result {format!("Ergebnisliste {group_name}")} else {format!("Zwischenliste {group_name} nach Spiel {}", self.current_batch[group_idx])},
         group_result,
         if 3 * count_teams_with_name + count_teams_without_name > 16 {
             previous_new_page = true;

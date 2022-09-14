@@ -1,6 +1,9 @@
 use imgui::{ChildWindow, Selectable, StyleColor, Ui};
 
-use crate::{data::calc_group_possibilities, CompetitionData, ProgramStage, ProgramState, Team, screens::buttons};
+use crate::{
+    data::calc_group_possibilities, screens::buttons, CompetitionData, ProgramStage, ProgramState,
+    Team,
+};
 
 use super::my_input_text::{MyMultilineTextInput, MyTextInput};
 

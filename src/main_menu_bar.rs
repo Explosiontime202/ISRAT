@@ -57,7 +57,10 @@ fn about_window(ui: &Ui, program_state: &mut ProgramState) {
             .build(ui, || {
                 center(ui, "ISRAT by Johannes Maier.");
                 center(ui, "Licensed under MIT License, 2022. Free to use.");
-                center(ui, "Source code can be found at https://github.com/Explosiontime202/ISRAT.");
+                center(
+                    ui,
+                    "Source code can be found at https://github.com/Explosiontime202/ISRAT.",
+                );
             });
     }
 }
