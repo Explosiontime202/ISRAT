@@ -2,11 +2,18 @@
 
 use std::{path::PathBuf, sync::mpsc::Receiver};
 
-use data::{read_write::check_read_write_threads, Competition, CompetitionData, Team};
+use chrono::Duration;
+use data::{
+    read_write::{
+        check_autosave_thread_messages, check_read_write_threads_messages, spawn_autosave_timer,
+    },
+    Competition, CompetitionData, Team,
+};
 use imgui::*;
 use main_menu_bar::MainMenuBarState;
 use native_dialog::Error;
 use screens::{buttons::ButtonState, erg_screen::ErgScreenState, new_screen::NewScreenState};
+use timer::{Guard, Timer};
 use winit::window::Fullscreen;
 
 mod common;
@@ -14,7 +21,6 @@ mod data;
 mod main_menu_bar;
 mod screens;
 mod support;
-// TODO: Add auto saving
 
 fn main() {
     let mut system = support::init("ISRAT");
@@ -26,7 +32,7 @@ fn main() {
         .window()
         .set_fullscreen(Some(Fullscreen::Borderless(None)));
 
-    // ger monitor size
+    // get monitor size
     let size = system.display.gl_window().window().inner_size();
 
     // initialize program state
@@ -34,6 +40,9 @@ fn main() {
         ProgramStage::StartScreenStage,
         [size.width as f32, size.height as f32],
     ));
+
+    // TODO: Make interval adjustable by using GUI settings or config in home directory
+    spawn_autosave_timer(Duration::minutes(1), system.program_state.as_mut().unwrap());
 
     // TODO: Remove for productive builds
     #[cfg(debug_assertions)]
@@ -77,7 +86,7 @@ fn main() {
                 //}
 
                 main_menu_bar::draw_main_menu_bar(ui, state);
-                check_threads(state);
+                check_for_thread_messages(state);
                 /*ui.text("Hello world!");
                 ui.text("こんにちは世界！");
                 ui.text("This...is...imgui-rs!");
@@ -117,8 +126,9 @@ fn main() {
     });
 }
 
-fn check_threads(program_state: &mut ProgramState) {
-    check_read_write_threads(program_state);
+fn check_for_thread_messages(program_state: &mut ProgramState) {
+    check_read_write_threads_messages(program_state);
+    check_autosave_thread_messages(program_state);
 }
 
 // TODO: Remove for productive builds
@@ -547,6 +557,9 @@ impl ProgramState {
 pub struct ThreadState {
     pub save_channels: Vec<Receiver<Result<Option<PathBuf>, Error>>>,
     pub open_channels: Vec<Receiver<Result<Option<PathBuf>, Error>>>,
+    pub autosave_channel: Option<Receiver<()>>,
+    pub autosave_guard: Option<Guard>,
+    pub timer: Option<Timer>,
 }
 
 impl ThreadState {
@@ -554,6 +567,9 @@ impl ThreadState {
         Self {
             save_channels: Vec::new(),
             open_channels: Vec::new(),
+            autosave_channel: None,
+            autosave_guard: None,
+            timer: None,
         }
     }
 }

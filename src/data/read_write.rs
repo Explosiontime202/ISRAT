@@ -1,6 +1,12 @@
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::PathBuf,
+    sync::mpsc::{self, TryRecvError},
+};
 
+use chrono::{Duration, Local};
 use native_dialog::MessageType;
+use timer::Timer;
 
 use crate::{ProgramStage, ProgramState};
 
@@ -400,7 +406,7 @@ fn test_read_write() {
     debug_assert_eq!(data.with_break, read_data.with_break);
 }
 
-pub fn check_read_write_threads(program_state: &mut ProgramState) {
+pub fn check_read_write_threads_messages(program_state: &mut ProgramState) {
     // check if any of the save threads send a new message and remove the corresponding entry iff the thread has finished its work
     let mut i = 0;
     while i < program_state.threads.save_channels.len() {
@@ -462,4 +468,79 @@ fn show_error_message(function: &str, msg: String) {
         Ok(_) => (),
         Err(_) => eprintln!("[{function}]: Could not open message dialog! Error message: {msg}"),
     }
+}
+
+// FIXME: Crashes because channel is closed. Either find the bug or remove the library and write own implementation
+pub fn spawn_autosave_timer(interval: Duration, program_state: &mut ProgramState) {
+    let (tx, rx) = mpsc::channel();
+    let timer = Timer::new();
+    let guard = timer.schedule_repeating(interval, move || {
+        // TODO: Log it!
+        println!("Autosave Timer: Sending save signal message!");
+        match tx.send(()) {
+            Ok(()) => (),
+            Err(_) => panic!("Autosave Timer: Cannot send message!"),
+        }
+    });
+
+    program_state.threads.autosave_guard = Some(guard);
+    program_state.threads.autosave_channel = Some(rx);
+    program_state.threads.timer = Some(timer);
+}
+
+pub fn check_autosave_thread_messages(program_state: &mut ProgramState) {
+    let rx = match program_state.threads.autosave_channel.as_ref() {
+        Some(rx) => rx,
+        None => return,
+    };
+
+    match rx.try_recv() {
+        Ok(()) => (),
+        Err(TryRecvError::Empty) => return,
+        Err(TryRecvError::Disconnected) => panic!("Autosave Timer: Sender disconnected!"),
+    }
+
+    // use set file path or the default path in tmp
+    let path = match program_state.competition.absolute_file_path.as_ref() {
+        Some(path) => path.to_path_buf(),
+        None => match default_path_for_autosave(program_state) {
+            Ok(default_path) => default_path,
+            Err(_) => return, // TODO: Log it!,
+        },
+    };
+
+    // TODO: Log it
+    println!(
+        "Received autosave signal, starting save to {} at {}",
+        path.display().to_string(),
+        Local::now().format("%d.%m.%Y %H:%M:%S")
+    );
+
+    match program_state.competition.handle_save_file(path) {
+        Ok(_) => println!(
+            "Finished autosave at {}",
+            Local::now().format("%d.%m.%Y %H:%M:%S")
+        ),
+        Err(_) => (), //TODO: LOG it,
+    }
+}
+
+// TODO: Set this to more useful default path than tmp dir
+fn default_path_for_autosave(program_state: &ProgramState) -> Result<PathBuf, String> {
+    let default_folder = std::env::temp_dir().join("israt").join("autosaves");
+    let data = match program_state.competition.data.as_ref() {
+        Some(data) => data,
+        None => {
+            return Err(String::from(
+                "There is no competition data, cannot create default autosave file name!",
+            ))
+        }
+    };
+
+    let sanitized_compettion_name = data.name.replace(&['/', '\\', '%', '.', '~'], "");
+    let autosave_file_name = format!(
+        "{sanitized_compettion_name}-{}.json",
+        Local::now().format("%Y%m%d-%H%M")
+    );
+    return Ok(default_folder.join(autosave_file_name));
 }

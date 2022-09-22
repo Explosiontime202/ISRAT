@@ -87,7 +87,9 @@ impl Competition {
         if path.exists() && path.is_dir() {
             return Err(String::from("Path references a directory!"));
         }
-        dbg!(format!("{}", path.display()));
+
+        // TODO: Replace by logging
+        println!("Save data to {}", path.display().to_string());
 
         if self.data.is_none() {
             return Err(String::from("No competition data available!"));

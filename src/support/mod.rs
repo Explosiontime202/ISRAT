@@ -134,14 +134,18 @@ impl System {
                 );
                 if !run {
                     // TODO: Is this wanted behavior?
-                    // wait for export threads to exit
-                    self.program_state
-                        .as_mut()
-                        .unwrap()
+                    // wait for spawned threads to exit
+                    let program_state = self.program_state.as_mut().unwrap();
+
+                    program_state
                         .competition
                         .spawned_threads
                         .drain(0..)
                         .for_each(|handle| handle.join().expect("Thread panicked!"));
+
+                    // stop timer thread & autosave thread by dropping the value
+                    program_state.threads.autosave_guard = None;
+                    program_state.threads.timer = None;
 
                     *control_flow = ControlFlow::Exit;
                 }
