@@ -68,6 +68,7 @@ pub fn save_as_action(program_state: &mut ProgramState) {
         .name
         .clone();
     let absolute_dir_path = program_state.competition.absolute_dir_path.clone();
+    let absoulte_file_path = program_state.competition.absolute_file_path.clone();
 
     // open os save as file dialog in separate thread in order to not stop the GUI rendering
     thread::Builder::new()
@@ -75,8 +76,11 @@ pub fn save_as_action(program_state: &mut ProgramState) {
         .spawn(move || {
             let mut dialog = FileDialog::new();
 
-            let filename_suggestion =
-                format!("{}.json", competition_name.replace(" ", "_").to_lowercase());
+            let filename_suggestion = if let Some(ref path) = absoulte_file_path {
+                path.file_name().unwrap().to_str().unwrap().to_string()
+            } else {
+                format!("{}.json", competition_name.replace(" ", "_").to_lowercase())
+            };
             dialog = dialog.set_filename(filename_suggestion.as_str());
 
             // set path to directory iff available
@@ -106,6 +110,10 @@ pub fn open_action(program_state: &mut ProgramState) {
             let mut open_dialog =
                 FileDialog::new().add_filter("ISRAT Data Files", &["json", "isra"]);
 
+            println!(
+                "{}",
+                absolute_dir_path.as_ref().unwrap().display().to_string()
+            );
             if let Some(dir_path) = absolute_dir_path.as_ref() {
                 open_dialog = open_dialog.set_location(dir_path);
             }

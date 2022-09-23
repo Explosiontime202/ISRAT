@@ -437,12 +437,27 @@ fn initial_state(state: &mut ProgramState) {
     state.competition.current_interim_result = vec![None, None];
 
     {
-        let relative_path = Path::new("./documents");
+        let relative_path = Path::new(if cfg!(target_os = "windows") {
+            r".\documents\"
+        } else {
+            "./documents"
+        });
         if !relative_path.exists() {
             std::fs::create_dir_all(relative_path).expect("Directory creation failed!");
         }
-        state.competition.absolute_dir_path =
-            Some(std::fs::canonicalize(Path::new("./documents/")).expect("Canonicalize failed!"));
+
+        let abs_path = if cfg!(target_os = "windows") {
+            let tmp = std::fs::canonicalize(relative_path).expect("Canonicalize failed!");
+            let tmp2 = tmp.to_str().unwrap();
+            let tmp3 = tmp2[4..tmp2.len()].to_string();
+            let mut path_buf = PathBuf::new();
+            path_buf.push(tmp3);
+            path_buf
+        } else {
+            std::fs::canonicalize(relative_path).expect("Canonicalize failed!")
+        };
+
+        state.competition.absolute_dir_path = Some(abs_path);
 
         state.competition.absolute_file_path = Some(
             state
