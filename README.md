@@ -15,8 +15,15 @@ The [Tectonic project](https://github.com/tectonic-typesetting/tectonic) require
 
 The dependencies can be downloaded using the systems package manager. This command works for debian based systems, for other package managers you need to lookup the according package names. 
 
+For distros using deb packages:
+
 ```sh
 sudo apt-get install libfontconfig1-dev libgraphite2-dev libharfbuzz-dev libicu-dev libssl-dev zlib1g-dev
+```
+
+For distros using dnf package manager:
+```sh
+sudo dnf install libxcb-devel fontconfig-devel graphite2-devel harfbuzz-devel libicu-devel openssl-devel zlib-devel 
 ```
 
 Now you can build the project.
@@ -26,9 +33,11 @@ cargo build --release
 ```
 
 The ISART binary can now be found as `./target/release/israt`.
+
 ### Windows
 For Windows the installation of the dependencies is little bit more complicated.
-You need to download [the Tectonic project](https://github.com/tectonic-typesetting/tectonic) in some folder. In this folder you need to execute following instructions:
+You need to download [the Tectonic project](https://github.com/tectonic-typesetting/tectonic) in some folder.
+In this folder you need to execute following instructions:
 
 First, install [cargo-vcpkg](https://crates.io/crates/cargo-vcpkg) if needed:
 ```sh
