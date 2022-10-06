@@ -6,3 +6,4 @@ highlight color: d65307
 line color: 333333
 text color: cccccc
 scroll bar color: 2d2e2f
+table lines: 66666 (Dunkelgrau 1)
