@@ -3,6 +3,9 @@
 use std::{path::PathBuf, sync::mpsc::Receiver};
 
 use chrono::Duration;
+use colors::{
+    BACKGROUND, SCROLLBAR_BG, SCROLLBAR_GRAB, SCROLLBAR_GRAB_ACTIVE, SCROLLBAR_GRAB_HOVERED, TEXT,
+};
 use data::{
     read_write::{
         check_autosave_thread_messages, check_read_write_threads_messages, spawn_autosave_timer,
@@ -16,7 +19,9 @@ use screens::{buttons::ButtonState, erg_screen::ErgScreenState, new_screen::NewS
 use timer::{Guard, Timer};
 use winit::window::Fullscreen;
 
+mod colors;
 mod common;
+mod constants;
 mod data;
 mod main_menu_bar;
 mod screens;
@@ -51,6 +56,12 @@ fn main() {
     // set color theme
     let style = system.imgui.style_mut();
     style.colors[StyleColor::TitleBgActive as usize] = style.colors[StyleColor::TitleBg as usize];
+    style.colors[StyleColor::ChildBg as usize] = BACKGROUND;
+    style.colors[StyleColor::Text as usize] = TEXT;
+    style.colors[StyleColor::ScrollbarBg as usize] = SCROLLBAR_BG;
+    style.colors[StyleColor::ScrollbarGrab as usize] = SCROLLBAR_GRAB;
+    style.colors[StyleColor::ScrollbarGrabActive as usize] = SCROLLBAR_GRAB_ACTIVE;
+    style.colors[StyleColor::ScrollbarGrabHovered as usize] = SCROLLBAR_GRAB_HOVERED;
 
     // start main loop
     system.main_loop(|run, ui, window, state| {
@@ -68,6 +79,8 @@ fn main() {
             .bring_to_front_on_focus(false)
             .resizable(false)
             .opened(run)
+            .scroll_bar(false)
+            .scrollable(false)
             .build(ui, || {
                 screens::build(ui, state);
 
@@ -85,8 +98,10 @@ fn main() {
                 //    println!("pressed_key = {}", key);
                 //}
 
-                main_menu_bar::draw_main_menu_bar(ui, state);
+                // TODO: enable
+                // main_menu_bar::draw_main_menu_bar(ui, state);
                 check_for_thread_messages(state);
+
                 /*ui.text("Hello world!");
                 ui.text("こんにちは世界！");
                 ui.text("This...is...imgui-rs!");
@@ -138,7 +153,7 @@ fn initial_state(state: &mut ProgramState) {
 
     use crate::data::MatchResult;
 
-    state.stage = ProgramStage::CurrentErgViewStage;
+    state.stage = ProgramStage::HomeStage;
     state.competition.data = Some(CompetitionData {
         name: String::from("Mustermeisterschaft"),
         date_string: String::from("01.01.2022"),
@@ -508,6 +523,8 @@ pub enum ProgramStage {
     StartScreenStage,
     NewScreenStage,
     CurrentErgViewStage,
+    GroupStage(u32),
+    HomeStage,
 }
 
 pub struct ProgramState {
