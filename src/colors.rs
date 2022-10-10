@@ -19,7 +19,7 @@ pub const HIGHLIGHT: [f32; 4] = [
     0xd6 as f32 / 255.0,
     0x53 as f32 / 255.0,
     0x07 as f32 / 255.0,
-    0.5,
+    1.0,
 ];
 
 // light gray 3, 0xcccccc
@@ -30,7 +30,12 @@ pub const TEXT: [f32; 4] = [
     1.0,
 ];
 
-pub const BORDER: [f32; 4] = HIGHLIGHT;
+pub const BORDER: [f32; 4] = [
+    0xd6 as f32 / 255.0,
+    0x53 as f32 / 255.0,
+    0x07 as f32 / 255.0,
+    0.5,
+];
 
 pub const SCROLLBAR_BG: [f32; 4] = BACKGROUND;
 pub const SCROLLBAR_GRAB: [f32; 4] = [

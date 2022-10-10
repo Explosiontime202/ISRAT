@@ -41,7 +41,7 @@ pub fn build(ui: &Ui, program_state: &ProgramState, menu_bar_height: f32) {
 
 pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
     if ui.button("New") {
-        program_state.switch_to_stage(ProgramStage::NewScreenStage);
+        // program_state.switch_to_stage(ProgramStage::NewScreenStage);
     }
 
     buttons::open_button(ui, program_state);

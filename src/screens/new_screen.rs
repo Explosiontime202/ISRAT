@@ -550,13 +550,13 @@ fn build_player_names(ui: &Ui, program_state: &mut ProgramState, menu_bar_height
                     assert!(check_valid_inputs(data, new_screen_state.stage).is_none());
                 }
 
-                program_state.switch_to_stage(ProgramStage::CurrentErgViewStage);
+                // program_state.switch_to_stage(ProgramStage::CurrentErgViewStage);
                 return;
             }
 
             ui.same_line();
             if ui.button("Skip") {
-                program_state.switch_to_stage(ProgramStage::CurrentErgViewStage);
+                // program_state.switch_to_stage(ProgramStage::CurrentErgViewStage);
                 return;
             }
 

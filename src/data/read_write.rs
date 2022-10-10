@@ -450,7 +450,7 @@ pub fn check_read_write_threads_messages(program_state: &mut ProgramState) {
         match path_res {
             Ok(path_opt) => match path_opt {
                 Some(path) => match program_state.competition.handle_open_file(path) {
-                    Ok(_) => program_state.switch_to_stage(ProgramStage::CurrentErgViewStage),
+                    Ok(_) => (), // TODO: replace with new gui and decouple file io from gui, program_state.switch_to_stage(ProgramStage::CurrentErgViewStage),
                     Err(msg) => show_error_message("open_button", msg),
                 },
                 None => eprintln!("[open_button]: FileDialog returned None path!"),

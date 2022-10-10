@@ -91,11 +91,11 @@ pub fn bottom_buttons(ui: &Ui, program_state: &mut ProgramState) {
 
         // resets competition data, add open popup to confirm choice
         program_state.competition.data = None;
-        program_state.switch_to_stage(ProgramStage::NewScreenStage);
+        // program_state.switch_to_stage(ProgramStage::NewScreenStage);
     }
 
     if ui.button("Edit") {
-        program_state.switch_to_stage(ProgramStage::NewScreenStage);
+        // program_state.switch_to_stage(ProgramStage::NewScreenStage);
     }
 
     if ui.button("Exports") {

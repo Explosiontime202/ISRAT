@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use imgui::{ChildWindow, StyleColor, Ui};
 
-use crate::colors::{BORDER, BUTTON_TEXT_HOVERED, ELEVATED_BACKGROUND, SEPARATOR, TEXT};
+use crate::colors::{BORDER, BUTTON_TEXT_HOVERED, ELEVATED_BACKGROUND, HIGHLIGHT, SEPARATOR, TEXT};
 use crate::common::{list_view, padding};
 use crate::constants::{BORDER_THICKNESS, NAVIGATION_PADDING, NAVIGATION_SEPARATOR_LEN};
 use crate::constants::{
@@ -19,6 +19,10 @@ pub mod erg_screen;
 pub mod home_screen;
 pub mod new_screen;
 pub mod start_screen;
+
+const GENERAL_BUTTONS_COUNT: u64 = 4;
+const GROUP_OFFSET: u64 = GENERAL_BUTTONS_COUNT + 1;
+const GROUP_BUTTON_COUNT: u64 = 3;
 
 pub fn build(ui: &Ui, program_state: &mut ProgramState) {
     let text_token = ui.push_style_color(StyleColor::Text, TEXT);
@@ -91,47 +95,88 @@ fn build_navigation_bar(ui: &Ui, program_state: &mut ProgramState) {
                 .as_ref()
                 .map_or(0, |data| data.team_distribution[0]) as u64;
 
-            const GROUP_OFFSET: u64 = 5;
-            let item_count = GROUP_OFFSET + group_count + 1;
+            let group_button_offset = GROUP_OFFSET + group_count + 1;
+
+            let mut item_count = GENERAL_BUTTONS_COUNT;
+            if program_state.competition.data.is_some() {
+                // separator above and buttons for each group
+                item_count += group_count + 1;
+            }
+
+            if program_state.stage.is_group_stage() {
+                // separator above and buttons for each sub button
+                item_count += GROUP_BUTTON_COUNT + 1;
+            }
 
             list_view(ui, item_count, |item_idx| {
                 if item_idx < GROUP_OFFSET {
                     match item_idx {
                         0 => build_navigation_button(
                             ui,
-                            &mut program_state.navigation,
+                            program_state,
                             "Home",
+                            group_button_offset,
                             item_idx,
-                            || {},
+                            |program_state| {
+                                program_state.switch_to_stage(ProgramStage::Home);
+                            },
                         ),
+
                         1 => build_navigation_button(
                             ui,
-                            &mut program_state.navigation,
+                            program_state,
                             "Settings",
+                            group_button_offset,
                             item_idx,
-                            || {},
+                            |program_state| {
+                                program_state.switch_to_stage(ProgramStage::Settings);
+                            },
                         ),
+
                         2 => build_navigation_button(
                             ui,
-                            &mut program_state.navigation,
+                            program_state,
                             "Current Competition",
+                            group_button_offset,
                             item_idx,
-                            || {},
+                            |program_state| {
+                                program_state.switch_to_stage(ProgramStage::CompetitionOverview);
+                            },
                         ),
                         3 => build_navigation_button(
                             ui,
-                            &mut program_state.navigation,
-                            "Match History",
+                            program_state,
+                            "Exports",
+                            group_button_offset,
                             item_idx,
-                            || {},
+                            |program_state| {
+                                program_state.switch_to_stage(ProgramStage::Exports);
+                            },
                         ),
                         4 => build_separator(ui, program_state),
                         _ => panic!("Implementation error: invalid index {item_idx} in list view"),
                     }
                 } else if item_idx >= GROUP_OFFSET && item_idx < GROUP_OFFSET + group_count {
-                    build_group_button(ui, program_state, item_idx, item_idx - GROUP_OFFSET)
+                    build_group_button(
+                        ui,
+                        program_state,
+                        group_button_offset,
+                        item_idx,
+                        item_idx - GROUP_OFFSET,
+                    )
                 } else if item_idx == GROUP_OFFSET + group_count {
                     build_separator(ui, program_state)
+                } else if item_idx >= GROUP_OFFSET + group_count + 1
+                    && item_idx <= GROUP_OFFSET + group_count + GROUP_BUTTON_COUNT + 1
+                {
+                    let sub_item_idx = item_idx - (GROUP_OFFSET + group_count + 1);
+                    build_group_sub_button(
+                        ui,
+                        program_state,
+                        group_button_offset,
+                        item_idx,
+                        sub_item_idx,
+                    )
                 } else {
                     panic!("Index {item_idx} not valid");
                 }
@@ -142,22 +187,26 @@ fn build_navigation_bar(ui: &Ui, program_state: &mut ProgramState) {
     bg_token.pop();
 }
 
-fn build_navigation_button<F: Fn() -> ()>(
+fn build_navigation_button<F: Fn(&mut ProgramState) -> ()>(
     ui: &Ui,
-    navigation_state: &mut NavigationState,
+    program_state: &mut ProgramState,
     button_text: &str,
+    group_button_offset: u64,
     item_idx: u64,
     action: F,
 ) -> f32 {
-    let text_token = if navigation_state.hovered_buttons.contains(&item_idx) {
-        Some(ui.push_style_color(StyleColor::Text, BUTTON_TEXT_HOVERED))
-    } else {
-        None
-    };
+    let text_token =
+        if is_nav_button_highlighted(program_state.stage, group_button_offset, item_idx) {
+            Some(ui.push_style_color(StyleColor::Text, HIGHLIGHT))
+        } else if program_state.navigation.hovered_buttons.contains(&item_idx) {
+            Some(ui.push_style_color(StyleColor::Text, BUTTON_TEXT_HOVERED))
+        } else {
+            None
+        };
 
     if ui.button(button_text) {
         // TODO: button actions
-        action();
+        action(program_state);
     }
 
     if let Some(token) = text_token {
@@ -165,9 +214,9 @@ fn build_navigation_button<F: Fn() -> ()>(
     }
 
     if ui.is_item_hovered() {
-        navigation_state.hovered_buttons.insert(item_idx);
+        program_state.navigation.hovered_buttons.insert(item_idx);
     } else {
-        navigation_state.hovered_buttons.remove(&item_idx);
+        program_state.navigation.hovered_buttons.remove(&item_idx);
     }
 
     ui.item_rect_size()[1] * 1.25
@@ -201,6 +250,7 @@ fn build_separator(ui: &Ui, program_state: &mut ProgramState) -> f32 {
 fn build_group_button(
     ui: &Ui,
     program_state: &mut ProgramState,
+    group_button_offset: u64,
     item_idx: u64,
     group_idx: u64,
 ) -> f32 {
@@ -217,22 +267,102 @@ fn build_group_button(
                 .len() as u64
     );
 
-    let group_name = &program_state
+    let group_name = program_state
         .competition
         .data
         .as_ref()
         .unwrap()
         .group_names
         .as_ref()
-        .unwrap()[group_idx as usize];
+        .unwrap()[group_idx as usize]
+        .clone();
 
     build_navigation_button(
         ui,
-        &mut program_state.navigation,
-        group_name,
+        program_state,
+        group_name.as_str(),
+        group_button_offset,
         item_idx,
-        || {},
+        |program_state| {
+            program_state.switch_to_stage(ProgramStage::GroupOverview(group_idx));
+        },
     )
+}
+
+fn build_group_sub_button(
+    ui: &Ui,
+    program_state: &mut ProgramState,
+    group_button_offset: u64,
+    item_idx: u64,
+    sub_item_idx: u64,
+) -> f32 {
+    match sub_item_idx {
+        0 => build_navigation_button(
+            ui,
+            program_state,
+            "Overview",
+            group_button_offset,
+            item_idx,
+            |program_state| {
+                if !program_state.stage.is_group_stage() {
+                    return;
+                }
+                program_state.switch_to_stage(ProgramStage::GroupOverview(
+                    program_state.stage.get_group_idx(),
+                ));
+            },
+        ),
+        1 => build_navigation_button(
+            ui,
+            program_state,
+            "Enter results",
+            group_button_offset,
+            item_idx,
+            |program_state| {
+                if !program_state.stage.is_group_stage() {
+                    return;
+                }
+                program_state.switch_to_stage(ProgramStage::GroupEnterResults(
+                    program_state.stage.get_group_idx(),
+                ));
+            },
+        ),
+        2 => build_navigation_button(
+            ui,
+            program_state,
+            "Match history",
+            group_button_offset,
+            item_idx,
+            |program_state| {
+                if !program_state.stage.is_group_stage() {
+                    return;
+                }
+                program_state.switch_to_stage(ProgramStage::GroupMatchHistory(
+                    program_state.stage.get_group_idx(),
+                ));
+            },
+        ),
+        _ => panic!("Implementation error: invalid index {item_idx} {sub_item_idx} in list view"),
+    }
+}
+
+fn is_nav_button_highlighted(stage: ProgramStage, group_button_offset: u64, item_idx: u64) -> bool {
+    // TODO: Adjust and extend
+    match stage {
+        ProgramStage::Home => item_idx == 0,
+        ProgramStage::Settings => item_idx == 1,
+        ProgramStage::CompetitionOverview => item_idx == 2,
+        ProgramStage::Exports => item_idx == 3,
+        ProgramStage::GroupOverview(group_idx) => {
+            item_idx == GROUP_OFFSET + group_idx || item_idx == group_button_offset
+        }
+        ProgramStage::GroupEnterResults(group_idx) => {
+            item_idx == GROUP_OFFSET + group_idx || item_idx == group_button_offset + 1
+        }
+        ProgramStage::GroupMatchHistory(group_idx) => {
+            item_idx == GROUP_OFFSET + group_idx || item_idx == group_button_offset + 2
+        }
+    }
 }
 
 fn build_bottom_menu(ui: &Ui, program_state: &mut ProgramState) {
@@ -265,8 +395,8 @@ fn build_selected_screen(ui: &Ui, program_state: &mut ProgramState) {
         program_state.size[1] * TOP_MENU_HEIGHT,
     ]);
     match program_state.stage {
-        ProgramStage::HomeStage => home_screen::build(ui, program_state),
-        _ => todo!(),
+        ProgramStage::Home => home_screen::build(ui, program_state),
+        _ => (),
     }
 }
 

@@ -45,7 +45,7 @@ fn main() {
 
     // initialize program state
     system.program_state = Some(ProgramState::new(
-        ProgramStage::StartScreenStage,
+        ProgramStage::Home,
         [size.width as f32, size.height as f32],
     ));
 
@@ -162,7 +162,7 @@ fn initial_state(state: &mut ProgramState) {
 
     use crate::data::MatchResult;
 
-    state.stage = ProgramStage::HomeStage;
+    state.stage = ProgramStage::Home;
     state.competition.data = Some(CompetitionData {
         name: String::from("Mustermeisterschaft"),
         date_string: String::from("01.01.2022"),
@@ -529,11 +529,34 @@ fn initial_state(state: &mut ProgramState) {
 
 #[derive(Clone, Copy)]
 pub enum ProgramStage {
-    StartScreenStage,
-    NewScreenStage,
-    CurrentErgViewStage,
-    GroupStage(u32),
-    HomeStage,
+    Home,
+    Settings,
+    CompetitionOverview,
+    GroupOverview(u64),
+    GroupEnterResults(u64),
+    GroupMatchHistory(u64),
+    Exports,
+}
+
+impl ProgramStage {
+    pub fn is_group_stage(self) -> bool {
+        match self {
+            Self::GroupOverview(_) | Self::GroupEnterResults(_) | Self::GroupMatchHistory(_) => {
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn get_group_idx(self) -> u64 {
+        assert!(self.is_group_stage());
+        match self {
+            Self::GroupOverview(idx)
+            | Self::GroupEnterResults(idx)
+            | Self::GroupMatchHistory(idx) => idx,
+            _ => panic!("No GroupStage, weird!"),
+        }
+    }
 }
 
 pub struct ProgramState {
@@ -564,7 +587,32 @@ impl ProgramState {
     }
 
     pub fn switch_to_stage(&mut self, new_stage: ProgramStage) {
-        match new_stage {
+        // clean up old state
+        match self.stage {
+            ProgramStage::Home => (),
+            ProgramStage::Settings => (),
+            ProgramStage::CompetitionOverview => (),
+            ProgramStage::GroupOverview(_) => (),
+            ProgramStage::GroupEnterResults(_) => (),
+            ProgramStage::GroupMatchHistory(_) => (),
+            ProgramStage::Exports => (),
+        }
+
+        self.stage = new_stage;
+
+        // init new state
+        match self.stage {
+            ProgramStage::Home => (),
+            ProgramStage::Settings => (),
+            ProgramStage::CompetitionOverview => (),
+            ProgramStage::GroupOverview(_) => (),
+            ProgramStage::GroupEnterResults(_) => (),
+            ProgramStage::GroupMatchHistory(_) => (),
+            ProgramStage::Exports => (),
+        }
+
+        // todo!();
+        /* match new_stage {
             ProgramStage::StartScreenStage => {
                 todo!("Currently not implemented StartScreenStage init!")
             }
@@ -593,7 +641,7 @@ impl ProgramState {
             #[allow(unreachable_patterns)]
             _ => todo!("Implement stage switch for more stages!"),
         }
-        self.stage = new_stage;
+        self.stage = new_stage; */
     }
 }
 
