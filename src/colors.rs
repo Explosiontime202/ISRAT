@@ -1,8 +1,8 @@
-// 0x1d2126
+// 0x202020
 pub const BACKGROUND: [f32; 4] = [
-    0x1d as f32 / 255.0,
-    0x21 as f32 / 255.0,
-    0x26 as f32 / 255.0,
+    0x20 as f32 / 255.0,
+    0x20 as f32 / 255.0,
+    0x20 as f32 / 255.0,
     1.0,
 ];
 
@@ -19,7 +19,7 @@ pub const HIGHLIGHT: [f32; 4] = [
     0xd6 as f32 / 255.0,
     0x53 as f32 / 255.0,
     0x07 as f32 / 255.0,
-    1.0,
+    0.5,
 ];
 
 // light gray 3, 0xcccccc
@@ -39,16 +39,42 @@ pub const SCROLLBAR_GRAB: [f32; 4] = [
     0x2f as f32 / 255.0,
     0.5,
 ];
+
 pub const SCROLLBAR_GRAB_ACTIVE: [f32; 4] = [
     0x2d as f32 / 255.0,
     0x2e as f32 / 255.0,
     0x2f as f32 / 255.0,
     0.75,
 ];
+
 pub const SCROLLBAR_GRAB_HOVERED: [f32; 4] = [
     0x2d as f32 / 255.0,
     0x2e as f32 / 255.0,
     0x2f as f32 / 255.0,
+    1.0,
+];
+
+// light gray 3, 0xcccccc
+pub const BUTTON_TEXT: [f32; 4] = [
+    0xcc as f32 / 255.0,
+    0xcc as f32 / 255.0,
+    0xcc as f32 / 255.0,
+    1.0,
+];
+
+pub const BUTTON_TEXT_HOVERED: [f32; 4] = [
+    0xe5 as f32 / 255.0,
+    0xe5 as f32 / 255.0,
+    0xe5 as f32 / 255.0,
+    1.0,
+];
+
+pub const BUTTON_TEXT_ACTIVE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+
+pub const SEPARATOR: [f32; 4] = [
+    0x80 as f32 / 255.0,
+    0x80 as f32 / 255.0,
+    0x80 as f32 / 255.0,
     1.0,
 ];
 

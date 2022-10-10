@@ -4,7 +4,8 @@ use std::{path::PathBuf, sync::mpsc::Receiver};
 
 use chrono::Duration;
 use colors::{
-    BACKGROUND, SCROLLBAR_BG, SCROLLBAR_GRAB, SCROLLBAR_GRAB_ACTIVE, SCROLLBAR_GRAB_HOVERED, TEXT,
+    BACKGROUND, ELEVATED_BACKGROUND, SCROLLBAR_BG, SCROLLBAR_GRAB, SCROLLBAR_GRAB_ACTIVE,
+    SCROLLBAR_GRAB_HOVERED, TEXT,
 };
 use data::{
     read_write::{
@@ -15,7 +16,9 @@ use data::{
 use imgui::*;
 use main_menu_bar::MainMenuBarState;
 use native_dialog::Error;
-use screens::{buttons::ButtonState, erg_screen::ErgScreenState, new_screen::NewScreenState};
+use screens::{
+    buttons::ButtonState, erg_screen::ErgScreenState, new_screen::NewScreenState, NavigationState,
+};
 use timer::{Guard, Timer};
 use winit::window::Fullscreen;
 
@@ -62,6 +65,12 @@ fn main() {
     style.colors[StyleColor::ScrollbarGrab as usize] = SCROLLBAR_GRAB;
     style.colors[StyleColor::ScrollbarGrabActive as usize] = SCROLLBAR_GRAB_ACTIVE;
     style.colors[StyleColor::ScrollbarGrabHovered as usize] = SCROLLBAR_GRAB_HOVERED;
+    // style.colors[StyleColor::Button as usize] = BUTTON;
+    // style.colors[StyleColor::ButtonHovered as usize] = BUTTON_HOVERED;
+    // style.colors[StyleColor::ButtonActive as usize] = BUTTON_ACTIVE;
+    style.colors[StyleColor::Button as usize] = ELEVATED_BACKGROUND;
+    style.colors[StyleColor::ButtonHovered as usize] = ELEVATED_BACKGROUND;
+    style.colors[StyleColor::ButtonActive as usize] = ELEVATED_BACKGROUND;
 
     // start main loop
     system.main_loop(|run, ui, window, state| {
@@ -536,6 +545,7 @@ pub struct ProgramState {
     pub button_state: ButtonState,
     pub main_menu_bar_state: MainMenuBarState,
     pub threads: ThreadState,
+    pub navigation: NavigationState,
 }
 
 impl ProgramState {
@@ -549,6 +559,7 @@ impl ProgramState {
             button_state: ButtonState::empty(),
             main_menu_bar_state: MainMenuBarState::empty(),
             threads: ThreadState::new(),
+            navigation: NavigationState::new(),
         }
     }
 

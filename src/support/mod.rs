@@ -14,6 +14,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use crate::ProgramState;
+use crate::constants::FONT_SIZE;
 
 mod clipboard;
 
@@ -58,7 +59,7 @@ pub fn init(title: &str) -> System {
     }
 
     let hidpi_factor = platform.hidpi_factor();
-    let font_size = (25.0 * hidpi_factor) as f32;
+    let font_size = (FONT_SIZE * hidpi_factor) as f32;
     imgui.fonts().add_font(&[
         /*FontSource::DefaultFontData {
             config: Some(FontConfig {

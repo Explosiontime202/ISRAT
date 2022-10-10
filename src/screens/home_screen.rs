@@ -1,4 +1,4 @@
-use imgui::{ChildWindow, StyleColor, Ui, Window};
+use imgui::{ChildWindow, StyleColor, Ui};
 
 use crate::{
     colors::{BACKGROUND, BLUE, ELEVATED_BACKGROUND, GREEN, RED, TEXT},
@@ -18,9 +18,7 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState) {
         .bring_to_front_on_focus(false)
         .scroll_bar(false)
         .scrollable(false)
-        .build(ui, || {
-            ui.text("Home screen!");
-        });
+        .build(ui, || {});
     bg_token.pop();
     text_token.pop();
 }
