@@ -1,5 +1,6 @@
 use imgui::{InputText, InputTextMultiline, Ui};
 
+#[allow(dead_code)]
 pub struct MyTextInput<'a> {
     label: &'a str,
     hint: &'a str,
@@ -8,6 +9,7 @@ pub struct MyTextInput<'a> {
     offset: f32,
 }
 
+#[allow(dead_code)]
 impl MyTextInput<'_> {
     pub fn new<'a>(label: &'a str, hint: &'a str, buf: &'a mut String) -> MyTextInput<'a> {
         MyTextInput {
@@ -42,11 +44,13 @@ impl MyTextInput<'_> {
     }
 }
 
+#[allow(dead_code)]
 pub struct MyMultilineTextInput<'a> {
     label: &'a str,
     buf: &'a mut String,
 }
 
+#[allow(dead_code)]
 impl MyMultilineTextInput<'_> {
     pub fn new<'a>(label: &'a str, buf: &'a mut String) -> MyMultilineTextInput<'a> {
         MyMultilineTextInput { label, buf }

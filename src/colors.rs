@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 // 0x202020
 pub const BACKGROUND: [f32; 4] = [
     0x20 as f32 / 255.0,

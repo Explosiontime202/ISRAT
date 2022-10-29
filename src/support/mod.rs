@@ -15,9 +15,6 @@ use std::time::Instant;
 
 use crate::constants::{FONT_SIZE, HEADLINE_FONT_SIZE};
 use crate::{Fonts, ProgramState};
-
-mod clipboard;
-
 pub struct System {
     pub event_loop: EventLoop<()>,
     pub display: glium::Display,
@@ -44,12 +41,6 @@ pub fn init(title: &str) -> System {
 
     let mut imgui = Context::create();
     imgui.set_ini_filename(None);
-
-    if let Some(backend) = clipboard::init() {
-        imgui.set_clipboard_backend(backend);
-    } else {
-        eprintln!("Failed to initialize clipboard");
-    }
 
     let mut platform = WinitPlatform::init(&mut imgui);
     {

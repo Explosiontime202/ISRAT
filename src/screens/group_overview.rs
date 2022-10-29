@@ -1,6 +1,6 @@
 use crate::{
     colors::{BACKGROUND, TEXT},
-    common::{center_text_around_cursor, center_x, padding_absolut_y, padding_relative},
+    common::{center_x, padding_absolut_y, padding_relative},
     constants::{
         NEXT_GAME_TABLE_COLUMN_WIDTHS_SCALE, NEXT_GAME_TABLE_WIDTH_SCALE,
         RESULT_TABLE_COLUMN_WIDTHS_SCALE, RESULT_TABLE_PADDING_Y, RESULT_TABLE_WIDTH_SCALE,

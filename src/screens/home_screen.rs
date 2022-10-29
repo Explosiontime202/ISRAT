@@ -1,7 +1,7 @@
 use imgui::{ChildWindow, StyleColor, Ui};
 
 use crate::{
-    colors::{BACKGROUND, BLUE, ELEVATED_BACKGROUND, GREEN, RED, TEXT},
+    colors::{BACKGROUND, TEXT},
     constants::{SELECTED_SCREEN_HEIGHT, SELECTED_SCREEN_WIDTH},
     ProgramState,
 };

@@ -2,6 +2,7 @@
 
 use imgui::Ui;
 
+#[allow(dead_code)]
 pub fn center<T: AsRef<str>>(ui: &Ui, text: T) {
     let cursor_pos = ui.cursor_pos();
     ui.set_cursor_pos([
@@ -20,6 +21,7 @@ pub fn center_x<T: AsRef<str>>(ui: &Ui, text: T) {
     ui.text(&text);
 }
 
+#[allow(dead_code)]
 pub fn center_y<T: AsRef<str>>(ui: &Ui, text: T) {
     let cursor_pos = ui.cursor_pos();
     ui.set_cursor_pos([
@@ -29,6 +31,7 @@ pub fn center_y<T: AsRef<str>>(ui: &Ui, text: T) {
     ui.text(&text);
 }
 
+#[allow(dead_code)]
 pub fn center_text_around_cursor<T: AsRef<str>>(ui: &Ui, text: T) {
     let text_size = ui.calc_text_size(&text)[0];
     let cursor_pos = ui.cursor_pos();
@@ -44,6 +47,7 @@ pub fn padding_relative(ui: &Ui, padding: [f32; 2]) {
     ui.set_cursor_pos(pos);
 }
 
+#[allow(dead_code)]
 pub fn padding_absolut(ui: &Ui, padding: [f32; 2]) {
     let mut pos = ui.cursor_pos();
     pos[0] += padding[0];
@@ -51,6 +55,7 @@ pub fn padding_absolut(ui: &Ui, padding: [f32; 2]) {
     ui.set_cursor_pos(pos);
 }
 
+#[allow(dead_code)]
 pub fn padding_absolut_x(ui: &Ui, padding_x: f32) {
     let mut pos = ui.cursor_pos();
     pos[0] += padding_x;

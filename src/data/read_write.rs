@@ -8,7 +8,7 @@ use chrono::{Duration, Local};
 use native_dialog::MessageType;
 use timer::Timer;
 
-use crate::{ProgramStage, ProgramState};
+use crate::ProgramState;
 
 #[cfg(test)]
 use super::Team;

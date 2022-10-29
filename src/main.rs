@@ -14,11 +14,8 @@ use data::{
     Competition, CompetitionData, Team,
 };
 use imgui::*;
-use main_menu_bar::MainMenuBarState;
 use native_dialog::Error;
-use screens::{
-    buttons::ButtonState, erg_screen::ErgScreenState, new_screen::NewScreenState, NavigationState,
-};
+use screens::NavigationState;
 use timer::{Guard, Timer};
 use winit::window::Fullscreen;
 
@@ -26,7 +23,6 @@ mod colors;
 mod common;
 mod constants;
 mod data;
-mod main_menu_bar;
 mod screens;
 mod support;
 
@@ -456,8 +452,6 @@ fn initial_state(state: &mut ProgramState) {
         current_batch: vec![1, 0],
         with_break: true,
     });
-    state.new_screen_state = None;
-    state.erg_screen_state = Some(ErgScreenState::new(2));
     state.competition.data.as_mut().unwrap().generate_matches();
     state.competition.current_interim_result = vec![None, None];
 
@@ -564,10 +558,6 @@ pub struct ProgramState {
     pub stage: ProgramStage,
     pub size: [f32; 2],
     pub competition: Competition,
-    pub new_screen_state: Option<NewScreenState>,
-    pub erg_screen_state: Option<ErgScreenState>,
-    pub button_state: ButtonState,
-    pub main_menu_bar_state: MainMenuBarState,
     pub threads: ThreadState,
     pub navigation: NavigationState,
     pub fonts: [FontId; Fonts::CountFont as usize],
@@ -583,10 +573,6 @@ impl ProgramState {
             stage,
             size,
             competition: Competition::empty(),
-            new_screen_state: None,
-            erg_screen_state: None,
-            button_state: ButtonState::empty(),
-            main_menu_bar_state: MainMenuBarState::empty(),
             threads: ThreadState::new(),
             navigation: NavigationState::new(),
             fonts,
@@ -639,6 +625,8 @@ impl ThreadState {
         }
     }
 }
+
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 enum Fonts {
     Text = 0,

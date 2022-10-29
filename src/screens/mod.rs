@@ -14,12 +14,8 @@ use crate::ProgramState;
 
 mod my_input_text;
 
-pub mod buttons;
-pub mod erg_screen;
 pub mod group_overview;
 pub mod home_screen;
-pub mod new_screen;
-pub mod start_screen;
 
 const GENERAL_BUTTONS_COUNT: u64 = 4;
 const GROUP_OFFSET: u64 = GENERAL_BUTTONS_COUNT + 1;
