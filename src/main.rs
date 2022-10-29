@@ -47,6 +47,7 @@ fn main() {
     system.program_state = Some(ProgramState::new(
         ProgramStage::Home,
         [size.width as f32, size.height as f32],
+        system.fonts,
     ));
 
     // TODO: Make interval adjustable by using GUI settings or config in home directory
@@ -527,14 +528,14 @@ fn initial_state(state: &mut ProgramState) {
         });
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ProgramStage {
     Home,
     Settings,
     CompetitionOverview,
-    GroupOverview(u64),
-    GroupEnterResults(u64),
-    GroupMatchHistory(u64),
+    GroupOverview(usize),
+    GroupEnterResults(usize),
+    GroupMatchHistory(usize),
     Exports,
 }
 
@@ -548,12 +549,12 @@ impl ProgramStage {
         }
     }
 
-    pub fn get_group_idx(self) -> u64 {
+    pub fn get_group_idx(self) -> usize {
         assert!(self.is_group_stage());
         match self {
             Self::GroupOverview(idx)
             | Self::GroupEnterResults(idx)
-            | Self::GroupMatchHistory(idx) => idx,
+            | Self::GroupMatchHistory(idx) => idx as usize,
             _ => panic!("No GroupStage, weird!"),
         }
     }
@@ -569,10 +570,15 @@ pub struct ProgramState {
     pub main_menu_bar_state: MainMenuBarState,
     pub threads: ThreadState,
     pub navigation: NavigationState,
+    pub fonts: [FontId; Fonts::CountFont as usize],
 }
 
 impl ProgramState {
-    pub fn new(stage: ProgramStage, size: [f32; 2]) -> ProgramState {
+    pub fn new(
+        stage: ProgramStage,
+        size: [f32; 2],
+        fonts: [FontId; Fonts::CountFont as usize],
+    ) -> ProgramState {
         ProgramState {
             stage,
             size,
@@ -583,6 +589,7 @@ impl ProgramState {
             main_menu_bar_state: MainMenuBarState::empty(),
             threads: ThreadState::new(),
             navigation: NavigationState::new(),
+            fonts,
         }
     }
 
@@ -610,38 +617,6 @@ impl ProgramState {
             ProgramStage::GroupMatchHistory(_) => (),
             ProgramStage::Exports => (),
         }
-
-        // todo!();
-        /* match new_stage {
-            ProgramStage::StartScreenStage => {
-                todo!("Currently not implemented StartScreenStage init!")
-            }
-            ProgramStage::NewScreenStage => {
-                if self.new_screen_state.is_none() {
-                    self.new_screen_state = Some(NewScreenState::new());
-                }
-                if self.competition.data.is_none() {
-                    self.competition.data = Some(CompetitionData::empty());
-                }
-            }
-
-            ProgramStage::CurrentErgViewStage => {
-                // TODO: Add more state resets if needed
-                self.new_screen_state = None;
-
-                let group_count = self.competition.data.as_ref().unwrap().team_distribution[0];
-
-                if self.erg_screen_state.is_none() {
-                    self.erg_screen_state = Some(ErgScreenState::new(group_count as usize));
-                }
-
-                self.competition.current_interim_result = (0..group_count).map(|_| None).collect();
-            }
-
-            #[allow(unreachable_patterns)]
-            _ => todo!("Implement stage switch for more stages!"),
-        }
-        self.stage = new_stage; */
     }
 }
 
@@ -663,4 +638,10 @@ impl ThreadState {
             timer: None,
         }
     }
+}
+#[derive(Clone, Copy)]
+enum Fonts {
+    Text = 0,
+    FontHeadline = 1,
+    CountFont = 2,
 }

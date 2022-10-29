@@ -1,6 +1,6 @@
 use imgui::{Condition, MenuItem, Ui, Window};
 
-use crate::{common::center, screens::buttons, ProgramState};
+use crate::{common::center_x, screens::buttons, ProgramState};
 
 pub fn draw_main_menu_bar(ui: &Ui, program_state: &mut ProgramState) {
     if let Some(_) = ui.begin_main_menu_bar() {
@@ -55,9 +55,9 @@ fn about_window(ui: &Ui, program_state: &mut ProgramState) {
                 Condition::Always,
             )
             .build(ui, || {
-                center(ui, "ISRAT by Johannes Maier.");
-                center(ui, "Licensed under MIT License, 2022. Free to use.");
-                center(
+                center_x(ui, "ISRAT by Johannes Maier.");
+                center_x(ui, "Licensed under MIT License, 2022. Free to use.");
+                center_x(
                     ui,
                     "Source code can be found at https://github.com/Explosiontime202/ISRAT.",
                 );

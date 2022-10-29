@@ -7,14 +7,14 @@ use glium::glutin::event::{Event, WindowEvent};
 use glium::glutin::event_loop::{ControlFlow, EventLoop};
 use glium::glutin::window::WindowBuilder;
 use glium::{Display, Surface};
-use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, Ui};
+use imgui::{Context, FontConfig, FontGlyphRanges, FontId, FontSource, Ui};
 use imgui_glium_renderer::Renderer;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use std::path::Path;
 use std::time::Instant;
 
-use crate::ProgramState;
-use crate::constants::FONT_SIZE;
+use crate::constants::{FONT_SIZE, HEADLINE_FONT_SIZE};
+use crate::{Fonts, ProgramState};
 
 mod clipboard;
 
@@ -24,8 +24,8 @@ pub struct System {
     pub imgui: Context,
     pub platform: WinitPlatform,
     pub renderer: Renderer,
-    pub font_size: f32,
     pub program_state: Option<ProgramState>,
+    pub fonts: [FontId; Fonts::CountFont as usize],
 }
 
 pub fn init(title: &str) -> System {
@@ -59,8 +59,7 @@ pub fn init(title: &str) -> System {
     }
 
     let hidpi_factor = platform.hidpi_factor();
-    let font_size = (FONT_SIZE * hidpi_factor) as f32;
-    imgui.fonts().add_font(&[
+    let font_normal = imgui.fonts().add_font(&[
         /*FontSource::DefaultFontData {
             config: Some(FontConfig {
                 size_pixels: font_size,
@@ -69,14 +68,25 @@ pub fn init(title: &str) -> System {
         },*/
         FontSource::TtfData {
             data: include_bytes!("../../resources/mplus-1p-regular.ttf"),
-            size_pixels: font_size,
+            size_pixels: (FONT_SIZE * hidpi_factor) as f32,
             config: Some(FontConfig {
                 rasterizer_multiply: 1.75,
-                glyph_ranges: FontGlyphRanges::japanese(),
+                glyph_ranges: FontGlyphRanges::default(),
                 ..FontConfig::default()
             }),
         },
     ]);
+
+    let font_headline = imgui.fonts().add_font(&[FontSource::TtfData {
+        data: include_bytes!("../../resources/mplus-1p-regular.ttf"),
+        size_pixels: (HEADLINE_FONT_SIZE * hidpi_factor) as f32,
+        config: Some(FontConfig {
+            rasterizer_multiply: 1.75,
+            glyph_ranges: FontGlyphRanges::default(),
+            ..FontConfig::default()
+        }),
+    }]);
+    let fonts = [font_normal, font_headline];
 
     imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
 
@@ -88,8 +98,8 @@ pub fn init(title: &str) -> System {
         imgui,
         platform,
         renderer,
-        font_size,
         program_state: None,
+        fonts,
     }
 }
 

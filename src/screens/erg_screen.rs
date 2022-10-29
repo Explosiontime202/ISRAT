@@ -4,7 +4,7 @@ use imgui::{
 };
 
 use crate::{
-    common::center,
+    common::center_x,
     data::{CompetitionData, InterimResultEntry, Match, MatchResult, Team},
     screens::buttons,
     ProgramStage, ProgramState,
@@ -203,19 +203,19 @@ fn draw_erg_table(
         ui.table_next_row_with_flags(TableRowFlags::HEADERS);
 
         ui.table_next_column();
-        center(ui, "Place");
+        center_x(ui, "Place");
 
         ui.table_next_column();
-        center(ui, "Team");
+        center_x(ui, "Team");
 
         ui.table_next_column();
-        center(ui, "Points");
+        center_x(ui, "Points");
 
         ui.table_next_column();
-        center(ui, "Quotient");
+        center_x(ui, "Quotient");
 
         ui.table_next_column();
-        center(ui, "Stock Points");
+        center_x(ui, "Stock Points");
 
         // draw the rows and center the entries
         current_interim_result
@@ -227,25 +227,25 @@ fn draw_erg_table(
                 ui.table_next_row();
 
                 ui.table_next_column();
-                center(ui, (place_idx + 1).to_string());
+                center_x(ui, (place_idx + 1).to_string());
 
                 ui.table_next_column();
-                center(
+                center_x(
                     ui,
                     &data.teams.as_ref().unwrap()[group_idx][entry.team_idx].name,
                 );
 
                 ui.table_next_column();
-                center(
+                center_x(
                     ui,
                     format!("{} : {}", entry.match_points[0], entry.match_points[1]),
                 );
 
                 ui.table_next_column();
-                center(ui, format!("{:.3}", entry.quotient));
+                center_x(ui, format!("{:.3}", entry.quotient));
 
                 ui.table_next_column();
-                center(
+                center_x(
                     ui,
                     format!("{} : {}", entry.stock_points[0], entry.stock_points[1]),
                 );
@@ -269,7 +269,7 @@ fn draw_upcoming_matches(
         false
     };
 
-    center(ui, "Next Matches:");
+    center_x(ui, "Next Matches:");
     ui.new_line();
 
     // setup table for upcoming matches and to enter the results
@@ -307,7 +307,7 @@ fn draw_upcoming_matches(
             ui.table_next_row();
             ui.table_next_column();
 
-            center(ui, format!("Lane {}", (lane_idx + 1)));
+            center_x(ui, format!("Lane {}", (lane_idx + 1)));
 
             ui.table_next_column();
 
@@ -320,10 +320,10 @@ fn draw_upcoming_matches(
 
                 // draw team names
                 let team_a_name = &teams[_match.team_a].name;
-                center(ui, team_a_name);
+                center_x(ui, team_a_name);
                 ui.table_next_column();
                 let team_b_name = &teams[_match.team_b].name;
-                center(ui, team_b_name);
+                center_x(ui, team_b_name);
                 ui.table_next_column();
 
                 // initialize points string, for each team the string representation of the entered points, empty string if no points were entered
@@ -417,9 +417,9 @@ fn draw_upcoming_matches(
                 draw_input_text(1, "team_b");
             } else {
                 // ... else display that there is no match on this lane
-                center(ui, "Empty");
+                center_x(ui, "Empty");
                 ui.table_next_column();
-                center(ui, "Empty");
+                center_x(ui, "Empty");
                 ui.table_next_column();
             }
         });

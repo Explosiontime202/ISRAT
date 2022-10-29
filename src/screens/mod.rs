@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use imgui::{ChildWindow, StyleColor, Ui};
 
 use crate::colors::{BORDER, BUTTON_TEXT_HOVERED, ELEVATED_BACKGROUND, HIGHLIGHT, SEPARATOR, TEXT};
-use crate::common::{list_view, padding};
+use crate::common::{list_view, padding_relative};
 use crate::constants::{BORDER_THICKNESS, NAVIGATION_PADDING, NAVIGATION_SEPARATOR_LEN};
 use crate::constants::{
     BOTTOM_MENU_HEIGHT, BOTTOM_MENU_WIDTH, NAVIGATION_BAR_HEIGHT, NAVIGATION_BAR_WIDTH,
@@ -16,6 +16,7 @@ mod my_input_text;
 
 pub mod buttons;
 pub mod erg_screen;
+pub mod group_overview;
 pub mod home_screen;
 pub mod new_screen;
 pub mod start_screen;
@@ -85,7 +86,7 @@ fn build_navigation_bar(ui: &Ui, program_state: &mut ProgramState) {
                 .thickness(BORDER_THICKNESS)
                 .build();
 
-            padding(ui, NAVIGATION_PADDING);
+            padding_relative(ui, NAVIGATION_PADDING);
 
             let button_bg_token = ui.push_style_color(StyleColor::Button, ELEVATED_BACKGROUND);
 
@@ -162,7 +163,7 @@ fn build_navigation_bar(ui: &Ui, program_state: &mut ProgramState) {
                         program_state,
                         group_button_offset,
                         item_idx,
-                        item_idx - GROUP_OFFSET,
+                        (item_idx - GROUP_OFFSET) as usize,
                     )
                 } else if item_idx == GROUP_OFFSET + group_count {
                     build_separator(ui, program_state)
@@ -252,10 +253,10 @@ fn build_group_button(
     program_state: &mut ProgramState,
     group_button_offset: u64,
     item_idx: u64,
-    group_idx: u64,
+    group_idx: usize,
 ) -> f32 {
     debug_assert!(
-        group_idx
+        (group_idx as u64)
             < program_state
                 .competition
                 .data
@@ -274,7 +275,7 @@ fn build_group_button(
         .unwrap()
         .group_names
         .as_ref()
-        .unwrap()[group_idx as usize]
+        .unwrap()[group_idx]
         .clone();
 
     build_navigation_button(
@@ -342,7 +343,7 @@ fn build_group_sub_button(
                 ));
             },
         ),
-        _ => panic!("Implementation error: invalid index {item_idx} {sub_item_idx} in list view"),
+        _ => panic!("Implementation error: invalid index {item_idx} and sub item index {sub_item_idx} in list view"),
     }
 }
 
@@ -354,13 +355,13 @@ fn is_nav_button_highlighted(stage: ProgramStage, group_button_offset: u64, item
         ProgramStage::CompetitionOverview => item_idx == 2,
         ProgramStage::Exports => item_idx == 3,
         ProgramStage::GroupOverview(group_idx) => {
-            item_idx == GROUP_OFFSET + group_idx || item_idx == group_button_offset
+            item_idx == GROUP_OFFSET + group_idx as u64 || item_idx == group_button_offset
         }
         ProgramStage::GroupEnterResults(group_idx) => {
-            item_idx == GROUP_OFFSET + group_idx || item_idx == group_button_offset + 1
+            item_idx == GROUP_OFFSET + group_idx as u64 || item_idx == group_button_offset + 1
         }
         ProgramStage::GroupMatchHistory(group_idx) => {
-            item_idx == GROUP_OFFSET + group_idx || item_idx == group_button_offset + 2
+            item_idx == GROUP_OFFSET + group_idx as u64 || item_idx == group_button_offset + 2
         }
     }
 }
@@ -396,7 +397,8 @@ fn build_selected_screen(ui: &Ui, program_state: &mut ProgramState) {
     ]);
     match program_state.stage {
         ProgramStage::Home => home_screen::build(ui, program_state),
-        _ => (),
+        ProgramStage::GroupOverview(_) => group_overview::build(ui, program_state),
+        _ => todo!(),
     }
 }
 
