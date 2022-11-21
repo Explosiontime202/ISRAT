@@ -1,4 +1,4 @@
-dark theme:
+old dark theme:
 
 main background: 1d2126
 evelated background: 232425
@@ -7,3 +7,21 @@ line color: 333333
 text color: cccccc
 scroll bar color: 2d2e2f
 table lines: 66666 (Dunkelgrau 1)
+
+new dark theme:
+
+main background: 1e1e1e
+elevated (main) background: 212121
+navigation side bar background: 232323
+drop down selector background: 323232
+table headline: 323232
+highlight color: d65307
+line color: 333333
+text color: cccccc
+scroll bar color: 2d2d2d
+table lines: 66666 (Dunkelgrau 1)
+
+libre office text sizes:
+normal size: 7
+size bar buttons: 8
+headline size: 13
