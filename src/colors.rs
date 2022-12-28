@@ -1,18 +1,18 @@
 #![allow(dead_code)]
 
-// 0x202020
+// 1e1e1e
 pub const BACKGROUND: [f32; 4] = [
-    0x20 as f32 / 255.0,
-    0x20 as f32 / 255.0,
-    0x20 as f32 / 255.0,
+    0x1e as f32 / 255.0,
+    0x1e as f32 / 255.0,
+    0x1e as f32 / 255.0,
     1.0,
 ];
 
-// 0x232425
+// 0x212121
 pub const ELEVATED_BACKGROUND: [f32; 4] = [
-    0x23 as f32 / 255.0,
-    0x24 as f32 / 255.0,
-    0x25 as f32 / 255.0,
+    0x21 as f32 / 255.0,
+    0x21 as f32 / 255.0,
+    0x21 as f32 / 255.0,
     1.0,
 ];
 

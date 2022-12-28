@@ -1,19 +1,140 @@
 use crate::{
-    colors::{BACKGROUND, TEXT},
-    common::{center_x, padding_absolut_y, padding_relative},
+    colors::{BACKGROUND, BLUE, ELEVATED_BACKGROUND, GREEN, RED, TEXT},
+    common::{aadd, bg_tile, center_x, padding_absolut_y, padding_relative, padding_relative_y},
     constants::{
-        NEXT_GAME_TABLE_COLUMN_WIDTHS_SCALE, NEXT_GAME_TABLE_WIDTH_SCALE,
-        RESULT_TABLE_COLUMN_WIDTHS_SCALE, RESULT_TABLE_PADDING_Y, RESULT_TABLE_WIDTH_SCALE,
-        SELECTED_SCREEN_HEIGHT, SELECTED_SCREEN_PADDING, SELECTED_SCREEN_WIDTH,
+        group_overview::{
+            result_table::{RT_COLUMN_WIDTH_SCALE, RT_PADDING},
+            upcoming_matches_table::{UMT_COLUMN_WIDTHS_SCALE, UMT_PADDING},
+            INTER_TABLE_PADDING,
+        },
+        RESULT_TABLE_PADDING_Y, SELECTED_SCREEN_HEIGHT, SELECTED_SCREEN_PADDING,
+        SELECTED_SCREEN_PADDING_FOUR, SELECTED_SCREEN_WIDTH,
     },
     data::{Competition, MatchResult},
+    layout::GridLayout,
+    tile::{Drawable, Padding, Text},
     Fonts, ProgramStage, ProgramState,
 };
 use imgui::{
     ChildWindow, Id, StyleColor, TableColumnFlags, TableColumnSetup, TableFlags, TableRowFlags, Ui,
 };
 
+struct GroupOverview {
+    headline: Box<Text>,
+    body: Box<GridLayout>,
+}
+
+impl GroupOverview {
+    pub fn new(
+        headline: String,
+        /*competition: &'mut Competition,*/ group_idx: usize,
+    ) -> Box<Self> {
+        let mut children: Vec<Box<dyn Drawable>> = Vec::with_capacity(2);
+
+        let erg_table = Padding::new(
+            Padding::colored(
+                ResultTable::new(/*competition, group_idx*/),
+                RT_PADDING,
+                ELEVATED_BACKGROUND,
+            ),
+            [0.0, 0.0, INTER_TABLE_PADDING / 2.0, 0.0],
+        );
+        children.push(erg_table);
+
+        let upcoming_matches_table = Padding::new(
+            Padding::colored(
+                UpcomingMatchesTable::new(),
+                UMT_PADDING,
+                ELEVATED_BACKGROUND,
+            ),
+            [INTER_TABLE_PADDING / 2.0, 0.0, 0.0, 0.0],
+        );
+
+        children.push(upcoming_matches_table);
+
+        Box::new(Self {
+            headline: Text::new(headline),
+            body: GridLayout::new(children, 2, 1, false),
+        })
+    }
+}
+
+impl Drawable for GroupOverview {
+    fn draw(&mut self, ui: &Ui, space: [f32; 2]) {
+        let pos = ui.cursor_pos();
+        // draw headline
+        self.headline.draw(ui, [space[0], space[1] * 0.1]);
+        ui.set_cursor_pos([pos[0], pos[1] + space[1] * 0.1]);
+        // draw body / GridLayout
+        self.body.draw(ui, [space[0], space[1] * 0.9]);
+    }
+}
+
+struct ResultTable {
+    // competition: &'a mut Competition,
+    // group_idx: usize,
+}
+
+impl ResultTable {
+    pub fn new(/*competition: &'a mut Competition, group_idx: usize*/) -> Box<Self> {
+        Box::new(Self {
+            // competition,
+            // group_idx,
+        })
+    }
+}
+
+impl Drawable for ResultTable {
+    fn draw(&mut self, ui: &Ui, space: [f32; 2]) {
+        // TODO: reimplement
+        // draw_erg_table(ui, self.competition, self.group_idx, space[0]);
+        ui.text("Result table");
+    }
+}
+
+struct UpcomingMatchesTable {}
+
+impl UpcomingMatchesTable {
+    pub fn new() -> Box<Self> {
+        Box::new(Self {})
+    }
+}
+
+impl Drawable for UpcomingMatchesTable {
+    fn draw(&mut self, ui: &Ui, space: [f32; 2]) {
+        ui.text("Upcoming matches table!");
+    }
+}
+
 pub fn build(ui: &Ui, program_state: &mut ProgramState) {
+    let text_token = ui.push_style_color(StyleColor::Text, TEXT);
+    let bg_token = ui.push_style_color(StyleColor::ChildBg, BACKGROUND);
+    ChildWindow::new("##group_overview")
+        .size([
+            program_state.size[0] * SELECTED_SCREEN_WIDTH,
+            program_state.size[1] * SELECTED_SCREEN_HEIGHT,
+        ])
+        .no_nav()
+        .bring_to_front_on_focus(false)
+        .scroll_bar(true)
+        .scrollable(true)
+        .build(ui, || {
+            assert!(program_state.competition.data.is_some());
+            let data = program_state.competition.data.as_ref().unwrap();
+            let group_idx = program_state.stage.get_group_idx();
+            Padding::new(
+                GroupOverview::new(
+                    String::from("Group BLUE TODO"),
+                    // &mut program_state.competition,
+                    group_idx,
+                ),
+                SELECTED_SCREEN_PADDING_FOUR,
+            )
+            .draw(ui, ui.window_size());
+        });
+}
+
+/* pub fn build(ui: &Ui, program_state: &mut ProgramState) {
     let text_token = ui.push_style_color(StyleColor::Text, TEXT);
     let bg_token = ui.push_style_color(StyleColor::ChildBg, BACKGROUND);
     ChildWindow::new("##group_overview")
@@ -44,23 +165,26 @@ pub fn build(ui: &Ui, program_state: &mut ProgramState) {
             };
 
             let font_token = ui.push_font(program_state.fonts[Fonts::FontHeadline as usize]);
-            let headline_str = format!(
-                "{group_name} - Score after Batch {}",
-                data.current_batch[group_idx]
-            );
-            ui.text(headline_str);
+            ui.text(group_name);
             font_token.pop();
 
-            padding_relative(ui, [SELECTED_SCREEN_PADDING[0], 0.025]);
-            draw_erg_table(ui, &mut program_state.competition, group_idx);
-            ui.new_line();
-            draw_upcoming_matches(ui, &mut program_state.competition, group_idx);
+            // calculate table width, equally space for both tables, take padding on the out- and inside into account
+            let window_width_without_padding = ui.window_size()[0]
+                * (1.0 - SELECTED_SCREEN_PADDING[0] * 2.0 - INTER_TABLE_PADDING);
+
+            // left erg table, right upcoming matches, each half of the available space
+            let table_width = window_width_without_padding / 2.0;
+
+            padding_relative(ui, SELECTED_SCREEN_PADDING);
+            draw_erg_table(ui, &mut program_state.competition, group_idx, table_width);
+
+            draw_upcoming_matches(ui, &mut program_state.competition, group_idx, table_width);
         });
     bg_token.pop();
     text_token.pop();
-}
+} */
 
-fn draw_erg_table(ui: &Ui, competition: &mut Competition, group_idx: usize) {
+fn draw_erg_table(ui: &Ui, competition: &mut Competition, group_idx: usize, table_width: f32) {
     // calculate interim result if not available
     if competition.current_interim_result[group_idx].is_none() {
         competition.current_interim_result[group_idx] = Some(
@@ -72,51 +196,47 @@ fn draw_erg_table(ui: &Ui, competition: &mut Competition, group_idx: usize) {
         );
     }
 
-    let window_width_without_padding =
-        ui.window_size()[0] * (1.0 - SELECTED_SCREEN_PADDING[0] * 2.0);
+    let base_pos = ui.cursor_pos();
+
+    bg_tile(ui, [0.35, 0.35]);
 
     if let Some(_table_token) = ui.begin_table_with_sizing(
         "##erg_table",
         5,
         TableFlags::BORDERS | TableFlags::SIZING_FIXED_FIT,
-        [window_width_without_padding * RESULT_TABLE_WIDTH_SCALE, 0.0],
-        window_width_without_padding * RESULT_TABLE_WIDTH_SCALE,
+        [table_width, 0.0],
+        table_width,
     ) {
         // add the columns
         ui.table_setup_column_with(TableColumnSetup {
             name: "Place",
             flags: TableColumnFlags::WIDTH_FIXED,
-            init_width_or_weight: window_width_without_padding
-                * RESULT_TABLE_COLUMN_WIDTHS_SCALE[0],
+            init_width_or_weight: table_width * RT_COLUMN_WIDTH_SCALE[0],
             user_id: Id::Int(0),
         });
 
         ui.table_setup_column_with(TableColumnSetup {
             name: "Team",
             flags: TableColumnFlags::WIDTH_FIXED,
-            init_width_or_weight: window_width_without_padding
-                * RESULT_TABLE_COLUMN_WIDTHS_SCALE[1],
+            init_width_or_weight: table_width * RT_COLUMN_WIDTH_SCALE[1],
             user_id: Id::Int(0),
         });
         ui.table_setup_column_with(TableColumnSetup {
             name: "Points",
             flags: TableColumnFlags::WIDTH_FIXED,
-            init_width_or_weight: window_width_without_padding
-                * RESULT_TABLE_COLUMN_WIDTHS_SCALE[2],
+            init_width_or_weight: table_width * RT_COLUMN_WIDTH_SCALE[2],
             user_id: Id::Int(0),
         });
         ui.table_setup_column_with(TableColumnSetup {
             name: "Quotient",
             flags: TableColumnFlags::WIDTH_FIXED,
-            init_width_or_weight: window_width_without_padding
-                * RESULT_TABLE_COLUMN_WIDTHS_SCALE[3],
+            init_width_or_weight: table_width * RT_COLUMN_WIDTH_SCALE[3],
             user_id: Id::Int(0),
         });
         ui.table_setup_column_with(TableColumnSetup {
             name: "Stock Points",
             flags: TableColumnFlags::WIDTH_FIXED,
-            init_width_or_weight: window_width_without_padding
-                * RESULT_TABLE_COLUMN_WIDTHS_SCALE[4],
+            init_width_or_weight: table_width * RT_COLUMN_WIDTH_SCALE[4],
             user_id: Id::Int(0),
         });
 
@@ -194,42 +314,42 @@ fn draw_erg_table(ui: &Ui, competition: &mut Competition, group_idx: usize) {
     }
 }
 
-fn draw_upcoming_matches(ui: &Ui, competition: &mut Competition, group_idx: usize) {
-    center_x(ui, "Next Matches:");
-    ui.new_line();
-    padding_relative(ui, [SELECTED_SCREEN_PADDING[0], 0.0]);
+fn draw_upcoming_matches(
+    ui: &Ui,
+    competition: &mut Competition,
+    group_idx: usize,
+    table_width: f32,
+) {
+    // center_x(ui, "Next Matches:");
+    // ui.new_line();
+    // padding_relative(ui, [SELECTED_SCREEN_PADDING[0], 0.0]);
 
-    // setup table for upcoming matches and to enter the results
-    let window_width_without_padding =
-        ui.window_size()[0] * (1.0 - SELECTED_SCREEN_PADDING[0] * 2.0);
+    bg_tile(ui, [0.35, 0.35]);
 
     if let Some(_table_token) = ui.begin_table_with_sizing(
         "##upcoming_matches_table",
         3,
         TableFlags::BORDERS,
-        [
-            window_width_without_padding * NEXT_GAME_TABLE_WIDTH_SCALE,
-            0.0,
-        ],
-        window_width_without_padding * NEXT_GAME_TABLE_WIDTH_SCALE,
+        [table_width, 0.0],
+        table_width,
     ) {
         // setup up columns
         ui.table_setup_column_with(TableColumnSetup {
             name: "##Lane",
             flags: TableColumnFlags::WIDTH_FIXED,
-            init_width_or_weight: window_width_without_padding * NEXT_GAME_TABLE_COLUMN_WIDTHS_SCALE[0],
+            init_width_or_weight: table_width * UMT_COLUMN_WIDTHS_SCALE[0],
             user_id: Id::Int(0),
         });
         ui.table_setup_column_with(TableColumnSetup {
             name: "##TeamA",
             flags: TableColumnFlags::WIDTH_FIXED,
-            init_width_or_weight: window_width_without_padding * NEXT_GAME_TABLE_COLUMN_WIDTHS_SCALE[1],
+            init_width_or_weight: table_width * UMT_COLUMN_WIDTHS_SCALE[1],
             user_id: Id::Int(0),
         });
         ui.table_setup_column_with(TableColumnSetup {
             name: "##TeamB",
             flags: TableColumnFlags::WIDTH_FIXED,
-            init_width_or_weight: window_width_without_padding * NEXT_GAME_TABLE_COLUMN_WIDTHS_SCALE[2],
+            init_width_or_weight: table_width * UMT_COLUMN_WIDTHS_SCALE[2],
             user_id: Id::Int(0),
         });
 

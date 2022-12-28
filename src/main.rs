@@ -26,6 +26,9 @@ mod data;
 mod screens;
 mod support;
 
+mod layout;
+mod tile;
+
 fn main() {
     let mut system = support::init("ISRAT");
 

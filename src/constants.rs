@@ -35,31 +35,62 @@ pub const NAVIGATION_PADDING: [f32; 2] = [0.025, 0.01];
 pub const NAVIGATION_SEPARATOR_LEN: f32 = 1.0 - NAVIGATION_PADDING[0] * 3.0;
 
 pub const SELECTED_SCREEN_PADDING: [f32; 2] = [0.025, 0.01];
+pub const SELECTED_SCREEN_PADDING_FOUR: [f32; 4] = [0.025, 0.025, 0.025, 0.025];
 
-pub const RESULT_TABLE_COLUMN_WIDTHS_SCALE: [f32; 5] = [0.05, 0.7, 0.075, 0.075, 0.1];
-pub const RESULT_TABLE_WIDTH_SCALE: f32 = {
-    let mut sum = 0.0;
-    let mut i = 0;
-    while i < RESULT_TABLE_COLUMN_WIDTHS_SCALE.len() {
-        sum += RESULT_TABLE_COLUMN_WIDTHS_SCALE[i];
-        i += 1;
-    }
-    sum
-};
+// defines the rounding used in the elevated background tilings
+pub const BG_TILE_ROUNDING: f32 = 20.0;
 
 pub const RESULT_TABLE_PADDING_Y: f32 = 0.35;
 
-pub const _: () = assert!(RESULT_TABLE_WIDTH_SCALE > 0.0 && RESULT_TABLE_WIDTH_SCALE <= 1.0);
+// constants for the group overview screen, e.g. padding and widths
+pub mod group_overview {
 
-pub const NEXT_GAME_TABLE_COLUMN_WIDTHS_SCALE: [f32; 3] = [0.2, 0.4, 0.4];
-pub const NEXT_GAME_TABLE_WIDTH_SCALE: f32 = {
-    let mut sum = 0.0;
-    let mut i = 0;
-    while i < RESULT_TABLE_COLUMN_WIDTHS_SCALE.len() {
-        sum += RESULT_TABLE_COLUMN_WIDTHS_SCALE[i];
-        i += 1;
+    /** padding between result table and upcoming matches table in the group overview screen */
+    pub const INTER_TABLE_PADDING: f32 = 0.02;
+
+    /* assertions for valid constants */
+
+    // assert INTER_TABLE_PADDING in interval [0.0, 1.0]
+    const _: () = assert!(INTER_TABLE_PADDING >= 0.0 && INTER_TABLE_PADDING <= 1.0);
+
+    pub mod result_table {
+        /** scaling factors of column widths of the result table, have to sum up to 1.0 */
+        pub const RT_COLUMN_WIDTH_SCALE: [f32; 5] = [0.05, 0.7, 0.075, 0.075, 0.1];
+
+        /** padding around the result table */
+        pub const RT_PADDING: [f32; 4] = [0.05; 4];
+
+        // assert RT_COLUMN_WIDTH_SCALE in interval [0.0, 1.0] and sum up to 1.0
+        const _: () = {
+            let mut i = 0;
+            let mut sum = 0.0;
+            while i < RT_COLUMN_WIDTH_SCALE.len() {
+                assert!(RT_COLUMN_WIDTH_SCALE[i] >= 0.0 && RT_COLUMN_WIDTH_SCALE[i] <= 1.0);
+                sum += RT_COLUMN_WIDTH_SCALE[i];
+                i += 1
+            }
+
+            assert!(sum == 1.0);
+        };
     }
-    sum
-};
 
-pub const _: () = assert!(NEXT_GAME_TABLE_WIDTH_SCALE > 0.0 && NEXT_GAME_TABLE_WIDTH_SCALE <= 1.0);
+    pub mod upcoming_matches_table {
+        /** scaling factors of column widths of the upcoming matches table, have to sum up to 1.0 */
+        pub const UMT_COLUMN_WIDTHS_SCALE: [f32; 3] = [0.2, 0.4, 0.4];
+
+        /** padding around the upcoming matches table */
+        pub const UMT_PADDING: [f32; 4] = [0.05; 4];
+
+        // assert UMT_COLUMN_WIDTHS_SCALE in interval [0.0, 1.0] and sum up to 1.0
+        const _: () = {
+            let mut i = 0;
+            let mut sum = 0.0;
+            while i < UMT_COLUMN_WIDTHS_SCALE.len() {
+                assert!(UMT_COLUMN_WIDTHS_SCALE[i] >= 0.0 && UMT_COLUMN_WIDTHS_SCALE[i] <= 1.0);
+                sum += UMT_COLUMN_WIDTHS_SCALE[i];
+                i += 1;
+            }
+            assert!(sum == 1.0);
+        };
+    }
+}
