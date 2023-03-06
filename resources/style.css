@@ -1,0 +1,15 @@
+separator {
+    color: inherit;
+}
+
+separator.highlighted {
+    color: #FF6600;
+}
+
+separator.category_sep {
+    /* TODO: */
+}
+
+button.nav_button {
+    /* TODO: */
+}

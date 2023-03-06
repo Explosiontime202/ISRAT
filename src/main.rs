@@ -1,6 +1,6 @@
 #![windows_subsystem = "windows"]
 
-use std::{path::PathBuf, sync::mpsc::Receiver};
+use std::path::PathBuf;
 
 use chrono::Duration;
 use data::{
@@ -9,121 +9,97 @@ use data::{
     },
     Competition, CompetitionData, Team,
 };
-use imgui::*;
-use main_menu_bar::MainMenuBarState;
-use native_dialog::Error;
-use screens::{buttons::ButtonState, erg_screen::ErgScreenState, new_screen::NewScreenState};
-use timer::{Guard, Timer};
-use winit::window::Fullscreen;
 
-mod common;
 mod data;
-mod main_menu_bar;
-mod screens;
-mod support;
+mod state;
+mod widgets;
 
-fn main() {
-    let mut system = support::init("ISRAT");
+use adw::prelude::*;
+use adw::subclass::prelude::*;
 
-    // set borderless full screen at start
-    system
-        .display
-        .gl_window()
-        .window()
-        .set_fullscreen(Some(Fullscreen::Borderless(None)));
+use gdk4::{gio::Menu, glib, Display};
+use gtk4::{
+    traits::{BoxExt, GtkApplicationExt, GtkWindowExt, WidgetExt},
+    ApplicationWindow, CssProvider, Label, StyleContext,
+};
+use state::{ProgramStage, ProgramState};
+use widgets::navbar::NavBar;
 
-    // get monitor size
-    let size = system.display.gl_window().window().inner_size();
-
+fn main() -> glib::ExitCode {
     // initialize program state
-    system.program_state = Some(ProgramState::new(
-        ProgramStage::StartScreenStage,
-        [size.width as f32, size.height as f32],
-    ));
+    let mut program_state = ProgramState::new(ProgramStage::StartScreenStage, [1920.0, 1080.0]);
 
     // TODO: Make interval adjustable by using GUI settings or config in home directory
-    spawn_autosave_timer(Duration::minutes(1), system.program_state.as_mut().unwrap());
+    spawn_autosave_timer(Duration::minutes(1), &mut program_state);
 
     // TODO: Remove for productive builds
     #[cfg(debug_assertions)]
-    initial_state(system.program_state.as_mut().unwrap());
+    initial_state(&mut program_state);
 
-    // set color theme
-    let style = system.imgui.style_mut();
-    style.colors[StyleColor::TitleBgActive as usize] = style.colors[StyleColor::TitleBg as usize];
+    let app = adw::Application::builder()
+        .application_id("de.explosiontime.Israt")
+        .build();
 
-    // start main loop
-    system.main_loop(|run, ui, window, state| {
-        let size = window.inner_size();
-        state.size = [size.width as f32, size.height as f32];
+    app.connect_startup(|_| load_css());
+    app.connect_activate(build_main_screen);
 
-        let window_border_size_token = ui.push_style_var(StyleVar::WindowBorderSize(0.0));
-        let window_padding_token = ui.push_style_var(StyleVar::WindowPadding([0.0, 0.0]));
-        Window::new("ISRAT")
-            .size(state.size, Condition::Always)
-            .position([0.0, 0.0], Condition::Always)
-            .no_decoration()
-            .title_bar(true)
-            .no_nav()
-            .bring_to_front_on_focus(false)
-            .resizable(false)
-            .opened(run)
-            .build(ui, || {
-                screens::build(ui, state);
+    app.run()
+}
 
-                // Escape is pressed, exit fullscreen mode
-                if ui.io().keys_down[36] {
-                    window.set_fullscreen(None);
-                }
+fn load_css() {
+    // Load the CSS file and add it to the provider
+    let provider = CssProvider::new();
+    provider.load_from_data(include_str!("../resources/style.css"));
 
-                // F11 is pressed, enter fullscreen mode
-                if ui.io().keys_down[47] {
-                    window.set_fullscreen(Some(Fullscreen::Borderless(None)));
-                }
+    // Add the provider to the default screen
+    StyleContext::add_provider_for_display(
+        &Display::default().expect("Could not connect to a display."),
+        &provider,
+        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
+}
 
-                //if let Some(key) = ui.io().keys_down.iter().position(|&k| k == true) {
-                //    println!("pressed_key = {}", key);
-                //}
+fn build_main_screen(app: &adw::Application) {
+    let window = ApplicationWindow::builder()
+        .application(app)
+        .default_width(1920)
+        .default_height(1080)
+        .title("ISRAT")
+        .show_menubar(true)
+        .build();
 
-                main_menu_bar::draw_main_menu_bar(ui, state);
-                check_for_thread_messages(state);
-                /*ui.text("Hello world!");
-                ui.text("こんにちは世界！");
-                ui.text("This...is...imgui-rs!");
-                ui.separator();
-                let mouse_pos = ui.io().mouse_pos;
-                ui.text(format!(
-                    "Mouse Position: ({:.1},{:.1})",
-                    mouse_pos[0], mouse_pos[1]
-                ));
-                let bg_color = ui.push_style_color(StyleColor::ChildBg, [1.0, 0.0, 0.0, 1.0]);*/
-                /*Window::new("Hello Welt")
-                .size([200.0, 200.0], Condition::Always)
-                .no_decoration()
-                .position([200.0, 100.0], Condition::Always)
-                .build(ui, || {
-                    let text_color =
-                        ui.push_style_color(StyleColor::Text, [0.0, 1.0, 0.0, 1.0]);
-                    ui.text(format!("Screen Size: ({:.1}, {:.1})", width, height));
-                    let c = ui.style_color(StyleColor::Text);
-                    ui.text(format!("{} {} {} {}", c[0], c[1], c[2], c[3]));
-                    text_color.pop();
-                });*/
-                /*ChildWindow::new("Hello Welt")
-                    .size([200.0, 200.0])
-                    .build(ui, || {
-                        let text_color =
-                            ui.push_style_color(StyleColor::Text, [0.0, 1.0, 0.0, 1.0]);
-                        ui.text(format!("Screen Size: ({:.1}, {:.1})", 0.0, 0.0));
-                        let c = ui.style_color(StyleColor::Text);
-                        ui.text(format!("{} {} {} {}", c[0], c[1], c[2], c[3]));
-                        text_color.pop();
-                    });
-                bg_color.pop();*/
-            });
-        window_padding_token.pop();
-        window_border_size_token.pop();
-    });
+    build_menu(app);
+
+    let h_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 10);
+    let v_box = gtk4::Box::new(gtk4::Orientation::Vertical, 10);
+
+    build_navigation_bar(&h_box);
+
+    let label = Label::new(Some("Test"));
+    h_box.append(&label);
+
+    v_box.append(&h_box);
+
+    window.set_child(Some(&v_box));
+    window.show();
+}
+
+fn build_menu(app: &adw::Application) {
+    let menu_bar = Menu::new();
+    let file_menu = Menu::new();
+    menu_bar.append_submenu(Some("File"), &file_menu);
+    file_menu.append(Some("Test"), None);
+    app.set_menubar(Some(&menu_bar));
+}
+
+fn build_navigation_bar(parent: &impl IsA<gtk4::Box>) {
+    let nav_bar = NavBar::new();
+    nav_bar.set_hexpand(true);
+    nav_bar.set_hexpand_set(true);
+    nav_bar.set_vexpand(true);
+    nav_bar.set_vexpand_set(true);
+
+    parent.append(&nav_bar);
 }
 
 fn check_for_thread_messages(program_state: &mut ProgramState) {
@@ -431,8 +407,6 @@ fn initial_state(state: &mut ProgramState) {
         current_batch: vec![1, 0],
         with_break: true,
     });
-    state.new_screen_state = None;
-    state.erg_screen_state = Some(ErgScreenState::new(2));
     state.competition.data.as_mut().unwrap().generate_matches();
     state.competition.current_interim_result = vec![None, None];
 
@@ -501,90 +475,4 @@ fn initial_state(state: &mut ProgramState) {
             assert!(hash_set.insert(arr));
             assert_ne!(arr[0], arr[1]);
         });
-}
-
-#[derive(Clone, Copy)]
-pub enum ProgramStage {
-    StartScreenStage,
-    NewScreenStage,
-    CurrentErgViewStage,
-}
-
-pub struct ProgramState {
-    pub stage: ProgramStage,
-    pub size: [f32; 2],
-    pub competition: Competition,
-    pub new_screen_state: Option<NewScreenState>,
-    pub erg_screen_state: Option<ErgScreenState>,
-    pub button_state: ButtonState,
-    pub main_menu_bar_state: MainMenuBarState,
-    pub threads: ThreadState,
-}
-
-impl ProgramState {
-    pub fn new(stage: ProgramStage, size: [f32; 2]) -> ProgramState {
-        ProgramState {
-            stage,
-            size,
-            competition: Competition::empty(),
-            new_screen_state: None,
-            erg_screen_state: None,
-            button_state: ButtonState::empty(),
-            main_menu_bar_state: MainMenuBarState::empty(),
-            threads: ThreadState::new(),
-        }
-    }
-
-    pub fn switch_to_stage(&mut self, new_stage: ProgramStage) {
-        match new_stage {
-            ProgramStage::StartScreenStage => {
-                todo!("Currently not implemented StartScreenStage init!")
-            }
-            ProgramStage::NewScreenStage => {
-                if self.new_screen_state.is_none() {
-                    self.new_screen_state = Some(NewScreenState::new());
-                }
-                if self.competition.data.is_none() {
-                    self.competition.data = Some(CompetitionData::empty());
-                }
-            }
-
-            ProgramStage::CurrentErgViewStage => {
-                // TODO: Add more state resets if needed
-                self.new_screen_state = None;
-
-                let group_count = self.competition.data.as_ref().unwrap().team_distribution[0];
-
-                if self.erg_screen_state.is_none() {
-                    self.erg_screen_state = Some(ErgScreenState::new(group_count as usize));
-                }
-
-                self.competition.current_interim_result = (0..group_count).map(|_| None).collect();
-            }
-
-            #[allow(unreachable_patterns)]
-            _ => todo!("Implement stage switch for more stages!"),
-        }
-        self.stage = new_stage;
-    }
-}
-
-pub struct ThreadState {
-    pub save_channels: Vec<Receiver<Result<Option<PathBuf>, Error>>>,
-    pub open_channels: Vec<Receiver<Result<Option<PathBuf>, Error>>>,
-    pub autosave_channel: Option<Receiver<()>>,
-    pub autosave_guard: Option<Guard>,
-    pub timer: Option<Timer>,
-}
-
-impl ThreadState {
-    pub fn new() -> Self {
-        Self {
-            save_channels: Vec::new(),
-            open_channels: Vec::new(),
-            autosave_channel: None,
-            autosave_guard: None,
-            timer: None,
-        }
-    }
 }

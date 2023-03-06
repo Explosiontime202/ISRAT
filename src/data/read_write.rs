@@ -5,7 +5,6 @@ use std::{
 };
 
 use chrono::{Duration, Local};
-use native_dialog::MessageType;
 use timer::Timer;
 
 use crate::{ProgramStage, ProgramState};
@@ -464,10 +463,11 @@ pub fn check_read_write_threads_messages(program_state: &mut ProgramState) {
 
 // helper for showing error messages
 fn show_error_message(function: &str, msg: String) {
-    match native_dialog::MessageDialog::new().set_type(MessageType::Error).set_title("Error occurred!").set_text(format!("An error occurred during opening the file open dialog. Please try again.\nError Message:\n{msg}").as_str()).show_alert() {
+    // TODO:
+    /*match native_dialog::MessageDialog::new().set_type(MessageType::Error).set_title("Error occurred!").set_text(format!("An error occurred during opening the file open dialog. Please try again.\nError Message:\n{msg}").as_str()).show_alert() {
         Ok(_) => (),
         Err(_) => eprintln!("[{function}]: Could not open message dialog! Error message: {msg}"),
-    }
+    }*/
 }
 
 // FIXME: Crashes because channel is closed. Either find the bug or remove the library and write own implementation
