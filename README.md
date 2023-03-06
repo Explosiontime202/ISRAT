@@ -1,13 +1,13 @@
 # Icestocksport Result Analysis Tool (ISRAT)
 
-Icestocksport Result Analysis Tool (Short: ISRAT) is designed to be used in managing and analyse icestocksport
-tournaments.
-This project is based on [Tectonic](https://github.com/tectonic-typesetting/tectonic) for pdf exports and on [dear imgui rust binding](https://github.com/imgui-rs/imgui-rs), [glium](https://github.com/glium/glium) and [winit](https://github.com/rust-windowing/winit) for the GUI.
-Currently under construction!
+Icestocksport Result Analysis Tool (Short: ISRAT) is designed to be used in managing and analyze icestocksport competitions.
+This project is based on [Tectonic](https://github.com/tectonic-typesetting/tectonic) for pdf exports and on [GTK4 Rust Binding](https://github.com/gtk-rs/gtk4-rs) and therefore on [GTK4](https://gitlab.gnome.org/GNOME/gtk).
 
 ## Build
 
 In order to build this project you need to have installed a rust toolchain for your system. Currently GNU/Linux and Windows are supported, meaning that those are tested. Maybe MacOS works, maybe not. Please let me know, if you have compiled and tested it for MacOS. If changes need to be made regarding MacOS support, please create a pull request.
+
+GTK4 has to be installed. Please refer to the official GTK4 installation instructions.
 
 The [Tectonic project](https://github.com/tectonic-typesetting/tectonic) requires some externally installed dependencies.
 
