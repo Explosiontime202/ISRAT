@@ -3,13 +3,46 @@ separator {
 }
 
 separator.highlighted {
-    color: #FF6600;
+    color: #d65307;
 }
 
 separator.category_sep {
     /* TODO: */
 }
 
-button.nav_button {
-    /* TODO: */
+nav_button {
+    margin: 20px;
+    background-color: #232323;
+    box-shadow: #232323 0 0 0 8px;
+    border-radius: 1px;
+}
+
+label.headline {
+    font-size: 2em;
+    font-weight: 1000;
+    margin: 10px;
+}
+
+label.tile_headline {
+    font-size: 1.5em;
+    font-weight: 1000;
+    margin: 10px;
+}
+
+tile {
+    border-radius: 20px;
+    margin: 10px;
+    background-color: #212121;
+}
+
+*.tile_child {
+    margin: 10px;
+}
+
+*.elevated {
+    background-color: #232323;
+}
+
+main_window {
+    background: #1e1e1e;
 }

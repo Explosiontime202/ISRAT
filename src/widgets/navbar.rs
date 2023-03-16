@@ -61,11 +61,7 @@ mod inner {
 
     impl NavBar {
         pub fn new() -> Self {
-            let separators = [Separator::builder()
-                .margin_start(10)
-                .margin_end(10)
-                .css_classes(["vertical"])
-                .build()];
+            let separators = [Separator::builder().css_classes(["vertical"]).build()];
 
             separators[0].add_css_class("highlighted");
             separators[0].set_width_request(3);
@@ -73,6 +69,7 @@ mod inner {
             let buttons = RefCell::new(BTreeMap::new());
             let stack = Stack::builder()
                 .transition_type(gtk4::StackTransitionType::Crossfade)
+                .css_name("main_window")
                 .build();
 
             let navigation_box = GtkBox::builder()
@@ -80,11 +77,10 @@ mod inner {
                 .spacing(10)
                 .vexpand(true)
                 .vexpand_set(true)
-                .margin_start(10)
-                .margin_top(10)
-                .margin_bottom(10)
                 .baseline_position(gtk4::BaselinePosition::Center)
                 .build();
+
+            navigation_box.add_css_class("elevated");
 
             Self {
                 stack,
@@ -123,8 +119,11 @@ mod inner {
 
             // and create button for it
             let label = Label::new(Some(name.as_str()));
-            label.add_css_class("nav_button");
-            let button = Button::builder().child(&label).label(name.clone()).build();
+            let button = Button::builder()
+                .child(&label)
+                .label(name.clone())
+                .css_name("nav_button")
+                .build();
             category_entry.button_box.append(&button);
 
             // show child if according button is clicked
@@ -214,7 +213,7 @@ mod inner {
         ///
         /// Removes a category, i.e. unmapping separator and button box.
         /// Also removes all remaining children from the stack.
-        /// 
+        ///
         fn remove_category(&self, category: NavBarCategory) {
             let mut buttons_map = self.buttons.borrow_mut();
             let category_entry = match buttons_map.remove(&category) {
@@ -259,8 +258,7 @@ impl NavBar {
     }
 
     pub fn remove_child_by_name(&self, name: String, category: NavBarCategory) {
-        self.imp()
-            .remove_child_by_name(&String::from(name), category);
+        self.imp().remove_child_by_name(&name, category);
     }
 }
 
