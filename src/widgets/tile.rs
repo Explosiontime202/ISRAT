@@ -7,7 +7,6 @@ use gtk4::{
 use std::cell::RefCell;
 
 mod inner {
-    use gtk4::traits::WidgetExt;
 
     use super::*;
 
@@ -61,8 +60,6 @@ mod inner {
         pub fn set_child(&self, child: impl IsA<Widget>) {
             assert!(self.title.borrow().is_some());
             child.add_css_class("tile_child");
-            child.set_hexpand(true);
-            child.set_vexpand(true);
             child.set_parent(&*self.obj());
             *self.child.borrow_mut() = Some(child.into());
         }
@@ -93,8 +90,6 @@ impl Tile {
         obj.property::<LayoutManager>("layout_manager")
             .set_property("orientation", Orientation::Vertical);
 
-        obj.set_hexpand(true);
-        obj.set_vexpand(true);
         obj.imp().set_title(title);
         obj
     }

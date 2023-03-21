@@ -4,10 +4,13 @@ use gtk4::{
     glib, subclass::widget::*, traits::WidgetExt, FlowBox, Label, LayoutManager, Orientation,
     Widget,
 };
+mod last_competitions;
+mod quick_settings;
+
+use last_competitions::LastCompetitionsWidget;
+use quick_settings::QuickSettingsWidget;
 
 mod inner {
-    use crate::widgets::tile::Tile;
-
     use super::*;
 
     #[derive(Debug)]
@@ -41,20 +44,11 @@ mod inner {
 
             let obj = self.obj();
 
-            let label1 = Label::new(Some("First"));
-            let label2 = Label::new(Some("Second"));
-            let label3 = Label::new(Some("Third"));
+            let last_competitions = LastCompetitionsWidget::new();
+            self.flow_box.insert(&last_competitions, -1);
 
-            let child1 = Tile::new("First Title");
-            child1.set_child(label1);
-            let child2 = Tile::new("Second Title");
-            child2.set_child(label2);
-            let child3 = Tile::new("Third Title");
-            child3.set_child(label3);
-
-            self.flow_box.insert(&child1, -1);
-            self.flow_box.insert(&child2, -1);
-            self.flow_box.insert(&child3, -1);
+            let quick_settings = QuickSettingsWidget::new();
+            self.flow_box.insert(&quick_settings, -1);
 
             self.title.set_parent(&*obj);
             self.flow_box.set_parent(&*obj);
@@ -74,10 +68,9 @@ mod inner {
                 flow_box: FlowBox::builder()
                     .max_children_per_line(2)
                     .min_children_per_line(2)
-                    .hexpand(true)
-                    .vexpand(true)
                     .orientation(gtk4::Orientation::Horizontal)
                     .selection_mode(gtk4::SelectionMode::None)
+                    .homogeneous(true)
                     .build(),
                 title: Label::builder()
                     .label("ISRAT")

@@ -20,7 +20,7 @@ use adw::subclass::prelude::*;
 use gdk4::{gio::Menu, glib, Display};
 use gtk4::{
     traits::{BoxExt, GtkApplicationExt, GtkWindowExt, WidgetExt},
-    ApplicationWindow, CssProvider, Label, StyleContext,
+    ApplicationWindow, CssProvider, StyleContext,
 };
 use state::{ProgramStage, ProgramState};
 use widgets::{navbar::{NavBar, NavBarCategory}, home_screen::HomeScreen};

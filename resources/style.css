@@ -29,6 +29,10 @@ label.tile_headline {
     margin: 10px;
 }
 
+label.deactivated {
+    color: #808080;
+}
+
 tile {
     border-radius: 20px;
     margin: 10px;
@@ -45,4 +49,14 @@ tile {
 
 main_window {
     background: #1e1e1e;
+}
+
+/* color background of selected item in drop down menu */
+row.selected {
+    background-color: #d65307;
+}
+
+/* color switches background to orange if they are active*/
+switch:checked {
+    background-color: #d65307;
 }
