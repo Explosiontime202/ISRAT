@@ -74,10 +74,11 @@ mod inner {
 
             let navigation_box = GtkBox::builder()
                 .orientation(gtk4::Orientation::Vertical)
-                .spacing(10)
+                .spacing(0)
                 .vexpand(true)
                 .vexpand_set(true)
                 .baseline_position(gtk4::BaselinePosition::Center)
+                .css_name("navbar_buttons_box")
                 .build();
 
             navigation_box.add_css_class("elevated");
@@ -233,6 +234,10 @@ mod inner {
                 self.remove_child_by_name(name, category);
             }
         }
+
+        pub fn show_child(&self, name: &str) {
+            self.stack.set_visible_child_name(name);
+        }
     }
 
     #[derive(Debug)]
@@ -259,6 +264,10 @@ impl NavBar {
 
     pub fn remove_child_by_name(&self, name: String, category: NavBarCategory) {
         self.imp().remove_child_by_name(&name, category);
+    }
+
+    pub fn show_child(&self, name: &str) {
+        self.imp().show_child(name);
     }
 }
 

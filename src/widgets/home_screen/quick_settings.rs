@@ -1,10 +1,13 @@
 use crate::widgets::common::img_from_bytes;
-use crate::widgets::settings::get_quick_settings;
+use crate::widgets::settings::create_quick_settings;
 use crate::widgets::tile::Tile;
 use gdk4::subclass::prelude::*;
 use gtk4::{
     glib, subclass::widget::*, traits::WidgetExt, traits::*, Box as GtkBox, Button, Label, Widget,
 };
+
+use crate::widgets::navbar::NavBar;
+use std::cell::RefCell;
 
 mod inner {
     use super::*;
@@ -12,6 +15,7 @@ mod inner {
     #[derive(Debug)]
     pub struct QuickSettingsWidget {
         tile: Tile,
+        pub open_settings_button: RefCell<Option<Button>>,
     }
 
     impl Default for QuickSettingsWidget {
@@ -44,7 +48,7 @@ mod inner {
                 .spacing(30)
                 .build();
 
-            get_quick_settings()
+            create_quick_settings()
                 .iter()
                 .for_each(|setting| vbox.append(setting));
 
@@ -62,12 +66,9 @@ mod inner {
                     .child(&settings_button_v_box)
                     .css_name("tile_button")
                     .build();
-                open_settings_button.connect_clicked(|_| {
-                    println!("Open settings button clicked!");
-                    // TODO: switch to settings screen
-                });
 
                 vbox.append(&open_settings_button);
+                *self.open_settings_button.borrow_mut() = Some(open_settings_button);
             }
 
             self.tile.set_child(vbox);
@@ -86,6 +87,7 @@ mod inner {
         fn new() -> Self {
             Self {
                 tile: Tile::new("Quick Settings"),
+                open_settings_button: RefCell::default(),
             }
         }
     }
@@ -99,5 +101,12 @@ glib::wrapper! {
 impl QuickSettingsWidget {
     pub fn new() -> Self {
         glib::Object::new::<Self>()
+    }
+
+    pub fn connect_signals(&self, nav_bar: NavBar) {
+        let button = &*self.imp().open_settings_button.borrow();
+        button.as_ref().unwrap().connect_clicked(move |_| {
+            nav_bar.show_child("Settings Screen");
+        });
     }
 }

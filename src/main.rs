@@ -23,7 +23,7 @@ use gtk4::{
     ApplicationWindow, CssProvider, StyleContext,
 };
 use state::{ProgramStage, ProgramState};
-use widgets::{navbar::{NavBar, NavBarCategory}, home_screen::HomeScreen};
+use widgets::{navbar::{NavBar, NavBarCategory}, home_screen::HomeScreen, settings::settings_screen::SettingsScreen};
 
 fn main() -> glib::ExitCode {
     // initialize program state
@@ -96,11 +96,13 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>) {
     nav_bar.set_vexpand(true);
     nav_bar.set_vexpand_set(true);
 
-    let home_screen = HomeScreen::new();
-
-    let manager : gtk4::LayoutManager = home_screen.property("layout-manager");
-
+    let home_screen = HomeScreen::new(&nav_bar);
     nav_bar.add_child(&home_screen, String::from("Home Screen"), NavBarCategory::Main);
+
+    let settings_screen = SettingsScreen::new();
+    nav_bar.add_child(&settings_screen, String::from("Settings Screen"), NavBarCategory::Main);
+
+
 
     parent.append(&nav_bar);
 }

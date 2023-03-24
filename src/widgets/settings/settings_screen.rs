@@ -1,38 +1,32 @@
+use crate::widgets::settings::create_settings;
+use crate::widgets::tile::Tile;
 use gdk4::prelude::*;
 use gdk4::subclass::prelude::*;
+use gtk4::traits::*;
 use gtk4::{
-    glib, subclass::widget::*, traits::WidgetExt, FlowBox, Label, LayoutManager, Orientation,
-    Widget,
+    glib, subclass::widget::*, traits::WidgetExt, Box as GtkBox, FlowBox, Label, LayoutManager,
+    Orientation, Widget,
 };
-mod last_competitions;
-mod quick_settings;
-
-use last_competitions::LastCompetitionsWidget;
-use quick_settings::QuickSettingsWidget;
-
-use super::navbar::NavBar;
-use std::cell::RefCell;
 
 mod inner {
     use super::*;
 
     #[derive(Debug)]
-    pub struct HomeScreen {
+    pub struct SettingsScreen {
         flow_box: FlowBox,
         title: Label,
-        pub quick_settings_widget: RefCell<Option<QuickSettingsWidget>>,
     }
 
-    impl Default for HomeScreen {
+    impl Default for SettingsScreen {
         fn default() -> Self {
             Self::new()
         }
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for HomeScreen {
-        const NAME: &'static str = "HomeScreen";
-        type Type = super::HomeScreen;
+    impl ObjectSubclass for SettingsScreen {
+        const NAME: &'static str = "SettingsScreen";
+        type Type = super::SettingsScreen;
         type ParentType = gtk4::Widget;
 
         fn class_init(klass: &mut Self::Class) {
@@ -41,19 +35,25 @@ mod inner {
             klass.set_css_name("home_screen");
         }
     }
-
-    impl ObjectImpl for HomeScreen {
+    impl ObjectImpl for SettingsScreen {
         fn constructed(&self) {
             self.parent_constructed();
 
             let obj = self.obj();
 
-            let last_competitions = LastCompetitionsWidget::new();
-            self.flow_box.insert(&last_competitions, -1);
-
-            let quick_settings = QuickSettingsWidget::new();
-            self.flow_box.insert(&quick_settings, -1);
-            *self.quick_settings_widget.borrow_mut() = Some(quick_settings);
+            let settings = create_settings();
+            for data in settings {
+                let tile = Tile::new(data.category.to_string().as_str());
+                let vbox = GtkBox::builder()
+                    .orientation(gtk4::Orientation::Vertical)
+                    .spacing(30)
+                    .build();
+                for setting in data.setting_widgets {
+                    vbox.append(&setting);
+                }
+                tile.set_child(vbox);
+                self.flow_box.insert(&tile, -1);
+            }
 
             self.title.set_parent(&*obj);
             self.flow_box.set_parent(&*obj);
@@ -65,9 +65,9 @@ mod inner {
         }
     }
 
-    impl WidgetImpl for HomeScreen {}
+    impl WidgetImpl for SettingsScreen {}
 
-    impl HomeScreen {
+    impl SettingsScreen {
         fn new() -> Self {
             Self {
                 flow_box: FlowBox::builder()
@@ -78,30 +78,25 @@ mod inner {
                     .homogeneous(true)
                     .build(),
                 title: Label::builder()
-                    .label("ISRAT")
+                    .label("Settings")
                     .css_classes(["headline"])
                     .build(),
-                quick_settings_widget: RefCell::default(),
             }
         }
     }
 }
 
 glib::wrapper! {
-    pub struct HomeScreen(ObjectSubclass<inner::HomeScreen>)
+    pub struct SettingsScreen(ObjectSubclass<inner::SettingsScreen>)
         @extends Widget;
 }
 
-impl HomeScreen {
-    pub fn new(nav_bar: &NavBar) -> Self {
+impl SettingsScreen {
+    pub fn new() -> Self {
         let obj = glib::Object::new::<Self>();
         obj.property::<LayoutManager>("layout_manager")
             .set_property("orientation", Orientation::Vertical);
         obj.set_hexpand(true);
-        (*obj.imp().quick_settings_widget.borrow())
-            .as_ref()
-            .unwrap()
-            .connect_signals(nav_bar.clone());
         obj
     }
 }

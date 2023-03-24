@@ -11,14 +11,14 @@ separator.category_sep {
 }
 
 nav_button {
-    margin: 20px;
+    margin: 5px;
     background-color: #232323;
     box-shadow: #232323 0 0 0 8px;
     border-radius: 1px;
 }
 
 nav_button:active {
-    margin: 20px;
+    margin: 5px;
     background-color: #272727;
     box-shadow: #272727 0 0 0 8px;
     border-radius: 1px;
@@ -54,6 +54,10 @@ tile {
     background-color: #232323;
 }
 
+navbar_buttons_box {
+    margin: 15px;
+}
+
 main_window {
     background: #1e1e1e;
 }
@@ -80,4 +84,12 @@ tile_button:active {
     background-color: #232323;
     box-shadow: #232323 0 0 0 8px;
     border-radius: 1px;
+}
+
+button.toggle.text-button:checked {
+    background-color: #d65307;
+}
+
+scale highlight {
+    background-color: #d65307;
 }
