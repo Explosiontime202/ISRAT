@@ -3,11 +3,14 @@ use std::path::PathBuf;
 use crate::widgets::common::img_from_bytes;
 use crate::widgets::tile::Tile;
 use chrono::{DateTime, Local};
+use gdk4::prelude::ListModelExt;
 use gdk4::subclass::prelude::*;
 use gtk4::{
-    glib, subclass::widget::*, traits::WidgetExt, traits::*, Box as GtkBox, Button, Label,
-    Widget,
+    glib, subclass::widget::*, traits::WidgetExt, traits::*, Box as GtkBox, Button, Label, Widget,
 };
+
+use crate::widgets::new_screen::create_new_competition_screen;
+use gdk4::prelude::Cast;
 
 mod inner {
     use super::*;
@@ -69,7 +72,13 @@ mod inner {
                     .build();
                 new_competition_button.connect_clicked(|_| {
                     println!("New competition button clicked!");
-                    // TODO: switch to new competition screen
+                    let toplevel_widgets = gtk4::Window::toplevels();
+                    debug_assert!(toplevel_widgets.n_items() == 1);
+                    let widget = toplevel_widgets.item(0).unwrap();
+                    let window = widget.dynamic_cast::<gtk4::ApplicationWindow>().unwrap();
+                    window.set_can_target(false);
+                    window.set_sensitive(false);
+                    create_new_competition_screen(window.application().as_ref().unwrap(), &window);
                 });
 
                 vbox.append(&new_competition_button);

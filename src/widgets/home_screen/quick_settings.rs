@@ -1,4 +1,4 @@
-use crate::widgets::common::img_from_bytes;
+use crate::{widgets::common::img_from_bytes, MainNavBarCategory};
 use crate::widgets::settings::create_quick_settings;
 use crate::widgets::tile::Tile;
 use gdk4::subclass::prelude::*;
@@ -103,10 +103,10 @@ impl QuickSettingsWidget {
         glib::Object::new::<Self>()
     }
 
-    pub fn connect_signals(&self, nav_bar: NavBar) {
+    pub fn connect_signals(&self, nav_bar: NavBar<MainNavBarCategory>) {
         let button = &*self.imp().open_settings_button.borrow();
         button.as_ref().unwrap().connect_clicked(move |_| {
-            nav_bar.show_child("Settings Screen");
+            nav_bar.show_child("Settings Screen", MainNavBarCategory::Main);
         });
     }
 }

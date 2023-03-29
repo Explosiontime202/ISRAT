@@ -6,11 +6,10 @@ use gtk4::{
 };
 mod last_competitions;
 mod quick_settings;
-
+use super::navbar::NavBar;
+use crate::MainNavBarCategory;
 use last_competitions::LastCompetitionsWidget;
 use quick_settings::QuickSettingsWidget;
-
-use super::navbar::NavBar;
 use std::cell::RefCell;
 
 mod inner {
@@ -93,7 +92,7 @@ glib::wrapper! {
 }
 
 impl HomeScreen {
-    pub fn new(nav_bar: &NavBar) -> Self {
+    pub fn new(nav_bar: &NavBar<MainNavBarCategory>) -> Self {
         let obj = glib::Object::new::<Self>();
         obj.property::<LayoutManager>("layout_manager")
             .set_property("orientation", Orientation::Vertical);

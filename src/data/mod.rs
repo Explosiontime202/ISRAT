@@ -15,12 +15,19 @@ use self::read_write::read_from_file;
 
 pub mod read_write;
 
+#[derive(Debug)]
 pub struct Competition {
     pub data: Option<CompetitionData>,
     pub spawned_threads: Vec<JoinHandle<()>>, // stores the join handles to the threads used to export pdf and html documents
     pub current_interim_result: Vec<Option<Vec<InterimResultEntry>>>, // a ResultEntry vector for each group in descending order
     pub absolute_dir_path: Option<PathBuf>, // absolute path to the folder to store the export documents and autosaves
     pub absolute_file_path: Option<PathBuf>, // absolute path to the data file, must not be in absolute_dir_path
+}
+
+impl Default for Competition {
+    fn default() -> Self {
+        Self::empty()
+    }
 }
 
 impl Competition {
@@ -215,7 +222,7 @@ impl Competition {
     }
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct CompetitionData {
     pub name: String,
     pub date_string: String,
@@ -227,12 +234,19 @@ pub struct CompetitionData {
     pub clerk: String,
     pub additional_text: String,
     pub count_teams: u32,
+    pub count_groups: u32,
     pub team_distribution: [u32; 2], // count_groups x count_teams_per_group
     pub teams: Option<Vec<Vec<Team>>>, // for each group a vector of teams, ordered by ids
     pub group_names: Option<Vec<String>>, // a vector of the group names, ordered by id
     pub matches: Vec<Vec<Match>>,    // a Match vector for each group
     pub current_batch: Vec<u32>,     // the current batch of matches played for each group
     pub with_break: bool, // defines whether theres a break for the teams, only important for a even team count
+}
+
+impl Default for CompetitionData {
+    fn default() -> Self {
+        Self::empty()
+    }
 }
 
 impl CompetitionData {
@@ -248,6 +262,7 @@ impl CompetitionData {
             clerk: String::from(""),
             additional_text: String::from(""),
             count_teams: 0,
+            count_groups: 0,
             team_distribution: [0, 0],
             teams: None,
             group_names: None,
@@ -1041,6 +1056,7 @@ r"
     "clerk": "{}",
     "additional_text": "{}",
     "count_teams": {},
+    "count_groups": {},
     "team_distribution": [
         {},
         {}
@@ -1070,6 +1086,7 @@ r"
             self.clerk,
             self.additional_text.replace("\n", r"\n"),
             self.count_teams,
+            self.count_groups,
             self.team_distribution[0],
             self.team_distribution[1],
             self.with_break,
@@ -1077,13 +1094,14 @@ r"
     }
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Team {
     pub name: String,
     pub region: String,
     pub player_names: [Option<String>; 6], // maximal 6 possible players per team
 }
 
+#[derive(Debug)]
 pub struct InterimResultEntry {
     pub team_idx: usize,
     pub match_points: [i32; 2],
@@ -1091,7 +1109,7 @@ pub struct InterimResultEntry {
     pub quotient: f32,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Match {
     // the both opponents
     pub team_a: usize,

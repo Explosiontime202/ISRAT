@@ -24,6 +24,10 @@ nav_button:active {
     border-radius: 1px;
 }
 
+nav_button.selected {
+    color: #d65307;
+} 
+
 label.headline {
     font-size: 2em;
     font-weight: 1000;
@@ -48,10 +52,6 @@ tile {
 
 *.tile_child {
     margin: 20px;
-}
-
-*.elevated {
-    background-color: #232323;
 }
 
 navbar_buttons_box {

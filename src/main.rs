@@ -1,6 +1,6 @@
 #![windows_subsystem = "windows"]
 
-use std::path::PathBuf;
+use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
 use chrono::Duration;
 use data::{
@@ -23,7 +23,14 @@ use gtk4::{
     ApplicationWindow, CssProvider, StyleContext,
 };
 use state::{ProgramStage, ProgramState};
-use widgets::{navbar::{NavBar, NavBarCategory}, home_screen::HomeScreen, settings::settings_screen::SettingsScreen};
+use widgets::{
+    group_overview::GroupOverviewScreen,
+    home_screen::HomeScreen,
+    navbar::{NavBar, NavBarCategoryTrait},
+    settings::settings_screen::SettingsScreen,
+};
+
+type CompetitionPtr = Rc<RefCell<Competition>>;
 
 fn main() -> glib::ExitCode {
     // initialize program state
@@ -34,14 +41,14 @@ fn main() -> glib::ExitCode {
 
     // TODO: Remove for productive builds
     #[cfg(debug_assertions)]
-    initial_state(&mut program_state);
+    let competition = initial_state();
 
     let app = adw::Application::builder()
         .application_id("de.explosiontime.Israt")
         .build();
 
     app.connect_startup(|_| load_css());
-    app.connect_activate(build_main_screen);
+    app.connect_activate(move |app| build_main_screen(app, Rc::clone(&competition)));
 
     app.run()
 }
@@ -59,7 +66,7 @@ fn load_css() {
     );
 }
 
-fn build_main_screen(app: &adw::Application) {
+fn build_main_screen(app: &adw::Application, competition: CompetitionPtr) {
     let window = ApplicationWindow::builder()
         .application(app)
         .default_width(1920)
@@ -73,7 +80,7 @@ fn build_main_screen(app: &adw::Application) {
     let h_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 10);
     let v_box = gtk4::Box::new(gtk4::Orientation::Vertical, 10);
 
-    build_navigation_bar(&h_box);
+    build_navigation_bar(&h_box, competition);
 
     v_box.append(&h_box);
 
@@ -89,20 +96,45 @@ fn build_menu(app: &adw::Application) {
     app.set_menubar(Some(&menu_bar));
 }
 
-fn build_navigation_bar(parent: &impl IsA<gtk4::Box>) {
-    let nav_bar = NavBar::new();
+fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, competition: CompetitionPtr) {
+    let nav_bar = NavBar::<MainNavBarCategory>::new();
     nav_bar.set_hexpand(true);
     nav_bar.set_hexpand_set(true);
     nav_bar.set_vexpand(true);
     nav_bar.set_vexpand_set(true);
 
     let home_screen = HomeScreen::new(&nav_bar);
-    nav_bar.add_child(&home_screen, String::from("Home Screen"), NavBarCategory::Main);
+    nav_bar.add_child(
+        &home_screen,
+        String::from("Home Screen"),
+        MainNavBarCategory::Main,
+    );
 
     let settings_screen = SettingsScreen::new();
-    nav_bar.add_child(&settings_screen, String::from("Settings Screen"), NavBarCategory::Main);
+    nav_bar.add_child(
+        &settings_screen,
+        String::from("Settings Screen"),
+        MainNavBarCategory::Main,
+    );
+
+    {
+        if let Some(data) = competition.borrow().data.as_ref() {
+            assert!(data.group_names.is_some());
+            for (group_idx, group) in data.group_names.as_ref().unwrap().iter().enumerate() {
+                nav_bar.add_custom_nav_button(group.as_str(), MainNavBarCategory::GroupSelector, |nav_bar, button, stack| {
+                    // TODO:
+                });
+            }
 
 
+            let group_overview = GroupOverviewScreen::new(Rc::clone(&competition));
+            nav_bar.add_child(
+                &group_overview,
+                String::from("Overview"),
+                MainNavBarCategory::Group,
+            );
+        }
+    }
 
     parent.append(&nav_bar);
 }
@@ -112,15 +144,39 @@ fn check_for_thread_messages(program_state: &mut ProgramState) {
     check_autosave_thread_messages(program_state);
 }
 
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub enum MainNavBarCategory {
+    Main,
+    GroupSelector,
+    Group,
+}
+
+impl NavBarCategoryTrait for MainNavBarCategory {
+    fn remaining_selections(newly_selected: Self) -> Vec<Self> {
+        match newly_selected {
+            MainNavBarCategory::Main => vec![MainNavBarCategory::Main],
+            MainNavBarCategory::GroupSelector | MainNavBarCategory::Group => {
+                vec![MainNavBarCategory::GroupSelector, MainNavBarCategory::Group]
+            }
+        }
+    }
+
+    const NAME: &'static str = "MainNavBarCategory";
+    const NAV_BAR_NAME: &'static str = "NavBar_MainNavBarCategory";
+}
+
 // TODO: Remove for productive builds
 #[cfg(debug_assertions)]
-fn initial_state(state: &mut ProgramState) {
+fn initial_state() -> CompetitionPtr {
     use std::path::Path;
 
     use crate::data::MatchResult;
 
-    state.stage = ProgramStage::CurrentErgViewStage;
-    state.competition.data = Some(CompetitionData {
+    let competition = CompetitionPtr::default();
+
+    let mut comp_mut = competition.borrow_mut();
+
+    comp_mut.data = Some(CompetitionData {
         name: String::from("Mustermeisterschaft"),
         date_string: String::from("01.01.2022"),
         place: String::from("Musterstadt"),
@@ -131,6 +187,7 @@ fn initial_state(state: &mut ProgramState) {
         clerk: String::from("Max Musterschriftführer"),
         additional_text : String::from("Der SV Musterverein bedankt sich für die Teilnahme\nund wünscht ein sichere Heimreise!"),
         count_teams: 20,
+        count_groups: 2,
         team_distribution: [2, 10],
         teams: Some(vec![
             vec![
@@ -412,8 +469,8 @@ fn initial_state(state: &mut ProgramState) {
         current_batch: vec![1, 0],
         with_break: true,
     });
-    state.competition.data.as_mut().unwrap().generate_matches();
-    state.competition.current_interim_result = vec![None, None];
+    comp_mut.data.as_mut().unwrap().generate_matches();
+    comp_mut.current_interim_result = vec![None, None];
 
     {
         let relative_path = Path::new(if cfg!(target_os = "windows") {
@@ -436,11 +493,10 @@ fn initial_state(state: &mut ProgramState) {
             std::fs::canonicalize(relative_path).expect("Canonicalize failed!")
         };
 
-        state.competition.absolute_dir_path = Some(abs_path);
+        comp_mut.absolute_dir_path = Some(abs_path);
 
-        state.competition.absolute_file_path = Some(
-            state
-                .competition
+        comp_mut.absolute_file_path = Some(
+            comp_mut
                 .absolute_dir_path
                 .as_ref()
                 .unwrap()
@@ -457,7 +513,7 @@ fn initial_state(state: &mut ProgramState) {
     ];
     let points = [[17, 13], [3, 11], [9, 9], [9, 13], [11, 5]];
 
-    state.competition.data.as_mut().unwrap().matches[0]
+    comp_mut.data.as_mut().unwrap().matches[0]
         .iter_mut()
         .filter(|_match| _match.batch == 0 && _match.result != MatchResult::Break)
         .enumerate()
@@ -467,7 +523,7 @@ fn initial_state(state: &mut ProgramState) {
         });
 
     let mut hash_set = std::collections::HashSet::new();
-    state.competition.data.as_ref().unwrap().matches[0]
+    comp_mut.data.as_ref().unwrap().matches[0]
         .iter()
         .filter(|&_match| _match.result != MatchResult::Break)
         .map(|_match| {
@@ -480,4 +536,6 @@ fn initial_state(state: &mut ProgramState) {
             assert!(hash_set.insert(arr));
             assert_ne!(arr[0], arr[1]);
         });
+    drop(comp_mut);
+    competition
 }

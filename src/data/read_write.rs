@@ -57,6 +57,7 @@ fn test_read_write() {
         clerk: String::from("Max Musterschriftführer"),
         additional_text : String::from("Der SV Musterverein bedankt sich für die Teilnahme\nund wünscht ein sichere Heimreise!"),
         count_teams: 20,
+        count_groups: 2,
         team_distribution: [2, 10],
         teams: Some(vec![
             vec![
