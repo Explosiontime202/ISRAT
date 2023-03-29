@@ -6,9 +6,9 @@ separator.highlighted {
     color: #d65307;
 }
 
-separator.category_sep {
-    /* TODO: */
-}
+/*separator.category_sep {
+     TODO:
+}*/
 
 nav_button {
     margin: 5px;
@@ -92,4 +92,13 @@ button.toggle.text-button:checked {
 
 scale highlight {
     background-color: #d65307;
+}
+
+table_entry {
+    margin: 10px;   
+}
+
+table_header {
+    background-color: #323232;
+    border-radius: 15px;
 }

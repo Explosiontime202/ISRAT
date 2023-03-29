@@ -5,3 +5,4 @@ pub mod navbar;
 pub mod new_screen;
 pub mod settings;
 pub mod tile;
+pub mod table;

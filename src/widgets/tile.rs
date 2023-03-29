@@ -7,12 +7,13 @@ use gtk4::{
 use std::cell::RefCell;
 
 mod inner {
-
     use super::*;
 
     #[derive(Debug)]
     pub struct Tile {
+        // the child of the tile, can be uninitialized and therefore be none
         child: RefCell<Option<Widget>>,
+        // the title of the tile, can be uninitialized and therefore be none
         title: RefCell<Option<Label>>,
     }
 
@@ -57,6 +58,10 @@ mod inner {
             }
         }
 
+        ///
+        /// Displays `child` as the child of the tile.
+        /// Adds the CSS class "tile_child" to `child`.
+        ///
         pub fn set_child(&self, child: impl IsA<Widget>) {
             assert!(self.title.borrow().is_some());
             child.add_css_class("tile_child");
@@ -64,6 +69,10 @@ mod inner {
             *self.child.borrow_mut() = Some(child.into());
         }
 
+        ///
+        /// Changes the title of the tile to `title`.
+        /// Creates a new Label if none was created yet.
+        ///
         pub fn set_title(&self, title: &str) {
             let mut label = self.title.borrow_mut();
 
@@ -94,10 +103,16 @@ impl Tile {
         obj
     }
 
+    ///
+    /// Sets the child of the tile.
+    ///
     pub fn set_child(&self, child: impl IsA<Widget>) {
         self.imp().set_child(child);
     }
 
+    ///
+    /// Changes the title of the tile to `title`.
+    ///
     pub fn set_title(&self, title: &str) {
         self.imp().set_title(title);
     }

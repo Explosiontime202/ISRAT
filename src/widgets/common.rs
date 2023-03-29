@@ -5,7 +5,9 @@ use gdk4::{
 };
 use gtk4::Image;
 
-// will include the image into the binary
+///
+/// Creates a gtk image from bytes. Designed for images included in the binary.
+///
 pub fn img_from_bytes(bytes: &'static [u8]) -> Image {
     let bytes = Bytes::from(bytes);
     let stream = MemoryInputStream::from_bytes(&bytes);

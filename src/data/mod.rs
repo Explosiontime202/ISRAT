@@ -1,6 +1,7 @@
 use chrono::offset::Local;
 use serde::Deserialize;
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::fs;
 use std::path::PathBuf;
@@ -283,9 +284,10 @@ impl CompetitionData {
         let group_size = self.teams.as_ref().unwrap()[group_idx].len();
         let mut table: Vec<InterimResultEntry> = (0..group_size)
             .map(|team_idx| InterimResultEntry {
-                team_idx: team_idx,
+                team_idx,
                 match_points: [0, 0],
                 stock_points: [0, 0],
+                difference: 0,
                 quotient: 0.0,
             })
             .collect();
@@ -338,6 +340,7 @@ impl CompetitionData {
 
         // calculate quotient
         table.iter_mut().for_each(|entry| {
+            entry.difference = entry.stock_points[0] - entry.stock_points[1];
             entry.quotient = if entry.stock_points[0] == 0 {
                 0.0
             } else {
@@ -349,6 +352,7 @@ impl CompetitionData {
         table.sort_by(|a, b| {
             // TODO: Verify that the ordering is correctly implemented!
             // TODO: Implement possibility that two teams on the same place
+            // TODO: Use new rule, i.e. difference!!
             if a.match_points[0] > b.match_points[0] {
                 Ordering::Less
             } else if a.match_points[0] < b.match_points[0] {
@@ -370,6 +374,34 @@ impl CompetitionData {
             }
         });
         table
+    }
+
+    pub fn next_matches_for_group(&self, group_idx: usize) -> Vec<NextMatch> {
+        let current_batch = self.current_batch[group_idx];
+        self.matches[group_idx]
+            .iter()
+            .filter(|&match_| match_.batch == current_batch)
+            .map(|match_| NextMatch {
+                team_a: match_.team_a,
+                team_b: match_.team_b,
+                lane: match_.lane,
+            })
+            .collect()
+    }
+
+    pub fn teams_on_break_for_group(&self, group_idx: usize) -> Vec<&Team> {
+        let current_batch = self.current_batch[group_idx];
+        let playing_teams: HashSet<usize> = self.matches[group_idx]
+            .iter()
+            .filter(|&match_| match_.batch == current_batch)
+            .flat_map(|match_| vec![match_.team_a, match_.team_b])
+            .collect();
+        self.teams.as_ref().unwrap()[group_idx]
+            .iter()
+            .enumerate()
+            .filter(|(team_idx, _)| !playing_teams.contains(team_idx))
+            .map(|(_, team)| team)
+            .collect()
     }
 
     pub fn generate_matches(&mut self) {
@@ -1106,7 +1138,15 @@ pub struct InterimResultEntry {
     pub team_idx: usize,
     pub match_points: [i32; 2],
     pub stock_points: [i32; 2],
+    pub difference: i32,
     pub quotient: f32,
+}
+
+#[derive(Debug)]
+pub struct NextMatch {
+    pub team_a: usize,
+    pub team_b: usize,
+    pub lane: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]

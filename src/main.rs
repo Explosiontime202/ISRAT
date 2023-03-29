@@ -1,7 +1,6 @@
 #![windows_subsystem = "windows"]
 
-use std::{cell::RefCell, path::PathBuf, rc::Rc};
-
+use adw::prelude::*;
 use chrono::Duration;
 use data::{
     read_write::{
@@ -9,26 +8,27 @@ use data::{
     },
     Competition, CompetitionData, Team,
 };
-
-mod data;
-mod state;
-mod widgets;
-
-use adw::prelude::*;
-use adw::subclass::prelude::*;
-
-use gdk4::{gio::Menu, glib, Display};
+use gdk4::{
+    gio::Menu,
+    glib::{self, clone},
+    Display,
+};
 use gtk4::{
     traits::{BoxExt, GtkApplicationExt, GtkWindowExt, WidgetExt},
     ApplicationWindow, CssProvider, StyleContext,
 };
 use state::{ProgramStage, ProgramState};
+use std::{cell::RefCell, path::PathBuf, rc::Rc};
 use widgets::{
     group_overview::GroupOverviewScreen,
     home_screen::HomeScreen,
     navbar::{NavBar, NavBarCategoryTrait},
     settings::settings_screen::SettingsScreen,
 };
+
+mod data;
+mod state;
+mod widgets;
 
 type CompetitionPtr = Rc<RefCell<Competition>>;
 
@@ -120,19 +120,22 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, competition: CompetitionPt
     {
         if let Some(data) = competition.borrow().data.as_ref() {
             assert!(data.group_names.is_some());
-            for (group_idx, group) in data.group_names.as_ref().unwrap().iter().enumerate() {
-                nav_bar.add_custom_nav_button(group.as_str(), MainNavBarCategory::GroupSelector, |nav_bar, button, stack| {
-                    // TODO:
-                });
-            }
-
-
             let group_overview = GroupOverviewScreen::new(Rc::clone(&competition));
             nav_bar.add_child(
                 &group_overview,
                 String::from("Overview"),
                 MainNavBarCategory::Group,
             );
+
+            for (group_idx, group) in data.group_names.as_ref().unwrap().iter().enumerate() {
+                nav_bar.add_custom_nav_button(
+                    group.as_str(),
+                    MainNavBarCategory::GroupSelector,
+                    clone!(@weak group_overview => move |nav_bar, button, stack| {
+                        group_overview.show_group(group_idx as u32);
+                    }),
+                );
+            }
         }
     }
 

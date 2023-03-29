@@ -528,6 +528,7 @@ mod inner {
     }
 }
 
+// TODO: Maybe use Panes: https://gtk-rs.org/gtk4-rs/git/docs/gtk4/struct.Paned.html
 glib::wrapper! {
     pub struct NavBar<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait>(ObjectSubclass<inner::NavBar<CategoryT>>)
         @extends gtk4::Widget;
