@@ -3,9 +3,7 @@
 use adw::prelude::*;
 use chrono::Duration;
 use data::{
-    read_write::{
-        check_autosave_thread_messages, check_read_write_threads_messages, spawn_autosave_timer,
-    },
+    read_write::{check_autosave_thread_messages, check_read_write_threads_messages, spawn_autosave_timer},
     Competition, CompetitionData, Team,
 };
 use gdk4::{
@@ -26,7 +24,7 @@ use widgets::{
     settings::settings_screen::SettingsScreen,
 };
 
-use crate::widgets::enter_results::EnterResultScreen;
+use crate::widgets::enter_results::{self, EnterResultScreen};
 
 mod data;
 mod state;
@@ -45,9 +43,7 @@ fn main() -> glib::ExitCode {
     #[cfg(debug_assertions)]
     let competition = initial_state();
 
-    let app = adw::Application::builder()
-        .application_id("de.explosiontime.Israt")
-        .build();
+    let app = adw::Application::builder().application_id("de.explosiontime.Israt").build();
 
     app.connect_startup(|_| load_css());
     app.connect_activate(move |app| build_main_screen(app, Rc::clone(&competition)));
@@ -106,41 +102,35 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, competition: CompetitionPt
     nav_bar.set_vexpand_set(true);
 
     let home_screen = HomeScreen::new(&nav_bar);
-    nav_bar.add_child(
-        &home_screen,
-        String::from("Home Screen"),
-        MainNavBarCategory::Main,
-    );
+    nav_bar.add_child(&home_screen, String::from("Home Screen"), MainNavBarCategory::Main);
 
     let settings_screen = SettingsScreen::new();
-    nav_bar.add_child(
-        &settings_screen,
-        String::from("Settings Screen"),
-        MainNavBarCategory::Main,
-    );
+    nav_bar.add_child(&settings_screen, String::from("Settings Screen"), MainNavBarCategory::Main);
 
     {
         if let Some(data) = competition.borrow().data.as_ref() {
             assert!(data.group_names.is_some());
             let group_overview = GroupOverviewScreen::new(Rc::clone(&competition));
-            nav_bar.add_child(
+            nav_bar.add_child_with_callback(
                 &group_overview,
                 String::from("Overview"),
                 MainNavBarCategory::Group,
+                clone!(@weak group_overview => move || group_overview.reload()),
             );
 
             let enter_results = EnterResultScreen::new(Rc::clone(&competition));
-            nav_bar.add_child(
+            nav_bar.add_child_with_callback(
                 &enter_results,
                 String::from("Enter results"),
                 MainNavBarCategory::Group,
+                clone!(@weak enter_results => move || enter_results.reload()),
             );
 
             for (group_idx, group) in data.group_names.as_ref().unwrap().iter().enumerate() {
                 nav_bar.add_custom_nav_button(
                     group.as_str(),
                     MainNavBarCategory::GroupSelector,
-                    clone!(@weak group_overview, @weak enter_results => move |_nav_bar, _button, _stack| {
+                    clone!(@weak group_overview, @weak enter_results => move |_nav_bar, _, _| {
                         group_overview.show_group(group_idx as u32);
                         enter_results.show_group(group_idx as u32);
                     }),
@@ -198,7 +188,7 @@ fn initial_state() -> CompetitionPtr {
         referee: String::from("Max Muterschiedsrichter"),
         competition_manager: String::from("Erika Musterwettbewerbsleiter"),
         clerk: String::from("Max Musterschriftführer"),
-        additional_text : String::from("Der SV Musterverein bedankt sich für die Teilnahme\nund wünscht ein sichere Heimreise!"),
+        additional_text: String::from("Der SV Musterverein bedankt sich für die Teilnahme\nund wünscht ein sichere Heimreise!"),
         count_teams: 20,
         count_groups: 2,
         team_distribution: [2, 10],
@@ -474,10 +464,7 @@ fn initial_state() -> CompetitionPtr {
                 },*/
             ],
         ]),
-        group_names: Some(vec![
-            String::from("Gruppe BLAU"),
-            String::from("Gruppe ROT"),
-        ]),
+        group_names: Some(vec![String::from("Gruppe BLAU"), String::from("Gruppe ROT")]),
         matches: vec![],
         current_batch: vec![1, 0],
         with_break: true,
@@ -486,11 +473,7 @@ fn initial_state() -> CompetitionPtr {
     comp_mut.current_interim_result = vec![None, None];
 
     {
-        let relative_path = Path::new(if cfg!(target_os = "windows") {
-            r".\documents\"
-        } else {
-            "./documents"
-        });
+        let relative_path = Path::new(if cfg!(target_os = "windows") { r".\documents\" } else { "./documents" });
         if !relative_path.exists() {
             std::fs::create_dir_all(relative_path).expect("Directory creation failed!");
         }
@@ -508,13 +491,7 @@ fn initial_state() -> CompetitionPtr {
 
         comp_mut.absolute_dir_path = Some(abs_path);
 
-        comp_mut.absolute_file_path = Some(
-            comp_mut
-                .absolute_dir_path
-                .as_ref()
-                .unwrap()
-                .join("mustermeisterschaft.json"),
-        );
+        comp_mut.absolute_file_path = Some(comp_mut.absolute_dir_path.as_ref().unwrap().join("mustermeisterschaft.json"));
     }
 
     let results = [
@@ -539,12 +516,7 @@ fn initial_state() -> CompetitionPtr {
     comp_mut.data.as_ref().unwrap().matches[0]
         .iter()
         .filter(|&_match| _match.result != MatchResult::Break)
-        .map(|_match| {
-            [
-                _match.team_a.min(_match.team_b),
-                _match.team_a.max(_match.team_b),
-            ]
-        })
+        .map(|_match| [_match.team_a.min(_match.team_b), _match.team_a.max(_match.team_b)])
         .for_each(|arr| {
             assert!(hash_set.insert(arr));
             assert_ne!(arr[0], arr[1]);

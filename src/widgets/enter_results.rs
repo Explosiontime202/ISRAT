@@ -1,12 +1,13 @@
+use crate::data::MatchID;
 use crate::widgets::{table::Table, tile::Tile};
 use crate::CompetitionPtr;
+use gdk4::glib::clone;
 use gdk4::prelude::*;
 use gdk4::subclass::prelude::*;
-use gtk4::{
-    glib, subclass::widget::*, traits::*, BoxLayout, Button, Entry, Label, LayoutManager, CenterBox, Box as GtkBox,
-    Orientation, Widget
-};
+use gtk4::{glib, subclass::widget::*, traits::*, Box as GtkBox, BoxLayout, Button, CenterBox, Entry, Label, LayoutManager, Orientation, Widget, Dialog, Window};
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::num::ParseIntError;
 
 mod inner {
     use super::*;
@@ -23,6 +24,8 @@ mod inner {
         data: RefCell<Option<CompetitionPtr>>,
         // the index of the currently displayed group
         group_idx: RefCell<u32>,
+        // references to the text entries
+        entries: RefCell<HashMap<MatchID, [Entry; 2]>>,
     }
 
     impl Default for EnterResultScreen {
@@ -59,6 +62,48 @@ mod inner {
             submit_button_center_widget.set_end_widget(Some(&submit_button));
             enter_tile_box.append(&submit_button_center_widget);
 
+            submit_button.connect_clicked(clone!(@weak self as this => move |_| {
+                {
+                    let entries = this.entries.borrow();
+                    let entered_results : Vec<(MatchID, [Result<u32, ParseIntError>; 2])> = entries.iter().map(|(&idx, [entry_a, entry_b])| (idx, [entry_a.text().parse::<u32>(), entry_b.text().parse::<u32>()])).collect();
+                    let erroneous_inputs : Vec<(MatchID, bool, bool)> =  entered_results.iter().filter_map(|(id, [res_a, res_b])| {
+                        if res_a.is_err() || res_b.is_err() {
+                            Some((*id, res_a.is_err(), res_b.is_err()))
+                        } else {
+                            None
+                        }
+                    }).collect();
+
+                    if erroneous_inputs.is_empty() {
+                        // all inputs are valid, we can forward the entered values to the data model
+
+                        let match_results : HashMap<MatchID, [u32; 2]>= entered_results.iter().map(|(id, [res_a, res_b])| (*id, [*res_a.as_ref().unwrap(), *res_b.as_ref().unwrap()])).collect();
+                        let group_idx = *this.group_idx.borrow();
+                        let data_ptr = this.data.borrow();
+                        let competition = &mut *data_ptr.as_ref().unwrap().borrow_mut();
+                        
+                        match competition.data.as_mut() {
+                            Some(data) => data.enter_match_results(group_idx as usize, match_results),
+                            None => (),
+                        };
+
+
+                        // reset entry input fields
+                        entries.iter().flat_map(|(_, entries)| entries).for_each(|entry| entry.set_text(""));
+                    } else {
+                        // the user did enter some non-digit values => show an error
+                        // TODO: Show in dialog which inputs are erroneous
+                        let error_text = "You entered non-digit values in some fields.\nPlease enter numbers in order to submit the results.";
+                        let dialog_child = Label::builder().label(error_text).justify(gtk4::Justification::Center).build();
+                        let popup = Dialog::builder().child(&dialog_child).modal(true).resizable(false).build();
+                        let root_widget = this.obj().root().unwrap().downcast::<Window>().unwrap();
+                        popup.set_transient_for(Some(&root_widget));
+                        popup.show();
+                    }
+                }
+                this.reload();
+            }));
+
             self.enter_tile.set_child(enter_tile_box);
             self.enter_tile.set_parent(&*obj);
         }
@@ -89,8 +134,9 @@ mod inner {
                 title,
                 enter_tile,
                 enter_table,
-                data: RefCell::default(),
+                data: RefCell::new(None),
                 group_idx: RefCell::new(0),
+                entries: RefCell::default(),
             }
         }
 
@@ -113,7 +159,7 @@ mod inner {
         ///
         /// Reloads the data from the competition pointer and updates the widgets accordingly.
         ///
-        fn reload(&self) {
+        pub fn reload(&self) {
             if self.data.borrow().is_none() {
                 debug_assert!(false);
                 return;
@@ -127,16 +173,12 @@ mod inner {
             let data = competition.data.as_ref().unwrap();
 
             // use possibly new group name
-            self.title
-                .set_label(data.group_names.as_ref().unwrap()[group_idx].as_str());
+            self.title.set_label(data.group_names.as_ref().unwrap()[group_idx].as_str());
 
             let teams = &data.teams.as_ref().unwrap()[group_idx];
 
             // update title of interim result table
-            let new_enter_result_title = format!(
-                "Enter results for batch {}",
-                data.current_batch[group_idx] + 1
-            );
+            let new_enter_result_title = format!("Enter results for batch {}", data.current_batch[group_idx] + 1);
             self.enter_tile.set_title(new_enter_result_title.as_str());
 
             let next_matches = data.next_matches_for_group(group_idx);
@@ -148,22 +190,35 @@ mod inner {
                 let team_a_name = teams[next_match.team_a].name.as_str();
                 let team_b_name = teams[next_match.team_b].name.as_str();
 
+                let team_a_entry = Self::create_new_entry();
+                let team_b_entry = Self::create_new_entry();
+                self.entries
+                    .borrow_mut()
+                    .insert(next_match.id, [team_a_entry.clone(), team_b_entry.clone()]);
+
                 self.enter_table.add_widget_row(vec![
                     Label::new(Some(lane_str.as_str())).into(),
-                    Label::builder()
-                        .label(team_a_name)
-                        .hexpand(true)
-                        .build()
-                        .into(),
-                    Label::builder()
-                        .label(team_b_name)
-                        .hexpand(true)
-                        .build()
-                        .into(),
-                    Entry::new().into(),
-                    Entry::new().into(),
+                    Label::builder().label(team_a_name).hexpand(true).build().into(),
+                    Label::builder().label(team_b_name).hexpand(true).build().into(),
+                    team_a_entry.into(),
+                    team_b_entry.into(),
                 ])
             }
+        }
+
+        fn create_new_entry() -> Entry {
+            let entry = Entry::new();
+            entry.connect_text_notify(|entry| {
+                if !entry.text().chars().all(|c| c.is_ascii_digit()) {
+                    // text contains invalid character, i.e. non-digit, set error marker
+                    entry.error_bell();
+                    entry.add_css_class("error");
+                } else {
+                    // text is valid, reset error marker
+                    entry.remove_css_class("error");
+                }
+            });
+            entry
         }
     }
 }
@@ -188,5 +243,12 @@ impl EnterResultScreen {
     ///
     pub fn show_group(&self, group_idx: u32) {
         self.imp().set_group_idx(group_idx);
+    }
+
+    ///
+    /// Reload the widget from the data pointer.
+    /// 
+    pub fn reload(&self) {
+        self.imp().reload();
     }
 }

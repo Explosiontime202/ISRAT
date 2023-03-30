@@ -1,3 +1,11 @@
+window.dialog {
+    background-color: #212121;
+}
+
+window.dialog * {
+    margin: 25px;
+}
+
 separator {
     color: inherit;
 }
@@ -12,7 +20,7 @@ separator.highlighted {
 
 nav_button {
     margin: 5px;
-    background-color: #232323;
+    background-color: inherit;
     box-shadow: #232323 0 0 0 8px;
     border-radius: 1px;
 }
@@ -58,6 +66,8 @@ tile {
 }
 
 navbar_buttons_box {
+    background-color: #232323;
+    box-shadow: #232323 0 0 0 15px;
     margin: 15px;
 }
 
@@ -112,12 +122,15 @@ table_header {
 entry {
     background-color: #232323;
     margin: 5px;
-	border-radius: 10px;
     outline-color: #d65307;
 }
 
 entry:hover {
 	background-color: #272727;
+}
+
+entry.error {
+    outline-color: red;
 }
 
 highlighted_button {

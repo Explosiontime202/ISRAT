@@ -11,9 +11,7 @@ use gdk4::glib::{
 };
 use gdk4::prelude::*;
 use gdk4::subclass::prelude::*;
-use gtk4::{
-    glib, subclass::widget::*, traits::*, Box as GtkBox, Button, Label, Separator, Stack, Widget,
-};
+use gtk4::{glib, subclass::widget::*, traits::*, Box as GtkBox, Button, Label, Separator, Stack, Widget};
 use std::hash::Hash;
 use std::rc::Rc;
 use std::sync::Once;
@@ -23,6 +21,8 @@ use std::{
 };
 
 mod inner {
+    use gdk4::glib::clone::Upgrade;
+
     use super::*;
 
     #[derive(Debug)]
@@ -46,9 +46,7 @@ mod inner {
         }
     }
 
-    unsafe impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> ObjectSubclassType
-        for NavBar<CategoryT>
-    {
+    unsafe impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> ObjectSubclassType for NavBar<CategoryT> {
         #[inline]
         fn type_data() -> ::std::ptr::NonNull<TypeData> {
             static mut DATA: TypeData = types::INIT_TYPE_DATA;
@@ -78,9 +76,7 @@ mod inner {
     }
 
     #[doc(hidden)]
-    impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> FromObject
-        for NavBar<CategoryT>
-    {
+    impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> FromObject for NavBar<CategoryT> {
         type FromObjectType = <Self as ObjectSubclass>::Type;
         #[inline]
         fn from_object(obj: &Self::FromObjectType) -> &Self {
@@ -107,9 +103,7 @@ mod inner {
     }
 
     #[doc(hidden)]
-    impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> ::std::borrow::ToOwned
-        for NavBar<CategoryT>
-    {
+    impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> ::std::borrow::ToOwned for NavBar<CategoryT> {
         type Owned = ObjectImplRef<NavBar<CategoryT>>;
 
         #[inline]
@@ -119,18 +113,14 @@ mod inner {
     }
 
     #[doc(hidden)]
-    impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait>
-        ::std::borrow::Borrow<NavBar<CategoryT>> for ObjectImplRef<NavBar<CategoryT>>
-    {
+    impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> ::std::borrow::Borrow<NavBar<CategoryT>> for ObjectImplRef<NavBar<CategoryT>> {
         #[inline]
         fn borrow(&self) -> &NavBar<CategoryT> {
             self
         }
     }
 
-    impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> ObjectSubclass
-        for NavBar<CategoryT>
-    {
+    impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> ObjectSubclass for NavBar<CategoryT> {
         // NavBar<CategoryT::NAME>
         // const NAME: &'static str = concatcp!("NavBar<", , ">");
         const NAME: &'static str = CategoryT::NAV_BAR_NAME;
@@ -153,9 +143,7 @@ mod inner {
         }
     }
 
-    impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> ObjectImpl
-        for NavBar<CategoryT>
-    {
+    impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> ObjectImpl for NavBar<CategoryT> {
         fn constructed(&self) {
             self.parent_constructed();
             let obj = self.obj();
@@ -173,10 +161,7 @@ mod inner {
         }
     }
 
-    impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> WidgetImpl
-        for NavBar<CategoryT>
-    {
-    }
+    impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> WidgetImpl for NavBar<CategoryT> {}
 
     impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> NavBar<CategoryT> {
         pub fn new() -> Self {
@@ -216,8 +201,9 @@ mod inner {
         /// Also a button labelled with name is added in the corresponding category.
         /// When the button is clicked, the child is shown.
         /// Name has to be unique for a category.
+        /// If a callback is present, it is executed when ever the child is shown. This includes when the corresponding button is pressed or `show_child` shows this child.
         ///
-        pub fn add_child(&self, child: &impl IsA<Widget>, name: &String, category: CategoryT) {
+        pub fn add_child<F: Fn() + 'static>(&self, child: &impl IsA<Widget>, name: &String, category: CategoryT, callback: Option<F>) {
             {
                 let buttons_map = self.buttons.borrow();
 
@@ -233,11 +219,7 @@ mod inner {
 
             // and create button for it
             let label = Label::new(Some(name.as_str()));
-            let button = Button::builder()
-                .child(&label)
-                .label(name.clone())
-                .css_name("nav_button")
-                .build();
+            let button = Button::builder().child(&label).label(name.clone()).css_name("nav_button").build();
 
             self.add_button_to_category(&button, category);
 
@@ -253,18 +235,30 @@ mod inner {
                 let stack = &self.stack;
                 let sel_buttons = Rc::downgrade(&self.selected_buttons);
                 button.connect_clicked(glib::clone!(@weak stack => move |button| {
-                let label = button.label().unwrap();
-                println!("Pressed {}!", label);
+                    let label = button.label().unwrap();
+                    println!("Pressed {}!", label);
 
-                if let Some(selected_buttons) = sel_buttons.upgrade() {
-                    Self::handle_selections(selected_buttons, category, button);
-                }
+                    if let Some(selected_buttons) = sel_buttons.upgrade() {
+                        Self::handle_selections(selected_buttons, category, button);
+                    }
 
-                match stack.child_by_name(label.as_str()) {
-                    Some(child) => stack.set_visible_child(&child),
-                    None => panic!("Cannot find child for name {}, which should be shown", label),
-                }
-            }));
+                    match stack.child_by_name(label.as_str()) {
+                        Some(child) => stack.set_visible_child(&child),
+                        None => panic!("Cannot find child for name {}, which should be shown", label),
+                    }
+                }));
+            }
+
+            // call the callback whenever the child it is visible
+            if let Some(callback) = callback {
+                let child_widget: &Widget = child.upcast_ref();
+                self.stack.connect_visible_child_name_notify(clone!(@weak child_widget => move |stack| {
+                    if let Some(visible_child) = stack.visible_child() {
+                        if  visible_child == child_widget {
+                            callback();
+                        }
+                    }
+                }));
             }
 
             // default select the button for the child which is added first
@@ -368,8 +362,7 @@ mod inner {
             self.navigation_box.remove(&category_entry.button_box);
 
             if category_entry.separator.is_some() {
-                self.navigation_box
-                    .remove(category_entry.separator.as_ref().unwrap());
+                self.navigation_box.remove(category_entry.separator.as_ref().unwrap());
             }
 
             // remove remaining children from stack
@@ -384,10 +377,7 @@ mod inner {
         fn add_button_to_category(&self, button: &Button, category: CategoryT) {
             let mut buttons_map = self.buttons.borrow_mut();
 
-            let count_categories_before: u32 = buttons_map
-                .keys()
-                .filter_map(|&key| if key < category { Some(1) } else { None })
-                .sum();
+            let count_categories_before: u32 = buttons_map.keys().filter_map(|&key| if key < category { Some(1) } else { None }).sum();
 
             let category_entry = match buttons_map.get_mut(&category) {
                 Some(val) => val,
@@ -433,9 +423,7 @@ mod inner {
         /// Add a custom button without a child on the stack.
         /// The callback can modify the navbar, the button and the stack.
         ///
-        pub fn add_custom_nav_button<
-            F: Fn(&super::NavBar<CategoryT>, &Button, &Stack) + 'static,
-        >(
+        pub fn add_custom_nav_button<F: Fn(&super::NavBar<CategoryT>, &Button, &Stack) + 'static>(
             &self,
             name: &str,
             category: CategoryT,
@@ -446,10 +434,7 @@ mod inner {
             }
 
             let label = Label::new(Some(name));
-            let custom_button = Button::builder()
-                .child(&label)
-                .css_name("nav_button")
-                .build();
+            let custom_button = Button::builder().child(&label).css_name("nav_button").build();
             {
                 let stack = &self.stack;
                 let obj = &*self.obj();
@@ -480,11 +465,7 @@ mod inner {
         /// Marks `clicked_button` as selected and the previously selected button in `clicked_category` as not selected.
         /// Marks the buttons currently selected in the other categories as unselected according to `CategoryT::remaining_selections(clicked_category)`.
         ///
-        fn handle_selections(
-            selected_buttons: Rc<RefCell<HashMap<CategoryT, Button>>>,
-            clicked_category: CategoryT,
-            clicked_button: &Button,
-        ) {
+        fn handle_selections(selected_buttons: Rc<RefCell<HashMap<CategoryT, Button>>>, clicked_category: CategoryT, clicked_button: &Button) {
             let mut sel_mut = selected_buttons.borrow_mut();
 
             let remaining_categories = CategoryT::remaining_selections(clicked_category);
@@ -546,7 +527,14 @@ impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> NavBar<Catego
     /// Name has to be unique for a category.
     ///
     pub fn add_child(&self, child: &impl IsA<Widget>, name: String, category: CategoryT) {
-        self.imp().add_child(child, &String::from(name), category);
+        self.imp().add_child(child, &name, category, None::<fn()>);
+    }
+
+    ///
+    /// Same as `add_child`, except `callback` is called whenever the child is shown.
+    ///
+    pub fn add_child_with_callback<F: Fn() + 'static>(&self, child: &impl IsA<Widget>, name: String, category: CategoryT, callback: F) {
+        self.imp().add_child(child, &name, category, Some(callback));
     }
 
     ///
@@ -568,12 +556,7 @@ impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> NavBar<Catego
     /// Add a custom button without a child on the stack.
     /// The callback can modify the navbar, the button and the stack.
     ///
-    pub fn add_custom_nav_button<F: Fn(&Self, &Button, &Stack) + 'static>(
-        &self,
-        name: &str,
-        category: CategoryT,
-        callback: F,
-    ) {
+    pub fn add_custom_nav_button<F: Fn(&Self, &Button, &Stack) + 'static>(&self, name: &str, category: CategoryT, callback: F) {
         self.imp().add_custom_nav_button(name, category, callback);
     }
 }

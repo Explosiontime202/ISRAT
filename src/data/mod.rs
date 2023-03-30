@@ -1,7 +1,8 @@
 use chrono::offset::Local;
+use rand::Rng;
 use serde::Deserialize;
 use std::cmp::Ordering;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::fs;
 use std::path::PathBuf;
@@ -21,8 +22,8 @@ pub struct Competition {
     pub data: Option<CompetitionData>,
     pub spawned_threads: Vec<JoinHandle<()>>, // stores the join handles to the threads used to export pdf and html documents
     pub current_interim_result: Vec<Option<Vec<InterimResultEntry>>>, // a ResultEntry vector for each group in descending order
-    pub absolute_dir_path: Option<PathBuf>, // absolute path to the folder to store the export documents and autosaves
-    pub absolute_file_path: Option<PathBuf>, // absolute path to the data file, must not be in absolute_dir_path
+    pub absolute_dir_path: Option<PathBuf>,   // absolute path to the folder to store the export documents and autosaves
+    pub absolute_file_path: Option<PathBuf>,  // absolute path to the data file, must not be in absolute_dir_path
 }
 
 impl Default for Competition {
@@ -42,19 +43,11 @@ impl Competition {
         }
     }
 
-    pub fn get_current_interim_result_for_group(
-        &mut self,
-        group_idx: usize,
-    ) -> &Option<Vec<InterimResultEntry>> {
+    pub fn get_current_interim_result_for_group(&mut self, group_idx: usize) -> &Option<Vec<InterimResultEntry>> {
         // calculate interim result if not available
         if self.current_interim_result[group_idx].is_none() {
             debug_assert!(self.data.is_some());
-            self.current_interim_result[group_idx] = Some(
-                self.data
-                    .as_mut()
-                    .unwrap()
-                    .calc_interim_result_for_group(group_idx),
-            );
+            self.current_interim_result[group_idx] = Some(self.data.as_mut().unwrap().calc_interim_result_for_group(group_idx));
         }
         &self.current_interim_result[group_idx]
     }
@@ -79,11 +72,7 @@ impl Competition {
 
         self.absolute_dir_path = match path.parent() {
             Some(parent_path) => Some(parent_path.to_path_buf()),
-            None => {
-                return Err(String::from(
-                    "Could not retrieve absolute path to parent folder!",
-                ))
-            }
+            None => return Err(String::from("Could not retrieve absolute path to parent folder!")),
         };
 
         self.absolute_file_path = Some(path);
@@ -108,12 +97,7 @@ impl Competition {
 
         // update path
         self.absolute_file_path = Some(path.clone());
-        self.absolute_dir_path = self
-            .absolute_file_path
-            .as_ref()
-            .unwrap()
-            .parent()
-            .map(|path| path.to_path_buf());
+        self.absolute_dir_path = self.absolute_file_path.as_ref().unwrap().parent().map(|path| path.to_path_buf());
 
         save_to_file(path, self.data.as_ref().unwrap())
     }
@@ -123,10 +107,7 @@ impl Competition {
         self.current_interim_result = self.data.as_mut().unwrap().calc_all_interim_result();
         self.export_pdf(
             format!("result-{}", Local::now().format("%Y%m%d-%H%M")),
-            self.data
-                .as_ref()
-                .unwrap()
-                .get_result_as_latex(&self.current_interim_result),
+            self.data.as_ref().unwrap().get_result_as_latex(&self.current_interim_result),
         );
     }
 
@@ -165,16 +146,13 @@ impl Competition {
             }
 
             let mut status = NoopStatusBackend::default();
-            let config = PersistentConfig::open(false)
-                .expect("failed to open the default configuration file");
+            let config = PersistentConfig::open(false).expect("failed to open the default configuration file");
 
             let bundle = config
                 .default_bundle(false, &mut status)
                 .expect("failed to load the default resource bundle");
 
-            let format_cache_path = config
-                .format_cache_path()
-                .expect("failed to set up the format cache");
+            let format_cache_path = config.format_cache_path().expect("failed to set up the format cache");
 
             let mut sb = ProcessingSessionBuilder::default();
             let export_dir_path = dir_path.join("exports");
@@ -197,9 +175,7 @@ impl Competition {
                 .output_format(OutputFormat::Pdf)
                 .output_dir(export_dir_path);
 
-            let mut sess = sb
-                .create(&mut status)
-                .expect("failed to initialize the LaTeX processing session");
+            let mut sess = sb.create(&mut status).expect("failed to initialize the LaTeX processing session");
             sess.run(&mut status).expect("the LaTeX engine failed");
             println!("Finished export!");
         }));
@@ -236,12 +212,12 @@ pub struct CompetitionData {
     pub additional_text: String,
     pub count_teams: u32,
     pub count_groups: u32,
-    pub team_distribution: [u32; 2], // count_groups x count_teams_per_group
-    pub teams: Option<Vec<Vec<Team>>>, // for each group a vector of teams, ordered by ids
+    pub team_distribution: [u32; 2],      // count_groups x count_teams_per_group
+    pub teams: Option<Vec<Vec<Team>>>,    // for each group a vector of teams, ordered by ids
     pub group_names: Option<Vec<String>>, // a vector of the group names, ordered by id
-    pub matches: Vec<Vec<Match>>,    // a Match vector for each group
-    pub current_batch: Vec<u32>,     // the current batch of matches played for each group
-    pub with_break: bool, // defines whether theres a break for the teams, only important for a even team count
+    pub matches: Vec<Vec<Match>>,         // a Match vector for each group
+    pub current_batch: Vec<u32>,          // the current batch of matches played for each group
+    pub with_break: bool,                 // defines whether theres a break for the teams, only important for a even team count
 }
 
 impl Default for CompetitionData {
@@ -295,9 +271,7 @@ impl CompetitionData {
         // evaluate the match results for this group
         self.matches[group_idx]
             .iter()
-            .filter(|_match| {
-                _match.result != MatchResult::NotPlayed && _match.result != MatchResult::Break
-            })
+            .filter(|_match| _match.result != MatchResult::NotPlayed && _match.result != MatchResult::Break)
             .for_each(|_match| {
                 assert!(_match.points.is_some());
                 let points = _match.points.unwrap();
@@ -361,13 +335,9 @@ impl CompetitionData {
                 Ordering::Less
             } else if a.quotient < b.quotient {
                 Ordering::Greater
-            } else if (a.stock_points[0] - a.stock_points[1])
-                > (b.stock_points[0] - b.stock_points[1])
-            {
+            } else if (a.stock_points[0] - a.stock_points[1]) > (b.stock_points[0] - b.stock_points[1]) {
                 Ordering::Less
-            } else if (a.stock_points[0] - a.stock_points[1])
-                < (b.stock_points[0] - b.stock_points[1])
-            {
+            } else if (a.stock_points[0] - a.stock_points[1]) < (b.stock_points[0] - b.stock_points[1]) {
                 Ordering::Greater
             } else {
                 Ordering::Equal
@@ -376,36 +346,41 @@ impl CompetitionData {
         table
     }
 
-    pub fn next_matches_for_group(&self, group_idx: usize) -> Vec<NextMatch> {
+    pub fn next_matches_for_group(&self, group_idx: usize) -> Vec<&Match> {
         let current_batch = self.current_batch[group_idx];
-        self.matches[group_idx]
+        let next_matches = self.matches[group_idx]
             .iter()
+            .filter(|&match_| match_.result != MatchResult::Break)
             .filter(|&match_| match_.batch == current_batch)
-            .map(|match_| NextMatch {
-                team_a: match_.team_a,
-                team_b: match_.team_b,
-                lane: match_.lane,
-            })
-            .collect()
+            .collect::<Vec<&Match>>();
+        next_matches.iter().for_each(|match_| assert_eq!(match_.result, MatchResult::NotPlayed));
+        next_matches
     }
 
     pub fn teams_on_break_for_group(&self, group_idx: usize) -> Vec<&Team> {
         let current_batch = self.current_batch[group_idx];
-        let playing_teams: HashSet<usize> = self.matches[group_idx]
+        let teams = &self.teams.as_ref().unwrap()[group_idx];
+        self.matches[group_idx]
             .iter()
+            .filter(|&match_| match_.result == MatchResult::Break)
             .filter(|&match_| match_.batch == current_batch)
-            .flat_map(|match_| vec![match_.team_a, match_.team_b])
-            .collect();
-        self.teams.as_ref().unwrap()[group_idx]
-            .iter()
-            .enumerate()
-            .filter(|(team_idx, _)| !playing_teams.contains(team_idx))
-            .map(|(_, team)| team)
+            .flat_map(|match_| [match_.team_a, match_.team_b])
+            .map(|team_id| &teams[team_id])
             .collect()
     }
 
     pub fn generate_matches(&mut self) {
         assert!(self.matches.is_empty());
+
+        let mut assigned_ids = HashSet::<MatchID>::new();
+
+        let mut new_match_id = || loop {
+            let id = Self::generate_new_match_id();
+            if !assigned_ids.contains(&id) {
+                assigned_ids.insert(id);
+                break id;
+            }
+        };
 
         let team_count = self.team_distribution[1] as i32;
         if team_count % 2 == 0 {
@@ -418,10 +393,8 @@ impl CompetitionData {
                         // "(batch_idx * 2) / team_count" is a elegant way to subtract 1 if batch_idx >= team_count / 2 else 0
                         for lane_idx in 0..(team_count / 2 - (batch_idx * 2 / team_count)) {
                             // "(batch_idx * 2) / team_count" see above, but add 1 instead of subtract
-                            let team_a_idx = (lane_idx - batch_idx + (batch_idx * 2 / team_count))
-                                .rem_euclid(team_count);
-                            let team_b_idx =
-                                (team_count - lane_idx - batch_idx - 1).rem_euclid(team_count);
+                            let team_a_idx = (lane_idx - batch_idx + (batch_idx * 2 / team_count)).rem_euclid(team_count);
+                            let team_b_idx = (team_count - lane_idx - batch_idx - 1).rem_euclid(team_count);
                             batch.push(Match {
                                 team_a: team_a_idx as usize,
                                 team_b: team_b_idx as usize,
@@ -429,19 +402,19 @@ impl CompetitionData {
                                 result: MatchResult::NotPlayed,
                                 batch: batch_idx as u32,
                                 lane: lane_idx as u32,
+                                id: new_match_id(),
                             })
                         }
 
                         if batch_idx >= team_count / 2 {
                             batch.push(Match {
-                                team_a: (team_count / 2 - batch_idx).rem_euclid(team_count)
-                                    as usize,
-                                team_b: (team_count / 2 - batch_idx).rem_euclid(team_count)
-                                    as usize,
+                                team_a: (team_count / 2 - batch_idx).rem_euclid(team_count) as usize,
+                                team_b: (team_count / 2 - batch_idx).rem_euclid(team_count) as usize,
                                 points: None,
                                 result: MatchResult::Break,
                                 batch: batch_idx as u32,
                                 lane: u32::MAX,
+                                id: new_match_id(),
                             });
                             batch.push(Match {
                                 team_a: (team_count - batch_idx) as usize,
@@ -450,6 +423,7 @@ impl CompetitionData {
                                 result: MatchResult::Break,
                                 batch: batch_idx as u32,
                                 lane: u32::MAX,
+                                id: new_match_id(),
                             });
                         }
                         group.append(&mut batch);
@@ -468,8 +442,7 @@ impl CompetitionData {
                     let mut batch = vec![];
                     for lane_idx in 0..(team_count / 2) {
                         let team_a_idx = (lane_idx - batch_idx).rem_euclid(team_count);
-                        let team_b_idx =
-                            (team_count - lane_idx - batch_idx - 2).rem_euclid(team_count);
+                        let team_b_idx = (team_count - lane_idx - batch_idx - 2).rem_euclid(team_count);
                         batch.push(Match {
                             team_a: team_a_idx as usize,
                             team_b: team_b_idx as usize,
@@ -477,6 +450,7 @@ impl CompetitionData {
                             result: MatchResult::NotPlayed,
                             batch: batch_idx as u32,
                             lane: lane_idx as u32,
+                            id: new_match_id(),
                         });
                     }
 
@@ -489,6 +463,7 @@ impl CompetitionData {
                         result: MatchResult::Break,
                         batch: batch_idx as u32,
                         lane: u32::MAX,
+                        id: new_match_id(),
                     });
 
                     group.append(&mut batch);
@@ -496,6 +471,30 @@ impl CompetitionData {
                 self.matches.push(group);
             }
         }
+    }
+
+    fn generate_new_match_id() -> MatchID {
+        rand::thread_rng().gen()
+    }
+
+    ///
+    /// Sets the results and points of the matches according to `match_results`. 
+    /// It is required for those matches, to have as result MatchResult::NotPlayed.
+    /// Increases the current batch of the group.
+    ///
+    pub fn enter_match_results(&mut self, group_idx: usize, match_results: HashMap<MatchID, [u32; 2]>) {
+        for match_ in &mut self.matches[group_idx] {
+            if let Some([points_a, points_b]) = match_results.get(&match_.id) {
+                assert!(match_.result == MatchResult::NotPlayed);
+                match_.points = Some([*points_a as i32, *points_b as i32]);
+                match_.result = match points_a.cmp(points_b) {
+                    Ordering::Less => MatchResult::WinnerB,
+                    Ordering::Equal => MatchResult::Draw,
+                    Ordering::Greater => MatchResult::WinnerA,
+                };
+            }
+        }
+        self.current_batch[group_idx] += 1;
     }
 
     pub fn get_result_as_html(&self) -> String {
@@ -527,10 +526,7 @@ impl CompetitionData {
         )
     }
 
-    fn get_result_as_latex(
-        &self,
-        current_interim_result: &Vec<Option<Vec<InterimResultEntry>>>,
-    ) -> String {
+    fn get_result_as_latex(&self, current_interim_result: &Vec<Option<Vec<InterimResultEntry>>>) -> String {
         // TODO: make this configurable by the user
         let player_names_until = 3; // index of the first team which has NO player names displayed
 
@@ -540,11 +536,7 @@ impl CompetitionData {
         let is_final_result = self
             .matches
             .iter()
-            .map(|group_matches| {
-                group_matches
-                    .iter()
-                    .all(|_match| _match.result != MatchResult::NotPlayed)
-            })
+            .map(|group_matches| group_matches.iter().all(|_match| _match.result != MatchResult::NotPlayed))
             .all(|b| b);
 
         let footnote = format!(
@@ -737,11 +729,7 @@ impl CompetitionData {
             \end{{center}}
             {}
         ",
-                    if previous_new_page {
-                        header.as_str()
-                    } else {
-                        ""
-                    },
+                    if previous_new_page { header.as_str() } else { "" },
                     self.group_names.as_ref().unwrap()[group_idx],
                     group_result,
                     if self.team_distribution[1] > 15 {
@@ -1055,11 +1043,7 @@ r"
                 "batch": {},
                 "lane": {}
             }}"#,
-                                _match.team_a,
-                                _match.team_b,
-                                _match.result,
-                                _match.batch,
-                                _match.lane,
+                                _match.team_a, _match.team_b, _match.result, _match.batch, _match.lane,
                             )
                         })
                         .collect::<Vec<String>>()
@@ -1142,12 +1126,7 @@ pub struct InterimResultEntry {
     pub quotient: f32,
 }
 
-#[derive(Debug)]
-pub struct NextMatch {
-    pub team_a: usize,
-    pub team_b: usize,
-    pub lane: u32,
-}
+pub type MatchID = u32;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Match {
@@ -1158,6 +1137,7 @@ pub struct Match {
     pub result: MatchResult,      // the result of the match
     pub batch: u32,               // the index of the batch the match is in, e.g. "Spiel 4"
     pub lane: u32,                // the number of the lane the match is played on, e.g. "Bahn 2"
+    pub id: MatchID,              // the unique id of the match (unique within a competition)
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord)]

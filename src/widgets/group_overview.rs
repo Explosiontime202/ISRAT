@@ -2,10 +2,7 @@ use crate::widgets::{table::Table, tile::Tile};
 use crate::CompetitionPtr;
 use gdk4::prelude::*;
 use gdk4::subclass::prelude::*;
-use gtk4::{
-    glib, subclass::widget::*, traits::*, Box as GtkBox, FlowBox, Label, LayoutManager,
-    Orientation, Widget,
-};
+use gtk4::{glib, subclass::widget::*, traits::*, Box as GtkBox, FlowBox, Label, LayoutManager, Orientation, Widget};
 use std::cell::RefCell;
 
 mod inner {
@@ -56,8 +53,7 @@ mod inner {
 
             let obj = self.obj();
 
-            self.interim_result_tile
-                .set_child(self.interim_result_table.clone());
+            self.interim_result_tile.set_child(self.interim_result_table.clone());
             self.flow_box.insert(&self.interim_result_tile, -1);
 
             let next_matches_tile = Tile::new("Next Matches");
@@ -97,10 +93,7 @@ mod inner {
 
             let interim_result_tile = Tile::new("");
 
-            let next_matches_table = Table::with_expanding_column(
-                vec!["Lane", "Team A", "Team B"],
-                vec![false, true, true],
-            );
+            let next_matches_table = Table::with_expanding_column(vec!["Lane", "Team A", "Team B"], vec![false, true, true]);
             let interim_result_table = Table::with_expanding_column(
                 vec!["Place", "Team", "Points", "Difference", "Stockpoints"],
                 vec![false, true, false, false, false],
@@ -139,7 +132,7 @@ mod inner {
         ///
         /// Reloads the data from the competition pointer and updates the widgets accordingly.
         ///
-        fn reload(&self) {
+        pub fn reload(&self) {
             if self.data.borrow().is_none() {
                 debug_assert!(false);
                 return;
@@ -153,8 +146,7 @@ mod inner {
             let data = competition.data.as_ref().unwrap();
 
             // use possibly new group name
-            self.title
-                .set_label(data.group_names.as_ref().unwrap()[group_idx].as_str());
+            self.title.set_label(data.group_names.as_ref().unwrap()[group_idx].as_str());
 
             // calculate current interim result
             let interim_result = data.calc_interim_result_for_group(group_idx);
@@ -164,32 +156,22 @@ mod inner {
             let new_interim_result_title = if data.current_batch[group_idx] == 0 {
                 "Starter list".to_string()
             } else {
-                format!(
-                    "Interim result after Batch {}",
-                    data.current_batch[group_idx]
-                )
+                format!("Interim result after Batch {}", data.current_batch[group_idx])
             };
-            self.interim_result_tile
-                .set_title(new_interim_result_title.as_str());
+            self.interim_result_tile.set_title(new_interim_result_title.as_str());
 
             // rebuild interim result table
             self.interim_result_table.clear_rows();
             for (entry_idx, interim_result_entry) in interim_result.iter().enumerate() {
                 // create displayable strings from interim result entry
                 let entry_idx_str = (entry_idx + 1).to_string();
-                let points_str = format!(
-                    "{} : {}",
-                    interim_result_entry.match_points[0], interim_result_entry.match_points[1]
-                );
+                let points_str = format!("{} : {}", interim_result_entry.match_points[0], interim_result_entry.match_points[1]);
                 let difference_str = if interim_result_entry.difference == 0 {
                     "0".to_string()
                 } else {
                     format!("{:+}", interim_result_entry.difference)
                 };
-                let stock_points_str = format!(
-                    "{} : {}",
-                    interim_result_entry.stock_points[0], interim_result_entry.stock_points[1]
-                );
+                let stock_points_str = format!("{} : {}", interim_result_entry.stock_points[0], interim_result_entry.stock_points[1]);
 
                 // display interim result entry in table
                 self.interim_result_table.add_row(vec![
@@ -219,10 +201,7 @@ mod inner {
             if break_teams.is_empty() {
                 self.break_label.set_visible(false);
             } else {
-                let break_team_names = break_teams
-                    .iter()
-                    .map(|&team| team.name.as_str())
-                    .collect::<Vec<&str>>();
+                let break_team_names = break_teams.iter().map(|&team| team.name.as_str()).collect::<Vec<&str>>();
 
                 let break_str = format!("Break: {}", break_team_names.join(", "));
                 self.break_label.set_label(break_str.as_str());
@@ -252,5 +231,12 @@ impl GroupOverviewScreen {
     ///
     pub fn show_group(&self, group_idx: u32) {
         self.imp().set_group_idx(group_idx);
+    }
+
+    ///
+    /// Reload the widget from the data pointer.
+    /// 
+    pub fn reload(&self) {
+        self.imp().reload();
     }
 }
