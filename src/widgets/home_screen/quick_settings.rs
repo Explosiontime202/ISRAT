@@ -1,6 +1,6 @@
-use crate::{widgets::common::img_from_bytes, MainNavBarCategory};
 use crate::widgets::settings::create_quick_settings;
 use crate::widgets::tile::Tile;
+use crate::{widgets::common::img_from_bytes, MainNavBarCategory};
 use gdk4::subclass::prelude::*;
 use gtk4::{
     glib, subclass::widget::*, traits::WidgetExt, traits::*, Box as GtkBox, Button, Label, Widget,

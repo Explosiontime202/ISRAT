@@ -4,6 +4,7 @@ use gtk4::{BoxLayout, Grid};
 use std::cell::RefCell;
 
 type Row<'a> = Vec<&'a str>;
+type WidgetRow = Vec<Widget>;
 
 mod inner {
     use super::*;
@@ -69,8 +70,9 @@ mod inner {
         /// Initially sets the header or overrides the current header with a new one.
         /// Has to be called at least once before any `add_row()`.
         /// `header_set` is afterwards `true`.
+        /// `expanding_columns` defines which of the columns expand in the horizontal direction.
         ///
-        pub fn set_header(&self, new_header: Row) {
+        pub fn set_header(&self, new_header: Row, expanding_columns: Vec<bool>) {
             {
                 let mut column_count = self.column_count.borrow_mut();
 
@@ -104,11 +106,15 @@ mod inner {
             self.grid
                 .attach(&header_background, 0, 0, new_header.len() as i32, 1);
 
-            self.build_widgets_for_row(new_header, 0);
+            for (column_idx, column_name) in new_header.iter().enumerate() {
+                let header_widget = self.build_widget_for_entry(&column_name);
+                header_widget.set_hexpand(expanding_columns[column_idx]);
+                self.grid.attach(&header_widget, column_idx as i32, 0, 1, 1);
+            }
         }
 
         ///
-        /// Adds a row to the table.
+        /// Adds the strings as labels in order to a row to the table.
         /// `row` has to have as many entries as the header.
         /// `row_count` is incremented by one.
         ///
@@ -119,6 +125,27 @@ mod inner {
             );
             let mut row_count_ref = self.row_count.borrow_mut();
             self.build_widgets_for_row(row, *row_count_ref as i32);
+            *row_count_ref += 1;
+        }
+
+        ///
+        /// Adds the widgets in order as row to the table.
+        /// `widget_row` has to have as many entries as the header.
+        /// `row_count` is incremented by one.
+        /// The widget gets the CSS class `table_entry`.
+        ///
+        pub fn add_widget_row(&self, widget_row: WidgetRow) {
+            assert!(
+                *self.header_set.borrow(),
+                "Header has to be initialized beforehand using 'set_header'!"
+            );
+            let mut row_count_ref = self.row_count.borrow_mut();
+            let row_idx = *row_count_ref;
+            for (column_idx, widget) in widget_row.iter().enumerate() {
+                widget.add_css_class("table_entry");
+                self.grid
+                    .attach(widget, column_idx as i32, row_idx as i32, 1, 1);
+            }
             *row_count_ref += 1;
         }
 
@@ -150,7 +177,6 @@ mod inner {
             let label = Label::builder()
                 .label(entry)
                 .css_name("table_entry")
-                .hexpand(true)
                 .build();
             label.into()
         }
@@ -178,25 +204,54 @@ glib::wrapper! {
 
 impl Table {
     pub fn new(header: Row) -> Self {
+        let count_columns = header.len();
+        Self::with_expanding_column(header, vec![true; count_columns])
+    }
+
+    pub fn with_expanding_column(header: Row, expanding_columns: Vec<bool>) -> Self {
         let obj = glib::Object::new::<Self>();
-        obj.imp().set_header(header);
+        obj.set_header_expanding(header, expanding_columns);
         obj
     }
 
     ///
     /// Change the header row.
     /// `new_header` can have a different size then the old header.
+    /// All columns expand in the horizontal direction.
+    /// If you want to specify the columns which expand in horizontal direction, please refer to `set_header_expanding`.
     ///
     pub fn set_header(&self, new_header: Row) {
-        self.imp().set_header(new_header);
+        let count_columns = new_header.len();
+        self.set_header_expanding(new_header, vec![true; count_columns]);
     }
 
     ///
-    /// Adds a row to the table.
+    /// Same as `set_header`, except that `expanding_columns` defines which of the columns expand in the horizontal direction.
+    ///
+    pub fn set_header_expanding(&self, new_header: Row, expanding_columns: Vec<bool>) {
+        assert_eq!(
+            new_header.len(),
+            expanding_columns.len(),
+            "expanding_columns must define for every column if it expands in horizontal direction."
+        );
+        self.imp().set_header(new_header, expanding_columns);
+    }
+
+    ///
+    /// Adds the strings as labels in order to a row to the table.
     /// `row` has to have as many entries as the header.
     ///
     pub fn add_row(&self, row: Row) {
         self.imp().add_row(row);
+    }
+
+    ///
+    /// Adds the widgets in order as row to the table.
+    /// `widget_row` has to have as many entries as the header.
+    /// The widget gets the CSS class `table_entry`
+    ///
+    pub fn add_widget_row(&self, widget_row: WidgetRow) {
+        self.imp().add_widget_row(widget_row);
     }
 
     ///

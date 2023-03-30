@@ -2,9 +2,8 @@ use crate::widgets::{table::Table, tile::Tile};
 use crate::CompetitionPtr;
 use gdk4::prelude::*;
 use gdk4::subclass::prelude::*;
-use gtk4::traits::BoxExt;
 use gtk4::{
-    glib, subclass::widget::*, traits::WidgetExt, Box as GtkBox, FlowBox, Label, LayoutManager,
+    glib, subclass::widget::*, traits::*, Box as GtkBox, FlowBox, Label, LayoutManager,
     Orientation, Widget,
 };
 use std::cell::RefCell;
@@ -98,9 +97,14 @@ mod inner {
 
             let interim_result_tile = Tile::new("");
 
-            let next_matches_table = Table::new(vec!["Lane", "Team A", "Team B"]);
-            let interim_result_table =
-                Table::new(vec!["Place", "Team", "Points", "Difference", "Stockpoints"]);
+            let next_matches_table = Table::with_expanding_column(
+                vec!["Lane", "Team A", "Team B"],
+                vec![false, true, true],
+            );
+            let interim_result_table = Table::with_expanding_column(
+                vec!["Place", "Team", "Points", "Difference", "Stockpoints"],
+                vec![false, true, false, false, false],
+            );
 
             let break_label = Label::new(None);
 
@@ -132,6 +136,9 @@ mod inner {
             self.reload();
         }
 
+        ///
+        /// Reloads the data from the competition pointer and updates the widgets accordingly.
+        ///
         fn reload(&self) {
             if self.data.borrow().is_none() {
                 debug_assert!(false);
@@ -144,6 +151,8 @@ mod inner {
 
             debug_assert!(competition.data.is_some());
             let data = competition.data.as_ref().unwrap();
+
+            // use possibly new group name
             self.title
                 .set_label(data.group_names.as_ref().unwrap()[group_idx].as_str());
 

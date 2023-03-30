@@ -1,4 +1,4 @@
-use std::{sync::mpsc::Receiver, path::PathBuf, fmt::Error};
+use std::{fmt::Error, path::PathBuf, sync::mpsc::Receiver};
 
 use timer::{Guard, Timer};
 
@@ -33,8 +33,7 @@ impl ProgramState {
             ProgramStage::StartScreenStage => {
                 todo!("Currently not implemented StartScreenStage init!")
             }
-            ProgramStage::NewScreenStage => {
-            }
+            ProgramStage::NewScreenStage => {}
 
             ProgramStage::CurrentErgViewStage => {
                 // TODO: Add more state resets if needed

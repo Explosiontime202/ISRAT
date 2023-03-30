@@ -26,6 +26,8 @@ use widgets::{
     settings::settings_screen::SettingsScreen,
 };
 
+use crate::widgets::enter_results::EnterResultScreen;
+
 mod data;
 mod state;
 mod widgets;
@@ -127,12 +129,20 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, competition: CompetitionPt
                 MainNavBarCategory::Group,
             );
 
+            let enter_results = EnterResultScreen::new(Rc::clone(&competition));
+            nav_bar.add_child(
+                &enter_results,
+                String::from("Enter results"),
+                MainNavBarCategory::Group,
+            );
+
             for (group_idx, group) in data.group_names.as_ref().unwrap().iter().enumerate() {
                 nav_bar.add_custom_nav_button(
                     group.as_str(),
                     MainNavBarCategory::GroupSelector,
-                    clone!(@weak group_overview => move |nav_bar, button, stack| {
+                    clone!(@weak group_overview, @weak enter_results => move |_nav_bar, _button, _stack| {
                         group_overview.show_group(group_idx as u32);
+                        enter_results.show_group(group_idx as u32);
                     }),
                 );
             }

@@ -17,11 +17,14 @@ nav_button {
     border-radius: 1px;
 }
 
-nav_button:active {
-    margin: 5px;
+nav_button:hover {
     background-color: #272727;
     box-shadow: #272727 0 0 0 8px;
-    border-radius: 1px;
+}
+
+nav_button:active {
+    background-color: #2B2B2B;
+    box-shadow: #2B2B2B 0 0 0 8px;
 }
 
 nav_button.selected {
@@ -79,11 +82,14 @@ tile_button {
     border-radius: 1px;
 }
 
+tile_button:hover {
+    background-color: #252525;
+    box-shadow: #252525 0 0 0 8px;
+}
+
 tile_button:active {
-    margin: 4px;
-    background-color: #232323;
-    box-shadow: #232323 0 0 0 8px;
-    border-radius: 1px;
+    background-color: #292929;
+    box-shadow: #292929 0 0 0 8px;
 }
 
 button.toggle.text-button:checked {
@@ -101,4 +107,33 @@ table_entry {
 table_header {
     background-color: #323232;
     border-radius: 15px;
+}
+
+entry {
+    background-color: #232323;
+    margin: 5px;
+	border-radius: 10px;
+    outline-color: #d65307;
+}
+
+entry:hover {
+	background-color: #272727;
+}
+
+highlighted_button {
+    background-color: #d65307;
+    color: black;
+    border-radius: 10px;
+}
+
+highlighted_button:hover {
+    background-color: #e65307;
+}
+
+highlighted_button:active {
+    background-color: #ff5307;
+}
+
+highlighted_button label {
+    margin: 10px;
 }
