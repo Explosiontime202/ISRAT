@@ -14,17 +14,17 @@ mod inner {
 
     #[derive(Debug)]
     pub struct EnterResultScreen {
-        // the title of the screen: the group name
+        /// the title of the screen: the group name
         title: Label,
-        // a reference to the tile parenting the enter results table
+        /// a reference to the tile parenting the enter results table
         enter_tile: Tile,
-        // a reference to the table containing the enter result table
+        /// a reference to the table containing the enter result table
         enter_table: Table,
-        // a option to the competition, in a RefCell to allow interior mutability
+        /// a option to the competition, in a RefCell to allow interior mutability
         data: RefCell<Option<CompetitionPtr>>,
-        // the index of the currently displayed group
+        /// the index of the currently displayed group
         group_idx: RefCell<u32>,
-        // references to the text entries
+        /// references to the text entries
         entries: RefCell<HashMap<MatchID, [Entry; 2]>>,
     }
 

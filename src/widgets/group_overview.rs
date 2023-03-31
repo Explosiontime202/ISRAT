@@ -10,21 +10,21 @@ mod inner {
 
     #[derive(Debug)]
     pub struct GroupOverviewScreen {
-        // the flow box storing the displayed tiles
+        /// the flow box storing the displayed tiles
         flow_box: FlowBox,
-        // the title of the screen: the group name
+        /// the title of the screen: the group name
         title: Label,
-        // a reference to the tile holding the interim result table
+        /// a reference to the tile holding the interim result table
         interim_result_tile: Tile,
-        // a reference to the table displaying the interim result
+        /// a reference to the table displaying the interim result
         interim_result_table: Table,
-        // a reference to the table displaying the next matches
+        /// a reference to the table displaying the next matches
         next_matches_table: Table,
-        // a reference to the label displaying the teams on break
+        /// a reference to the label displaying the teams on break
         break_label: Label,
-        // a option to the competition, in a RefCell to allow interior mutability
+        /// a option to the competition, in a RefCell to allow interior mutability
         data: RefCell<Option<CompetitionPtr>>,
-        // the index of the currently displayed group
+        /// the index of the currently displayed group
         group_idx: RefCell<u32>,
     }
 

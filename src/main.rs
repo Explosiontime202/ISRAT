@@ -1,5 +1,6 @@
 #![windows_subsystem = "windows"]
 
+use crate::widgets::enter_results::EnterResultScreen;
 use adw::prelude::*;
 use chrono::Duration;
 use data::{
@@ -23,8 +24,6 @@ use widgets::{
     navbar::{NavBar, NavBarCategoryTrait},
     settings::settings_screen::SettingsScreen,
 };
-
-use crate::widgets::enter_results::{self, EnterResultScreen};
 
 mod data;
 mod state;
@@ -130,12 +129,15 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, competition: CompetitionPt
                 nav_bar.add_custom_nav_button(
                     group.as_str(),
                     MainNavBarCategory::GroupSelector,
-                    clone!(@weak group_overview, @weak enter_results => move |_nav_bar, _, _| {
+                    clone!(@weak group_overview, @weak enter_results => move |nav_bar, _, _| {
+                        nav_bar.show_category(MainNavBarCategory::Group);
                         group_overview.show_group(group_idx as u32);
                         enter_results.show_group(group_idx as u32);
                     }),
                 );
             }
+
+            nav_bar.hide_category(MainNavBarCategory::Group);
         }
     }
 

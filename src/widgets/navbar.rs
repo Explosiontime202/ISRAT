@@ -21,7 +21,7 @@ use std::{
 };
 
 mod inner {
-    use gdk4::glib::clone::Upgrade;
+    use std::mem;
 
     use super::*;
 
@@ -32,11 +32,11 @@ mod inner {
         /// Different separators between the main widgets.
         /// [0] = separator between `navigation_box` and `stack`
         separators: [Separator; 1],
-        // Contains the buttons of the categories as well as the separators between the categories (not to be confused with `separators`)
+        /// Contains the buttons of the categories as well as the separators between the categories (not to be confused with `separators`)
         navigation_box: GtkBox,
-        // Stores the information about each category, i.e. what buttons and if a separator to the previous category exists
+        /// Stores the information about each category, i.e. what buttons and if a separator to the previous category exists
         buttons: RefCell<BTreeMap<CategoryT, CategoryEntry>>,
-        // Stores which button in each category is selected, it is not necessary for a category to have a selected button
+        /// Stores which button in each category is selected, it is not necessary for a category to have a selected button
         selected_buttons: Rc<RefCell<HashMap<CategoryT, Button>>>,
     }
 
@@ -331,16 +331,25 @@ mod inner {
                 .margin_top(0)
                 .margin_bottom(0)
                 .build();
-            self.navigation_box.append(&button_box);
+
+            let prev_category = Self::prev_category_shown(&buttons_map, category);
+            // insert the button_box after the one from the previous category
+            self.navigation_box
+                .insert_child_after(&button_box, prev_category.map(|category| &buttons_map[&category].button_box));
 
             let res = buttons_map.insert(
                 category,
                 CategoryEntry {
                     button_box,
-                    separator: None,
+                    separator_before: None,
+                    separator_after: None,
                     entries: HashMap::new(),
+                    is_shown: true,
                 },
             );
+
+            drop(buttons_map);
+            self.insert_separator_for_category(category);
 
             debug_assert!(res.is_none());
         }
@@ -361,13 +370,19 @@ mod inner {
 
             self.navigation_box.remove(&category_entry.button_box);
 
-            if category_entry.separator.is_some() {
-                self.navigation_box.remove(category_entry.separator.as_ref().unwrap());
+            // remove now redundant separator
+            if let Some(sep_before) = category_entry.separator_before.as_ref() {
+                self.navigation_box.remove(sep_before);
             }
 
             // remove remaining children from stack
             for (name, _) in &category_entry.entries {
                 self.remove_child_by_name(name, category);
+            }
+
+            if category_entry.is_shown {
+                drop(buttons_map);
+                self.remove_separator_for_category(category);
             }
         }
 
@@ -377,20 +392,10 @@ mod inner {
         fn add_button_to_category(&self, button: &Button, category: CategoryT) {
             let mut buttons_map = self.buttons.borrow_mut();
 
-            let count_categories_before: u32 = buttons_map.keys().filter_map(|&key| if key < category { Some(1) } else { None }).sum();
-
             let category_entry = match buttons_map.get_mut(&category) {
                 Some(val) => val,
                 None => return,
             };
-
-            // create separator to separate from previous category if necessary
-            if category_entry.separator.is_none() && count_categories_before > 0 {
-                let sep = Separator::builder().margin_top(5).margin_bottom(5).build();
-                sep.add_css_class("category_sep");
-                sep.insert_before(&self.navigation_box, Some(&category_entry.button_box));
-                category_entry.separator = Some(sep);
-            }
 
             category_entry.button_box.append(button);
         }
@@ -482,6 +487,147 @@ mod inner {
             clicked_button.add_css_class("selected");
             sel_mut.insert(clicked_category, clicked_button.clone());
         }
+
+        ///
+        /// Shows the buttons of `category`.
+        ///
+        pub fn show_category(&self, category: CategoryT) {
+            let mut buttons = self.buttons.borrow_mut();
+            if let Some(category_entry) = buttons.get(&category) {
+                if !category_entry.is_shown {
+                    let prev_category = Self::prev_category_shown(&*buttons, category);
+                    self.navigation_box
+                        .insert_child_after(&category_entry.button_box, prev_category.map(|prev_cat| &buttons[&prev_cat].button_box));
+                    buttons.get_mut(&category).unwrap().is_shown = true;
+                    drop(buttons);
+                    self.insert_separator_for_category(category);
+                }
+            }
+        }
+
+        ///
+        /// Hides the buttons of `category`.
+        ///
+        pub fn hide_category(&self, category: CategoryT) {
+            let mut buttons = self.buttons.borrow_mut();
+            if let Some(category_entry) = buttons.get_mut(&category) {
+                if category_entry.is_shown {
+                    category_entry.button_box.unparent();
+                    category_entry.is_shown = false;
+                    drop(buttons);
+                    self.remove_separator_for_category(category);
+                }
+            }
+        }
+
+        ///
+        /// Inserts a separator before the category if necessary.
+        /// If it is the first category, the separator will be inserted after it if necessary.
+        /// If there is no other category shown, no separator will be inserted.
+        /// 
+        fn insert_separator_for_category(&self, category: CategoryT) {
+            let mut buttons = self.buttons.borrow_mut();
+            let (separator_before, separator_after) = match (
+                Self::prev_category_shown(&*buttons, category),
+                Self::next_category_shown(&*buttons, category),
+            ) {
+                (None, None) => (None, None), // there is no other shown category, no separator necessary
+                (Some(prev_cat), None) => {
+                    // this category will be the new last category => separator to previous category
+                    let new_sep = Self::create_nav_bar_separator();
+                    buttons.get_mut(&prev_cat).unwrap().separator_after = Some(new_sep.clone());
+                    (Some(new_sep), None)
+                }
+                (None, Some(next_cat)) => {
+                    // this category wll be the new first category => separator to next category
+                    let new_sep = Self::create_nav_bar_separator();
+                    buttons.get_mut(&next_cat).unwrap().separator_before = Some(new_sep.clone());
+                    (None, Some(new_sep))
+                }
+                (Some(prev_cat), Some(_)) => {
+                    // this category will be in the middle => new separator to other categories, adjust separator pointer
+                    let new_sep = Self::create_nav_bar_separator();
+                    let sep_after = mem::replace(&mut buttons.get_mut(&prev_cat).unwrap().separator_after, Some(new_sep.clone()));
+                    (Some(new_sep), sep_after)
+                }
+            };
+
+            let category_entry = buttons.get_mut(&category).unwrap();
+
+            // insert a new separator before the button_box
+            if let Some(new_sep) = separator_before.as_ref() {
+                new_sep.insert_before(&self.navigation_box, Some(&category_entry.button_box));
+            }
+
+            category_entry.separator_before = separator_before;
+            category_entry.separator_after = separator_after;
+        }
+
+        ///
+        /// Removes the separator before a category if available.
+        /// If the category is the first one, the separator after it will be removed.
+        /// If no separator is available, none will be removed.
+        /// 
+        fn remove_separator_for_category(&self, category: CategoryT) {
+            let mut buttons = self.buttons.borrow_mut();
+            let removed_sep = match (
+                Self::prev_category_shown(&buttons, category),
+                Self::next_category_shown(&buttons, category),
+            ) {
+                (None, None) => None, // this is/was only shown category, nothing to do
+                (Some(prev_cat), None) => mem::take(&mut buttons.get_mut(&prev_cat).unwrap().separator_after), // this was the last shown category
+                (None, Some(next_cat)) => mem::take(&mut buttons.get_mut(&next_cat).unwrap().separator_before), // this was the first shown category
+                (Some(prev_cat), Some(next_cat)) => {
+                    // somewhere in the middle
+
+                    let next_before_separator = buttons.get_mut(&next_cat).unwrap().separator_before.clone();
+                    let removed_sep = mem::replace(&mut buttons.get_mut(&prev_cat).unwrap().separator_after, next_before_separator);
+
+                    removed_sep
+                }
+            };
+
+            if let Some(removed_sep) = removed_sep {
+                removed_sep.unparent();
+            }
+
+            let category_entry = buttons.get_mut(&category).unwrap();
+            category_entry.separator_before = None;
+            category_entry.separator_after = None;
+        }
+
+        ///
+        /// Returns the previous category in the ordering of the categories which is shown.
+        /// If there is none, `None` is returned.
+        /// 
+        fn prev_category_shown(buttons: &BTreeMap<CategoryT, CategoryEntry>, category: CategoryT) -> Option<CategoryT> {
+            buttons
+                .iter()
+                .filter(|(&cat, entry)| cat < category && entry.is_shown)
+                .map(|(&cat, _)| cat)
+                .last()
+        }
+
+        ///
+        /// Returns the next category in the ordering of the categories which is shown.
+        /// If there is none, `None` is returned.
+        /// 
+        fn next_category_shown(buttons: &BTreeMap<CategoryT, CategoryEntry>, category: CategoryT) -> Option<CategoryT> {
+            buttons
+                .iter()
+                .filter(|(&cat, entry)| cat > category && entry.is_shown)
+                .map(|(&cat, _)| cat)
+                .next()
+        }
+
+        ///
+        /// Creates a separator used in the `navigation_box`.
+        /// 
+        fn create_nav_bar_separator() -> Separator {
+            let sep = Separator::builder().margin_top(5).margin_bottom(5).build();
+            sep.add_css_class("category_sep");
+            sep
+        }
     }
 
     ///
@@ -491,10 +637,14 @@ mod inner {
     struct CategoryEntry {
         /// The box which stores the nav buttons of this category.
         button_box: GtkBox,
-        /// The separator before this category to separate it from the previous one. May not be present, i.e. first category.
-        separator: Option<Separator>,
+        /// The separator before this category to separate it from the previous category. May not be present, i.e. first category.
+        separator_before: Option<Separator>,
+        /// The separator after this category to separate if from the next category. May not be present, i.e. last category.
+        separator_after: Option<Separator>,
         /// The navigation buttons associated to this category, maps from button name to the button.
         entries: HashMap<String, NavButton>,
+        /// Describes if the category is currently shown in the navigation box
+        is_shown: bool,
     }
 
     ///
@@ -538,6 +688,14 @@ impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> NavBar<Catego
     }
 
     ///
+    /// Add a custom button without a child on the stack.
+    /// The callback can modify the navbar, the button and the stack.
+    ///
+    pub fn add_custom_nav_button<F: Fn(&Self, &Button, &Stack) + 'static>(&self, name: &str, category: CategoryT, callback: F) {
+        self.imp().add_custom_nav_button(name, category, callback);
+    }
+
+    ///
     /// Removes the child labelled by name in the category.
     /// Removes the whole category if it is empty afterwards.
     ///
@@ -553,11 +711,17 @@ impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> NavBar<Catego
     }
 
     ///
-    /// Add a custom button without a child on the stack.
-    /// The callback can modify the navbar, the button and the stack.
+    /// Shows the buttons of `category`.
     ///
-    pub fn add_custom_nav_button<F: Fn(&Self, &Button, &Stack) + 'static>(&self, name: &str, category: CategoryT, callback: F) {
-        self.imp().add_custom_nav_button(name, category, callback);
+    pub fn show_category(&self, category: CategoryT) {
+        self.imp().show_category(category);
+    }
+
+    ///
+    /// Hides the buttons of `category`.
+    ///
+    pub fn hide_category(&self, category: CategoryT) {
+        self.imp().hide_category(category);
     }
 }
 
@@ -571,6 +735,8 @@ pub trait NavBarCategoryTrait: Sized {
     ///
     fn remaining_selections(selected_category: Self) -> Vec<Self>;
 
+    /// The name of the CategoryType.
     const NAME: &'static str;
+    /// The name used to describe the NavBar when using with this CategoryType.
     const NAV_BAR_NAME: &'static str;
 }
