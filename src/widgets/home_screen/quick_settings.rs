@@ -2,9 +2,7 @@ use crate::widgets::settings::create_quick_settings;
 use crate::widgets::tile::Tile;
 use crate::{widgets::common::img_from_bytes, MainNavBarCategory};
 use gdk4::subclass::prelude::*;
-use gtk4::{
-    glib, subclass::widget::*, traits::WidgetExt, traits::*, Box as GtkBox, Button, Label, Widget,
-};
+use gtk4::{glib, subclass::widget::*, traits::WidgetExt, traits::*, Box as GtkBox, Button, Label, Widget};
 
 use crate::widgets::navbar::NavBar;
 use std::cell::RefCell;
@@ -43,29 +41,20 @@ mod inner {
 
             let obj = self.obj();
 
-            let vbox = GtkBox::builder()
-                .orientation(gtk4::Orientation::Vertical)
-                .spacing(30)
-                .build();
+            let vbox = GtkBox::builder().orientation(gtk4::Orientation::Vertical).spacing(30).build();
 
-            create_quick_settings()
-                .iter()
-                .for_each(|setting| vbox.append(setting));
+            create_quick_settings().iter().for_each(|setting| vbox.append(setting));
 
             // add icon button to open to the settings screen
             {
-                let settings_button_icon =
-                    img_from_bytes(include_bytes!("../../../resources/icons/gear.png"));
+                let settings_button_icon = img_from_bytes(include_bytes!("../../../resources/icons/gear.png"));
                 let settings_button_text = Label::new(Some("Open settings"));
 
                 let settings_button_v_box = GtkBox::new(gtk4::Orientation::Horizontal, 15);
                 settings_button_v_box.append(&settings_button_icon);
                 settings_button_v_box.append(&settings_button_text);
 
-                let open_settings_button = Button::builder()
-                    .child(&settings_button_v_box)
-                    .css_name("tile_button")
-                    .build();
+                let open_settings_button = Button::builder().child(&settings_button_v_box).css_name("tile_button").build();
 
                 vbox.append(&open_settings_button);
                 *self.open_settings_button.borrow_mut() = Some(open_settings_button);

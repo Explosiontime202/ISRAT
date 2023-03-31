@@ -4,7 +4,10 @@ use crate::CompetitionPtr;
 use gdk4::glib::clone;
 use gdk4::prelude::*;
 use gdk4::subclass::prelude::*;
-use gtk4::{glib, subclass::widget::*, traits::*, Box as GtkBox, BoxLayout, Button, CenterBox, Entry, Label, LayoutManager, Orientation, Widget, Dialog, Window};
+use gtk4::{
+    glib, subclass::widget::*, traits::*, Box as GtkBox, BoxLayout, Button, CenterBox, Dialog, Entry, Label, LayoutManager, Orientation, Widget,
+    Window,
+};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::num::ParseIntError;
@@ -81,7 +84,7 @@ mod inner {
                         let group_idx = *this.group_idx.borrow();
                         let data_ptr = this.data.borrow();
                         let competition = &mut *data_ptr.as_ref().unwrap().borrow_mut();
-                        
+
                         match competition.data.as_mut() {
                             Some(data) => data.enter_match_results(group_idx as usize, match_results),
                             None => (),
@@ -247,7 +250,7 @@ impl EnterResultScreen {
 
     ///
     /// Reload the widget from the data pointer.
-    /// 
+    ///
     pub fn reload(&self) {
         self.imp().reload();
     }

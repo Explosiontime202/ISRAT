@@ -12,6 +12,7 @@ use gdk4::glib::{
 use gdk4::prelude::*;
 use gdk4::subclass::prelude::*;
 use gtk4::{glib, subclass::widget::*, traits::*, Box as GtkBox, Button, Label, Separator, Stack, Widget};
+use std::collections::HashSet;
 use std::hash::Hash;
 use std::rc::Rc;
 use std::sync::Once;
@@ -203,7 +204,13 @@ mod inner {
         /// Name has to be unique for a category.
         /// If a callback is present, it is executed when ever the child is shown. This includes when the corresponding button is pressed or `show_child` shows this child.
         ///
-        pub fn add_child<F: Fn() + 'static>(&self, child: &impl IsA<Widget>, name: &String, category: CategoryT, callback: Option<F>) {
+        pub fn add_child<F: Fn(&super::NavBar<CategoryT>, &Button, &Stack) + 'static>(
+            &self,
+            child: &impl IsA<Widget>,
+            name: &String,
+            category: CategoryT,
+            callback: Option<F>,
+        ) {
             {
                 let buttons_map = self.buttons.borrow();
 
@@ -252,13 +259,15 @@ mod inner {
             // call the callback whenever the child it is visible
             if let Some(callback) = callback {
                 let child_widget: &Widget = child.upcast_ref();
-                self.stack.connect_visible_child_name_notify(clone!(@weak child_widget => move |stack| {
-                    if let Some(visible_child) = stack.visible_child() {
-                        if  visible_child == child_widget {
-                            callback();
+                let obj = self.obj();
+                self.stack
+                    .connect_visible_child_name_notify(clone!(@weak child_widget, @weak button, @weak obj => move |stack| {
+                        if let Some(visible_child) = stack.visible_child() {
+                            if  visible_child == child_widget {
+                                callback(&obj, &button, stack);
+                            }
                         }
-                    }
-                }));
+                    }));
             }
 
             // default select the button for the child which is added first
@@ -404,24 +413,17 @@ mod inner {
         /// Show child named `name` in `category`. Also show associated button as selected.
         ///
         pub fn show_child(&self, name: &str, category: CategoryT) {
-            let mut sel_buttons = self.selected_buttons.borrow_mut();
             let buttons = self.buttons.borrow();
-
-            // show previously selected button as not selected
-            if let Some(sel_button) = sel_buttons.get(&category) {
-                sel_button.remove_css_class("selected");
+            assert!(buttons.contains_key(&category), "The NavBar needs to have a buttons in this category.");
+            assert!(
+                buttons[&category].entries.contains_key(name),
+                "The NavBar needs to have a button with this name!"
+            );
+            let button = &buttons[&category].entries[name];
+            if button.has_stack_child {
+                self.stack.set_visible_child_name(name);
             }
-
-            // show associated button as selected and show child
-            if let Some(button) = buttons[&category].entries.get(name) {
-                button.button.add_css_class("selected");
-                sel_buttons.insert(category, button.button.clone());
-
-                debug_assert!(button.has_stack_child);
-                if button.has_stack_child {
-                    self.stack.set_visible_child_name(name);
-                }
-            }
+            Self::handle_selections(Rc::clone(&self.selected_buttons), category, &button.button);
         }
 
         ///
@@ -474,10 +476,15 @@ mod inner {
             let mut sel_mut = selected_buttons.borrow_mut();
 
             let remaining_categories = CategoryT::remaining_selections(clicked_category);
-            sel_mut
-                .iter()
-                .filter(|(category, _)| !remaining_categories.contains(category))
-                .for_each(|(_, sel_button)| sel_button.remove_css_class("selected"));
+
+            for category in sel_mut
+                .keys()
+                .filter(|category| !remaining_categories.contains(category))
+                .map(|&category| category)
+                .collect::<Vec<CategoryT>>()
+            {
+                sel_mut.remove(&category).as_ref().unwrap().remove_css_class("selected")
+            }
 
             if let Some(sel_button) = sel_mut.get(&clicked_category) {
                 sel_button.remove_css_class("selected");
@@ -524,7 +531,7 @@ mod inner {
         /// Inserts a separator before the category if necessary.
         /// If it is the first category, the separator will be inserted after it if necessary.
         /// If there is no other category shown, no separator will be inserted.
-        /// 
+        ///
         fn insert_separator_for_category(&self, category: CategoryT) {
             let mut buttons = self.buttons.borrow_mut();
             let (separator_before, separator_after) = match (
@@ -567,7 +574,7 @@ mod inner {
         /// Removes the separator before a category if available.
         /// If the category is the first one, the separator after it will be removed.
         /// If no separator is available, none will be removed.
-        /// 
+        ///
         fn remove_separator_for_category(&self, category: CategoryT) {
             let mut buttons = self.buttons.borrow_mut();
             let removed_sep = match (
@@ -599,7 +606,7 @@ mod inner {
         ///
         /// Returns the previous category in the ordering of the categories which is shown.
         /// If there is none, `None` is returned.
-        /// 
+        ///
         fn prev_category_shown(buttons: &BTreeMap<CategoryT, CategoryEntry>, category: CategoryT) -> Option<CategoryT> {
             buttons
                 .iter()
@@ -611,7 +618,7 @@ mod inner {
         ///
         /// Returns the next category in the ordering of the categories which is shown.
         /// If there is none, `None` is returned.
-        /// 
+        ///
         fn next_category_shown(buttons: &BTreeMap<CategoryT, CategoryEntry>, category: CategoryT) -> Option<CategoryT> {
             buttons
                 .iter()
@@ -622,11 +629,26 @@ mod inner {
 
         ///
         /// Creates a separator used in the `navigation_box`.
-        /// 
+        ///
         fn create_nav_bar_separator() -> Separator {
             let sep = Separator::builder().margin_top(5).margin_bottom(5).build();
             sep.add_css_class("category_sep");
             sep
+        }
+
+        ///
+        /// Returns whether a category is currently shown.
+        ///
+        pub fn is_category_shown(&self, category: CategoryT) -> bool {
+            self.buttons.borrow().get(&category).map_or(false, |entry| entry.is_shown)
+        }
+
+        ///
+        /// Returns which categories are currently selected.
+        ///
+        pub fn get_selected_categories(&self) -> HashSet<CategoryT> {
+            let selected_buttons = self.selected_buttons.borrow();
+            selected_buttons.iter().map(|(category, _)| *category).collect()
         }
     }
 
@@ -677,13 +699,19 @@ impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> NavBar<Catego
     /// Name has to be unique for a category.
     ///
     pub fn add_child(&self, child: &impl IsA<Widget>, name: String, category: CategoryT) {
-        self.imp().add_child(child, &name, category, None::<fn()>);
+        self.imp().add_child(child, &name, category, None::<fn(&Self, &Button, &Stack)>);
     }
 
     ///
     /// Same as `add_child`, except `callback` is called whenever the child is shown.
     ///
-    pub fn add_child_with_callback<F: Fn() + 'static>(&self, child: &impl IsA<Widget>, name: String, category: CategoryT, callback: F) {
+    pub fn add_child_with_callback<F: Fn(&Self, &Button, &Stack) + 'static>(
+        &self,
+        child: &impl IsA<Widget>,
+        name: String,
+        category: CategoryT,
+        callback: F,
+    ) {
         self.imp().add_child(child, &name, category, Some(callback));
     }
 
@@ -722,6 +750,20 @@ impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> NavBar<Catego
     ///
     pub fn hide_category(&self, category: CategoryT) {
         self.imp().hide_category(category);
+    }
+
+    ///
+    /// Returns whether `category` is currently shown.
+    ///
+    pub fn is_category_shown(&self, category: CategoryT) -> bool {
+        self.imp().is_category_shown(category)
+    }
+
+    ///
+    /// Returns which categories are currently selected.
+    ///
+    pub fn get_selected_categories(&self) -> HashSet<CategoryT> {
+        self.imp().get_selected_categories()
     }
 }
 

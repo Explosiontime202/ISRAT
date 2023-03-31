@@ -55,7 +55,7 @@ fn test_read_write() {
         referee: String::from("Max Muterschiedsrichter"),
         competition_manager: String::from("Erika Musterwettbewerbsleiter"),
         clerk: String::from("Max Musterschriftführer"),
-        additional_text : String::from("Der SV Musterverein bedankt sich für die Teilnahme\nund wünscht ein sichere Heimreise!"),
+        additional_text: String::from("Der SV Musterverein bedankt sich für die Teilnahme\nund wünscht ein sichere Heimreise!"),
         count_teams: 20,
         count_groups: 2,
         team_distribution: [2, 10],
@@ -331,10 +331,7 @@ fn test_read_write() {
                 },*/
             ],
         ]),
-        group_names: Some(vec![
-            String::from("Gruppe BLAU"),
-            String::from("Gruppe ROT"),
-        ]),
+        group_names: Some(vec![String::from("Gruppe BLAU"), String::from("Gruppe ROT")]),
         matches: vec![],
         current_batch: vec![1, 0],
         with_break: true,
@@ -366,27 +363,23 @@ fn test_read_write() {
     if let Some(data_teams) = data.teams.as_ref() {
         if let Some(read_teams) = read_data.teams.as_ref() {
             debug_assert_eq!(data_teams.len(), read_teams.len());
-            data_teams
-                .iter()
-                .zip(read_teams.iter())
-                .for_each(|(data_group, read_group)| {
-                    debug_assert_eq!(data_group.len(), read_group.len());
-                    data_group
-                        .iter()
-                        .zip(read_group.iter())
-                        .for_each(|(data_team, read_team)| {
-                            debug_assert_eq!(data_team.name, read_team.name);
-                            debug_assert_eq!(data_team.region, read_team.region);
-                            debug_assert_eq!(data_team.player_names, read_team.player_names);
-                        });
+            data_teams.iter().zip(read_teams.iter()).for_each(|(data_group, read_group)| {
+                debug_assert_eq!(data_group.len(), read_group.len());
+                data_group.iter().zip(read_group.iter()).for_each(|(data_team, read_team)| {
+                    debug_assert_eq!(data_team.name, read_team.name);
+                    debug_assert_eq!(data_team.region, read_team.region);
+                    debug_assert_eq!(data_team.player_names, read_team.player_names);
                 });
+            });
         }
     }
     debug_assert_eq!(data.group_names, read_data.group_names);
     debug_assert_eq!(data.matches.len(), read_data.matches.len());
 
-    data.matches.iter().zip(read_data.matches.iter()).for_each(
-        |(data_group_matches, read_group_matches)| {
+    data.matches
+        .iter()
+        .zip(read_data.matches.iter())
+        .for_each(|(data_group_matches, read_group_matches)| {
             debug_assert_eq!(data_group_matches.len(), read_group_matches.len());
             data_group_matches
                 .iter()
@@ -399,8 +392,7 @@ fn test_read_write() {
                     debug_assert_eq!(data_match.batch, read_match.batch);
                     debug_assert_eq!(data_match.lane, read_match.lane);
                 });
-        },
-    );
+        });
 
     debug_assert_eq!(data.current_batch, read_data.current_batch);
     debug_assert_eq!(data.with_break, read_data.with_break);
@@ -518,10 +510,7 @@ pub fn check_autosave_thread_messages(program_state: &mut ProgramState) {
     );
 
     match program_state.competition.handle_save_file(path) {
-        Ok(_) => println!(
-            "Finished autosave at {}",
-            Local::now().format("%d.%m.%Y %H:%M:%S")
-        ),
+        Ok(_) => println!("Finished autosave at {}", Local::now().format("%d.%m.%Y %H:%M:%S")),
         Err(_) => (), //TODO: LOG it,
     }
 }
@@ -531,17 +520,10 @@ fn default_path_for_autosave(program_state: &ProgramState) -> Result<PathBuf, St
     let default_folder = std::env::temp_dir().join("israt").join("autosaves");
     let data = match program_state.competition.data.as_ref() {
         Some(data) => data,
-        None => {
-            return Err(String::from(
-                "There is no competition data, cannot create default autosave file name!",
-            ))
-        }
+        None => return Err(String::from("There is no competition data, cannot create default autosave file name!")),
     };
 
     let sanitized_compettion_name = data.name.replace(&['/', '\\', '%', '.', '~'], "");
-    let autosave_file_name = format!(
-        "{sanitized_compettion_name}-{}.json",
-        Local::now().format("%Y%m%d-%H%M")
-    );
+    let autosave_file_name = format!("{sanitized_compettion_name}-{}.json", Local::now().format("%Y%m%d-%H%M"));
     return Ok(default_folder.join(autosave_file_name));
 }

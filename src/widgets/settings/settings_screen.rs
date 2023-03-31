@@ -3,10 +3,7 @@ use crate::widgets::tile::Tile;
 use gdk4::prelude::*;
 use gdk4::subclass::prelude::*;
 use gtk4::traits::*;
-use gtk4::{
-    glib, subclass::widget::*, traits::WidgetExt, Box as GtkBox, FlowBox, Label, LayoutManager,
-    Orientation, Widget,
-};
+use gtk4::{glib, subclass::widget::*, traits::WidgetExt, Box as GtkBox, FlowBox, Label, LayoutManager, Orientation, Widget};
 
 mod inner {
     use super::*;
@@ -44,10 +41,7 @@ mod inner {
             let settings = create_settings();
             for data in settings {
                 let tile = Tile::new(data.category.to_string().as_str());
-                let vbox = GtkBox::builder()
-                    .orientation(gtk4::Orientation::Vertical)
-                    .spacing(30)
-                    .build();
+                let vbox = GtkBox::builder().orientation(gtk4::Orientation::Vertical).spacing(30).build();
                 for setting in data.setting_widgets {
                     vbox.append(&setting);
                 }
@@ -77,10 +71,7 @@ mod inner {
                     .selection_mode(gtk4::SelectionMode::None)
                     .homogeneous(true)
                     .build(),
-                title: Label::builder()
-                    .label("Settings")
-                    .css_classes(["headline"])
-                    .build(),
+                title: Label::builder().label("Settings").css_classes(["headline"]).build(),
             }
         }
     }

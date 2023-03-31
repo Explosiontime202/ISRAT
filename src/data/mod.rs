@@ -478,7 +478,7 @@ impl CompetitionData {
     }
 
     ///
-    /// Sets the results and points of the matches according to `match_results`. 
+    /// Sets the results and points of the matches according to `match_results`.
     /// It is required for those matches, to have as result MatchResult::NotPlayed.
     /// Increases the current batch of the group.
     ///

@@ -103,8 +103,7 @@ mod inner {
             self.grid.insert_row(0);
 
             let header_background = Label::builder().css_name("table_header").build();
-            self.grid
-                .attach(&header_background, 0, 0, new_header.len() as i32, 1);
+            self.grid.attach(&header_background, 0, 0, new_header.len() as i32, 1);
 
             for (column_idx, column_name) in new_header.iter().enumerate() {
                 let header_widget = self.build_widget_for_entry(&column_name);
@@ -119,10 +118,7 @@ mod inner {
         /// `row_count` is incremented by one.
         ///
         pub fn add_row(&self, row: Row) {
-            assert!(
-                *self.header_set.borrow(),
-                "Header has to be initialized beforehand using 'set_header'!"
-            );
+            assert!(*self.header_set.borrow(), "Header has to be initialized beforehand using 'set_header'!");
             let mut row_count_ref = self.row_count.borrow_mut();
             self.build_widgets_for_row(row, *row_count_ref as i32);
             *row_count_ref += 1;
@@ -135,16 +131,12 @@ mod inner {
         /// The widget gets the CSS class `table_entry`.
         ///
         pub fn add_widget_row(&self, widget_row: WidgetRow) {
-            assert!(
-                *self.header_set.borrow(),
-                "Header has to be initialized beforehand using 'set_header'!"
-            );
+            assert!(*self.header_set.borrow(), "Header has to be initialized beforehand using 'set_header'!");
             let mut row_count_ref = self.row_count.borrow_mut();
             let row_idx = *row_count_ref;
             for (column_idx, widget) in widget_row.iter().enumerate() {
                 widget.add_css_class("table_entry");
-                self.grid
-                    .attach(widget, column_idx as i32, row_idx as i32, 1, 1);
+                self.grid.attach(widget, column_idx as i32, row_idx as i32, 1, 1);
             }
             *row_count_ref += 1;
         }
@@ -160,13 +152,8 @@ mod inner {
             );
 
             for (column_idx, entry) in row.iter().enumerate() {
-                self.grid.attach(
-                    &self.build_widget_for_entry(entry),
-                    column_idx as i32,
-                    row_idx as i32,
-                    1,
-                    1,
-                );
+                self.grid
+                    .attach(&self.build_widget_for_entry(entry), column_idx as i32, row_idx as i32, 1, 1);
             }
         }
 
@@ -174,10 +161,7 @@ mod inner {
         /// Builds the widget for `entry`. The top widget for entry gets the CSS name "table_entry".
         ///
         fn build_widget_for_entry(&self, entry: &str) -> Widget {
-            let label = Label::builder()
-                .label(entry)
-                .css_name("table_entry")
-                .build();
+            let label = Label::builder().label(entry).css_name("table_entry").build();
             label.into()
         }
 

@@ -101,10 +101,17 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, competition: CompetitionPt
     nav_bar.set_vexpand_set(true);
 
     let home_screen = HomeScreen::new(&nav_bar);
-    nav_bar.add_child(&home_screen, String::from("Home Screen"), MainNavBarCategory::Main);
+    nav_bar.add_child_with_callback(&home_screen, String::from("Home Screen"), MainNavBarCategory::Main, |nav_bar, _, _| {
+        nav_bar.hide_category(MainNavBarCategory::Group)
+    });
 
     let settings_screen = SettingsScreen::new();
-    nav_bar.add_child(&settings_screen, String::from("Settings Screen"), MainNavBarCategory::Main);
+    nav_bar.add_child_with_callback(
+        &settings_screen,
+        String::from("Settings Screen"),
+        MainNavBarCategory::Main,
+        |nav_bar, _, _| nav_bar.hide_category(MainNavBarCategory::Group),
+    );
 
     {
         if let Some(data) = competition.borrow().data.as_ref() {
@@ -114,7 +121,7 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, competition: CompetitionPt
                 &group_overview,
                 String::from("Overview"),
                 MainNavBarCategory::Group,
-                clone!(@weak group_overview => move || group_overview.reload()),
+                clone!(@weak group_overview => move |_, _, _| group_overview.reload()),
             );
 
             let enter_results = EnterResultScreen::new(Rc::clone(&competition));
@@ -122,7 +129,7 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, competition: CompetitionPt
                 &enter_results,
                 String::from("Enter results"),
                 MainNavBarCategory::Group,
-                clone!(@weak enter_results => move || enter_results.reload()),
+                clone!(@weak enter_results => move |_, _, _| enter_results.reload()),
             );
 
             for (group_idx, group) in data.group_names.as_ref().unwrap().iter().enumerate() {
@@ -130,9 +137,15 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, competition: CompetitionPt
                     group.as_str(),
                     MainNavBarCategory::GroupSelector,
                     clone!(@weak group_overview, @weak enter_results => move |nav_bar, _, _| {
-                        nav_bar.show_category(MainNavBarCategory::Group);
                         group_overview.show_group(group_idx as u32);
                         enter_results.show_group(group_idx as u32);
+                        if !nav_bar.is_category_shown(MainNavBarCategory::Group) {
+                            nav_bar.show_category(MainNavBarCategory::Group);
+                        }
+                        let selected = nav_bar.get_selected_categories();
+                        if !selected.contains(&MainNavBarCategory::Group) {
+                            nav_bar.show_child("Overview", MainNavBarCategory::Group);
+                        }
                     }),
                 );
             }

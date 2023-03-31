@@ -50,18 +50,10 @@ pub fn create_new_competition_screen(application: &Application, main_window: &Ap
     let nav_bar = NavBar::<NewScreenNavBarCategory>::new();
 
     let label1 = Label::new(Some("Base Information - Implementation"));
-    nav_bar.add_child(
-        &label1,
-        "Base Information".to_string(),
-        NewScreenNavBarCategory::A,
-    );
+    nav_bar.add_child(&label1, "Base Information".to_string(), NewScreenNavBarCategory::A);
 
     let label2 = Label::new(Some("Teams Information - Implementation"));
-    nav_bar.add_child(
-        &label2,
-        "Teams Information".to_string(),
-        NewScreenNavBarCategory::A,
-    );
+    nav_bar.add_child(&label2, "Teams Information".to_string(), NewScreenNavBarCategory::A);
 
     window.set_child(Some(&nav_bar));
 

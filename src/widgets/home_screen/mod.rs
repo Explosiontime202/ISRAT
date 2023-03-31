@@ -1,9 +1,6 @@
 use gdk4::prelude::*;
 use gdk4::subclass::prelude::*;
-use gtk4::{
-    glib, subclass::widget::*, traits::WidgetExt, FlowBox, Label, LayoutManager, Orientation,
-    Widget,
-};
+use gtk4::{glib, subclass::widget::*, traits::WidgetExt, FlowBox, Label, LayoutManager, Orientation, Widget};
 mod last_competitions;
 mod quick_settings;
 use super::navbar::NavBar;
@@ -76,10 +73,7 @@ mod inner {
                     .selection_mode(gtk4::SelectionMode::None)
                     .homogeneous(true)
                     .build(),
-                title: Label::builder()
-                    .label("ISRAT")
-                    .css_classes(["headline"])
-                    .build(),
+                title: Label::builder().label("ISRAT").css_classes(["headline"]).build(),
                 quick_settings_widget: RefCell::default(),
             }
         }

@@ -235,7 +235,7 @@ impl GroupOverviewScreen {
 
     ///
     /// Reload the widget from the data pointer.
-    /// 
+    ///
     pub fn reload(&self) {
         self.imp().reload();
     }

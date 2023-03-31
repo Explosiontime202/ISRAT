@@ -1,9 +1,6 @@
 use gdk4::prelude::*;
 use gdk4::subclass::prelude::*;
-use gtk4::{
-    glib, subclass::widget::*, traits::WidgetExt, BoxLayout, Label, LayoutManager, Orientation,
-    Widget,
-};
+use gtk4::{glib, subclass::widget::*, traits::WidgetExt, BoxLayout, Label, LayoutManager, Orientation, Widget};
 use std::cell::RefCell;
 
 mod inner {
