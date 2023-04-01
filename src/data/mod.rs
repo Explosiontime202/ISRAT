@@ -1,6 +1,6 @@
 use chrono::offset::Local;
 use rand::Rng;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
@@ -78,6 +78,27 @@ impl Competition {
         self.absolute_file_path = Some(path);
 
         Ok(())
+    }
+
+    #[must_use]
+    pub fn save_to_file(&self) -> Result<(), String> {
+        if self.absolute_file_path.is_none() {
+            return Err(String::from("No file path available"));
+        }
+
+        if self.data.is_none() {
+            return Err(String::from("No competition data available!"));
+        }
+
+        let json = match serde_json::to_string_pretty(self.data.as_ref().unwrap()) {
+            Ok(json) => json,
+            Err(err) => return Err(err.to_string()),
+        };
+
+        match fs::write(self.absolute_file_path.as_ref().unwrap(), json) {
+            Ok(_) => Ok(()),
+            Err(err) => Err(err.to_string()),
+        }
     }
 
     pub fn handle_save_file(&mut self, mut path: PathBuf) -> Result<(), String> {
@@ -199,7 +220,7 @@ impl Competition {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CompetitionData {
     pub name: String,
     pub date_string: String,
@@ -1110,7 +1131,7 @@ r"
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Team {
     pub name: String,
     pub region: String,
@@ -1128,7 +1149,7 @@ pub struct InterimResultEntry {
 
 pub type MatchID = u32;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Match {
     // the both opponents
     pub team_a: usize,
@@ -1140,7 +1161,7 @@ pub struct Match {
     pub id: MatchID,              // the unique id of the match (unique within a competition)
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum MatchResult {
     WinnerA,
     Draw,

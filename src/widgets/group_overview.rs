@@ -1,9 +1,11 @@
 use crate::widgets::{table::Table, tile::Tile};
-use crate::CompetitionPtr;
+use crate::{CompetitionPtr, ProgramState};
 use gdk4::prelude::*;
 use gdk4::subclass::prelude::*;
 use gtk4::{glib, subclass::widget::*, traits::*, Box as GtkBox, FlowBox, Label, LayoutManager, Orientation, Widget};
 use std::cell::RefCell;
+use std::rc::Rc;
+use std::sync::Arc;
 
 mod inner {
     use super::*;
@@ -140,7 +142,7 @@ mod inner {
 
             let group_idx: usize = *self.group_idx.borrow() as usize;
             let competition_borrow = self.data.borrow_mut();
-            let competition = competition_borrow.as_ref().unwrap().borrow();
+            let competition = competition_borrow.as_ref().unwrap().write().unwrap();
 
             debug_assert!(competition.data.is_some());
             let data = competition.data.as_ref().unwrap();
@@ -217,11 +219,11 @@ glib::wrapper! {
 }
 
 impl GroupOverviewScreen {
-    pub fn new(competition: CompetitionPtr) -> Self {
+    pub fn new(program_state: &Rc<ProgramState>) -> Self {
         let obj = glib::Object::new::<Self>();
         obj.property::<LayoutManager>("layout_manager")
             .set_property("orientation", Orientation::Vertical);
-        obj.imp().set_data(competition);
+        obj.imp().set_data(Arc::clone(&program_state.competition));
         obj.set_hexpand(true);
         obj
     }

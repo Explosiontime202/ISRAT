@@ -5,9 +5,11 @@ mod last_competitions;
 mod quick_settings;
 use super::navbar::NavBar;
 use crate::MainNavBarCategory;
+use crate::ProgramState;
 use last_competitions::LastCompetitionsWidget;
 use quick_settings::QuickSettingsWidget;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 mod inner {
     use super::*;
@@ -43,14 +45,6 @@ mod inner {
             self.parent_constructed();
 
             let obj = self.obj();
-
-            let last_competitions = LastCompetitionsWidget::new();
-            self.flow_box.insert(&last_competitions, -1);
-
-            let quick_settings = QuickSettingsWidget::new();
-            self.flow_box.insert(&quick_settings, -1);
-            *self.quick_settings_widget.borrow_mut() = Some(quick_settings);
-
             self.title.set_parent(&*obj);
             self.flow_box.set_parent(&*obj);
         }
@@ -77,6 +71,15 @@ mod inner {
                 quick_settings_widget: RefCell::default(),
             }
         }
+
+        pub fn create_child_widgets(&self, program_state: &Rc<ProgramState>) {
+            let last_competitions = LastCompetitionsWidget::new();
+            self.flow_box.insert(&last_competitions, -1);
+
+            let quick_settings = QuickSettingsWidget::new(program_state);
+            self.flow_box.insert(&quick_settings, -1);
+            *self.quick_settings_widget.borrow_mut() = Some(quick_settings);
+        }
     }
 }
 
@@ -86,8 +89,9 @@ glib::wrapper! {
 }
 
 impl HomeScreen {
-    pub fn new(nav_bar: &NavBar<MainNavBarCategory>) -> Self {
+    pub fn new(nav_bar: &NavBar<MainNavBarCategory>, program_state: &Rc<ProgramState>) -> Self {
         let obj = glib::Object::new::<Self>();
+        obj.imp().create_child_widgets(program_state);
         obj.property::<LayoutManager>("layout_manager")
             .set_property("orientation", Orientation::Vertical);
         obj.set_hexpand(true);

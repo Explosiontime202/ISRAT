@@ -1,11 +1,13 @@
 use crate::widgets::settings::create_quick_settings;
 use crate::widgets::tile::Tile;
+use crate::ProgramState;
 use crate::{widgets::common::img_from_bytes, MainNavBarCategory};
 use gdk4::subclass::prelude::*;
 use gtk4::{glib, subclass::widget::*, traits::WidgetExt, traits::*, Box as GtkBox, Button, Label, Widget};
 
 use crate::widgets::navbar::NavBar;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 mod inner {
     use super::*;
@@ -40,27 +42,6 @@ mod inner {
             self.parent_constructed();
 
             let obj = self.obj();
-
-            let vbox = GtkBox::builder().orientation(gtk4::Orientation::Vertical).spacing(30).build();
-
-            create_quick_settings().iter().for_each(|setting| vbox.append(setting));
-
-            // add icon button to open to the settings screen
-            {
-                let settings_button_icon = img_from_bytes(include_bytes!("../../../resources/icons/gear.png"));
-                let settings_button_text = Label::new(Some("Open settings"));
-
-                let settings_button_v_box = GtkBox::new(gtk4::Orientation::Horizontal, 15);
-                settings_button_v_box.append(&settings_button_icon);
-                settings_button_v_box.append(&settings_button_text);
-
-                let open_settings_button = Button::builder().child(&settings_button_v_box).css_name("tile_button").build();
-
-                vbox.append(&open_settings_button);
-                *self.open_settings_button.borrow_mut() = Some(open_settings_button);
-            }
-
-            self.tile.set_child(vbox);
             self.tile.set_hexpand(true);
             self.tile.set_parent(&*obj);
         }
@@ -79,6 +60,29 @@ mod inner {
                 open_settings_button: RefCell::default(),
             }
         }
+
+        pub fn create_child_widgets(&self, program_state: &Rc<ProgramState>) {
+            let vbox = GtkBox::builder().orientation(gtk4::Orientation::Vertical).spacing(30).build();
+
+            create_quick_settings(program_state).iter().for_each(|setting| vbox.append(setting));
+
+            // add icon button to open to the settings screen
+            {
+                let settings_button_icon = img_from_bytes(include_bytes!("../../../resources/icons/gear.png"));
+                let settings_button_text = Label::new(Some("Open settings"));
+
+                let settings_button_v_box = GtkBox::new(gtk4::Orientation::Horizontal, 15);
+                settings_button_v_box.append(&settings_button_icon);
+                settings_button_v_box.append(&settings_button_text);
+
+                let open_settings_button = Button::builder().child(&settings_button_v_box).css_name("tile_button").build();
+
+                vbox.append(&open_settings_button);
+                *self.open_settings_button.borrow_mut() = Some(open_settings_button);
+            }
+
+            self.tile.set_child(vbox);
+        }
     }
 }
 
@@ -88,8 +92,10 @@ glib::wrapper! {
 }
 
 impl QuickSettingsWidget {
-    pub fn new() -> Self {
-        glib::Object::new::<Self>()
+    pub fn new(program_state: &Rc<ProgramState>) -> Self {
+        let obj = glib::Object::new::<Self>();
+        obj.imp().create_child_widgets(program_state);
+        obj
     }
 
     pub fn connect_signals(&self, nav_bar: NavBar<MainNavBarCategory>) {

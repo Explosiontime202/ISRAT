@@ -1,6 +1,6 @@
 use crate::data::MatchID;
 use crate::widgets::{table::Table, tile::Tile};
-use crate::CompetitionPtr;
+use crate::{CompetitionPtr, ProgramState};
 use gdk4::glib::clone;
 use gdk4::prelude::*;
 use gdk4::subclass::prelude::*;
@@ -11,6 +11,8 @@ use gtk4::{
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::num::ParseIntError;
+use std::rc::Rc;
+use std::sync::Arc;
 
 mod inner {
     use super::*;
@@ -83,7 +85,7 @@ mod inner {
                         let match_results : HashMap<MatchID, [u32; 2]>= entered_results.iter().map(|(id, [res_a, res_b])| (*id, [*res_a.as_ref().unwrap(), *res_b.as_ref().unwrap()])).collect();
                         let group_idx = *this.group_idx.borrow();
                         let data_ptr = this.data.borrow();
-                        let competition = &mut *data_ptr.as_ref().unwrap().borrow_mut();
+                        let competition = &mut *data_ptr.as_ref().unwrap().write().unwrap();
 
                         match competition.data.as_mut() {
                             Some(data) => data.enter_match_results(group_idx as usize, match_results),
@@ -170,7 +172,7 @@ mod inner {
 
             let group_idx: usize = *self.group_idx.borrow() as usize;
             let competition_borrow = self.data.borrow_mut();
-            let competition = competition_borrow.as_ref().unwrap().borrow();
+            let competition = competition_borrow.as_ref().unwrap().read().unwrap();
 
             debug_assert!(competition.data.is_some());
             let data = competition.data.as_ref().unwrap();
@@ -232,11 +234,11 @@ glib::wrapper! {
 }
 
 impl EnterResultScreen {
-    pub fn new(competition: CompetitionPtr) -> Self {
+    pub fn new(program_state: &Rc<ProgramState>) -> Self {
         let obj = glib::Object::new::<Self>();
         obj.property::<LayoutManager>("layout_manager")
             .set_property("orientation", Orientation::Vertical);
-        obj.imp().set_data(competition);
+        obj.imp().set_data(Arc::clone(&program_state.competition));
         obj.set_hexpand(true);
         obj
     }

@@ -1,32 +1,36 @@
+use std::rc::Rc;
+use std::time::Duration;
+
+use crate::auto_save::AutoSaveMsg;
+use crate::ProgramState;
 use gdk4::glib::clone;
 use gdk4::prelude::*;
 use gtk4::traits::ToggleButtonExt;
-use gtk4::{traits::WidgetExt, traits::*, Box as GtkBox, CenterBox, DropDown, Expression, Inhibit, Label, StringList, Switch, Widget};
-
 use gtk4::{glib, Adjustment, Orientation, PositionType, Scale, ToggleButton};
+use gtk4::{traits::WidgetExt, traits::*, Box as GtkBox, CenterBox, DropDown, Expression, Inhibit, Label, StringList, Switch, Widget};
 
 pub mod settings_screen;
 
-pub fn create_settings() -> Vec<SettingsCategoryData> {
+pub fn create_settings(program_state: &Rc<ProgramState>) -> Vec<SettingsCategoryData> {
     let mut vec: Vec<SettingsCategoryData> = Vec::new();
 
     let appearance = SettingsCategoryData {
         category: SettingsCategory::Appearance,
-        setting_widgets: create_appearance_settings(),
+        setting_widgets: create_appearance_settings(program_state),
     };
     vec.push(appearance);
 
     let behavior = SettingsCategoryData {
         category: SettingsCategory::Behavior,
-        setting_widgets: create_behavior_settings(),
+        setting_widgets: create_behavior_settings(program_state),
     };
     vec.push(behavior);
 
     vec
 }
 
-pub fn create_quick_settings() -> Vec<Widget> {
-    let mut vec = vec![create_new_rules_switch(), create_auto_save_interval_setting()];
+pub fn create_quick_settings(program_state: &Rc<ProgramState>) -> Vec<Widget> {
+    let mut vec = vec![create_new_rules_switch(), create_auto_save_interval_setting(program_state)];
 
     vec.insert(
         1,
@@ -39,12 +43,13 @@ pub fn create_quick_settings() -> Vec<Widget> {
                 .unwrap()
                 .dynamic_cast::<DropDown>()
                 .unwrap(),
+            program_state,
         ),
     );
     vec
 }
 
-fn create_appearance_settings() -> Vec<Widget> {
+fn create_appearance_settings(_program_state: &Rc<ProgramState>) -> Vec<Widget> {
     vec![
         create_language_setting(),
         create_dark_light_mode_switch(),
@@ -53,9 +58,9 @@ fn create_appearance_settings() -> Vec<Widget> {
     ]
 }
 
-fn create_behavior_settings() -> Vec<Widget> {
+fn create_behavior_settings(program_state: &Rc<ProgramState>) -> Vec<Widget> {
     let mut vec = vec![
-        create_auto_save_interval_setting(),
+        create_auto_save_interval_setting(program_state),
         create_new_rules_switch(),
         create_fullscreen_switch(),
         create_keybindings_setting(),
@@ -72,6 +77,7 @@ fn create_behavior_settings() -> Vec<Widget> {
                 .unwrap()
                 .dynamic_cast::<DropDown>()
                 .unwrap(),
+            program_state,
         ),
     );
     vec
@@ -141,21 +147,42 @@ fn create_text_size_setting() -> Widget {
     create_setting_base_widget("Text size", &scale)
 }
 
-fn create_auto_save_switch(interval_drop_down: DropDown) -> Widget {
+fn create_auto_save_switch(interval_drop_down: DropDown, program_state: &Rc<ProgramState>) -> Widget {
+    let program_state_weak = Rc::downgrade(program_state);
     create_settings_switch("Auto-save", move |_, state| {
         println!("Switch 'Auto-save' is now {state}");
-        // TODO: Change to callback from backend, which is called when auto-save setting changed
         interval_drop_down.set_sensitive(state);
+        let msg = match state {
+            true => AutoSaveMsg::Continue,
+            false => AutoSaveMsg::Stop,
+        };
+        match program_state_weak.upgrade() {
+            Some(program_state) => program_state.auto_save_channel.send(msg).unwrap(),
+            None => eprintln!("Cannot send msg to auto-save!"),
+        }
     })
 }
 
-fn create_auto_save_interval_setting() -> Widget {
-    // TODO: Set auto-save interval in backend
-    create_settings_selector(
-        "Auto-save interval",
-        &["15s", "30s", "1 min", "2 min", "5 min", "10 min", "20 min"],
-        |_, sel_idx, sel_option| println!("Auto-save interval: Selected {sel_option} at idx {sel_idx}",),
-    )
+fn create_auto_save_interval_setting(program_state: &Rc<ProgramState>) -> Widget {
+    let auto_save_intervals = vec![
+        ("15s", Duration::new(15, 0)),
+        ("30s", Duration::new(30, 0)),
+        ("1 min", Duration::new(60, 0)),
+        ("2 min", Duration::new(120, 0)),
+        ("5 min", Duration::new(300, 0)),
+        ("10 min", Duration::new(600, 0)),
+        ("20 min", Duration::new(1200, 0)),
+    ];
+
+    let test = auto_save_intervals.iter().map(|(s, _)| *s).collect::<Vec<&str>>();
+    let program_state_weak = Rc::downgrade(program_state);
+    create_settings_selector("Auto-save interval", &test, move |_, sel_idx, _| match program_state_weak.upgrade() {
+        Some(program_state) => program_state
+            .auto_save_channel
+            .send(AutoSaveMsg::Interval(auto_save_intervals[sel_idx as usize].1))
+            .unwrap(),
+        None => eprintln!("Cannot send msg to auto-save!"),
+    })
 }
 
 fn create_new_rules_switch() -> Widget {

@@ -2,11 +2,8 @@
 
 use crate::widgets::enter_results::EnterResultScreen;
 use adw::prelude::*;
-use chrono::Duration;
-use data::{
-    read_write::{check_autosave_thread_messages, check_read_write_threads_messages, spawn_autosave_timer},
-    Competition, CompetitionData, Team,
-};
+use auto_save::{spawn_autosave_thread, AutoSaveMsg};
+use data::{Competition, CompetitionData, Team};
 use gdk4::{
     gio::Menu,
     glib::{self, clone},
@@ -16,8 +13,12 @@ use gtk4::{
     traits::{BoxExt, GtkApplicationExt, GtkWindowExt, WidgetExt},
     ApplicationWindow, CssProvider, StyleContext,
 };
-use state::{ProgramStage, ProgramState};
-use std::{cell::RefCell, path::PathBuf, rc::Rc};
+use std::{
+    path::PathBuf,
+    rc::Rc,
+    sync::{mpsc::Sender, Arc, RwLock},
+    time::Duration,
+};
 use widgets::{
     group_overview::GroupOverviewScreen,
     home_screen::HomeScreen,
@@ -25,29 +26,35 @@ use widgets::{
     settings::settings_screen::SettingsScreen,
 };
 
+mod auto_save;
 mod data;
-mod state;
 mod widgets;
 
-type CompetitionPtr = Rc<RefCell<Competition>>;
+type CompetitionPtr = Arc<RwLock<Competition>>;
 
 fn main() -> glib::ExitCode {
-    // initialize program state
-    let mut program_state = ProgramState::new(ProgramStage::StartScreenStage, [1920.0, 1080.0]);
-
-    // TODO: Make interval adjustable by using GUI settings or config in home directory
-    spawn_autosave_timer(Duration::minutes(1), &mut program_state);
-
     // TODO: Remove for productive builds
     #[cfg(debug_assertions)]
     let competition = initial_state();
 
+    let (join_handle, auto_save_channel) = spawn_autosave_thread(Duration::new(15, 0), Arc::downgrade(&competition));
+
     let app = adw::Application::builder().application_id("de.explosiontime.Israt").build();
 
     app.connect_startup(|_| load_css());
-    app.connect_activate(move |app| build_main_screen(app, Rc::clone(&competition)));
+    let program_state = Rc::new(ProgramState {
+        competition: Arc::clone(&competition),
+        auto_save_channel: auto_save_channel.clone(),
+    });
+    app.connect_activate(move |app| build_main_screen(app, Rc::clone(&program_state)));
 
-    app.run()
+    let ret = app.run();
+
+    auto_save_channel
+        .send(auto_save::AutoSaveMsg::Exit)
+        .expect("Sending autosave channel exit message failed!");
+    join_handle.join().expect("Joining autosave thread failed!");
+    ret
 }
 
 fn load_css() {
@@ -63,7 +70,7 @@ fn load_css() {
     );
 }
 
-fn build_main_screen(app: &adw::Application, competition: CompetitionPtr) {
+fn build_main_screen(app: &adw::Application, program_state: Rc<ProgramState>) {
     let window = ApplicationWindow::builder()
         .application(app)
         .default_width(1920)
@@ -77,7 +84,7 @@ fn build_main_screen(app: &adw::Application, competition: CompetitionPtr) {
     let h_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 10);
     let v_box = gtk4::Box::new(gtk4::Orientation::Vertical, 10);
 
-    build_navigation_bar(&h_box, competition);
+    build_navigation_bar(&h_box, program_state);
 
     v_box.append(&h_box);
 
@@ -93,19 +100,19 @@ fn build_menu(app: &adw::Application) {
     app.set_menubar(Some(&menu_bar));
 }
 
-fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, competition: CompetitionPtr) {
+fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, program_state: Rc<ProgramState>) {
     let nav_bar = NavBar::<MainNavBarCategory>::new();
     nav_bar.set_hexpand(true);
     nav_bar.set_hexpand_set(true);
     nav_bar.set_vexpand(true);
     nav_bar.set_vexpand_set(true);
 
-    let home_screen = HomeScreen::new(&nav_bar);
+    let home_screen = HomeScreen::new(&nav_bar, &program_state);
     nav_bar.add_child_with_callback(&home_screen, String::from("Home Screen"), MainNavBarCategory::Main, |nav_bar, _, _| {
         nav_bar.hide_category(MainNavBarCategory::Group)
     });
 
-    let settings_screen = SettingsScreen::new();
+    let settings_screen = SettingsScreen::new(&program_state);
     nav_bar.add_child_with_callback(
         &settings_screen,
         String::from("Settings Screen"),
@@ -114,9 +121,9 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, competition: CompetitionPt
     );
 
     {
-        if let Some(data) = competition.borrow().data.as_ref() {
+        if let Some(data) = program_state.competition.read().unwrap().data.as_ref() {
             assert!(data.group_names.is_some());
-            let group_overview = GroupOverviewScreen::new(Rc::clone(&competition));
+            let group_overview = GroupOverviewScreen::new(&program_state);
             nav_bar.add_child_with_callback(
                 &group_overview,
                 String::from("Overview"),
@@ -124,7 +131,7 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, competition: CompetitionPt
                 clone!(@weak group_overview => move |_, _, _| group_overview.reload()),
             );
 
-            let enter_results = EnterResultScreen::new(Rc::clone(&competition));
+            let enter_results = EnterResultScreen::new(&program_state);
             nav_bar.add_child_with_callback(
                 &enter_results,
                 String::from("Enter results"),
@@ -157,11 +164,6 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, competition: CompetitionPt
     parent.append(&nav_bar);
 }
 
-fn check_for_thread_messages(program_state: &mut ProgramState) {
-    check_read_write_threads_messages(program_state);
-    check_autosave_thread_messages(program_state);
-}
-
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum MainNavBarCategory {
     Main,
@@ -183,6 +185,12 @@ impl NavBarCategoryTrait for MainNavBarCategory {
     const NAV_BAR_NAME: &'static str = "NavBar_MainNavBarCategory";
 }
 
+#[derive(Debug)]
+pub struct ProgramState {
+    competition: CompetitionPtr,
+    auto_save_channel: Sender<AutoSaveMsg>,
+}
+
 // TODO: Remove for productive builds
 #[cfg(debug_assertions)]
 fn initial_state() -> CompetitionPtr {
@@ -192,7 +200,7 @@ fn initial_state() -> CompetitionPtr {
 
     let competition = CompetitionPtr::default();
 
-    let mut comp_mut = competition.borrow_mut();
+    let mut comp_mut = competition.write().unwrap();
 
     comp_mut.data = Some(CompetitionData {
         name: String::from("Mustermeisterschaft"),

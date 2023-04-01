@@ -1,5 +1,8 @@
+use std::rc::Rc;
+
 use crate::widgets::settings::create_settings;
 use crate::widgets::tile::Tile;
+use crate::ProgramState;
 use gdk4::prelude::*;
 use gdk4::subclass::prelude::*;
 use gtk4::traits::*;
@@ -37,18 +40,6 @@ mod inner {
             self.parent_constructed();
 
             let obj = self.obj();
-
-            let settings = create_settings();
-            for data in settings {
-                let tile = Tile::new(data.category.to_string().as_str());
-                let vbox = GtkBox::builder().orientation(gtk4::Orientation::Vertical).spacing(30).build();
-                for setting in data.setting_widgets {
-                    vbox.append(&setting);
-                }
-                tile.set_child(vbox);
-                self.flow_box.insert(&tile, -1);
-            }
-
             self.title.set_parent(&*obj);
             self.flow_box.set_parent(&*obj);
         }
@@ -74,6 +65,19 @@ mod inner {
                 title: Label::builder().label("Settings").css_classes(["headline"]).build(),
             }
         }
+
+        pub fn create_child_widgets(&self, program_state: &Rc<ProgramState>) {
+            let settings = create_settings(program_state);
+            for data in settings {
+                let tile = Tile::new(data.category.to_string().as_str());
+                let vbox = GtkBox::builder().orientation(gtk4::Orientation::Vertical).spacing(30).build();
+                for setting in data.setting_widgets {
+                    vbox.append(&setting);
+                }
+                tile.set_child(vbox);
+                self.flow_box.insert(&tile, -1);
+            }
+        }
     }
 }
 
@@ -83,8 +87,9 @@ glib::wrapper! {
 }
 
 impl SettingsScreen {
-    pub fn new() -> Self {
+    pub fn new(program_state: &Rc<ProgramState>) -> Self {
         let obj = glib::Object::new::<Self>();
+        obj.imp().create_child_widgets(program_state);
         obj.property::<LayoutManager>("layout_manager")
             .set_property("orientation", Orientation::Vertical);
         obj.set_hexpand(true);
