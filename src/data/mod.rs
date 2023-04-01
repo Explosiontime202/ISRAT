@@ -90,7 +90,7 @@ impl Competition {
             return Err(String::from("No competition data available!"));
         }
 
-        let json = match serde_json::to_string_pretty(self.data.as_ref().unwrap()) {
+        let json = match serde_json::to_string(self.data.as_ref().unwrap()) {
             Ok(json) => json,
             Err(err) => return Err(err.to_string()),
         };
