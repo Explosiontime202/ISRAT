@@ -413,17 +413,21 @@ mod inner {
         /// Show child named `name` in `category`. Also show associated button as selected.
         ///
         pub fn show_child(&self, name: &str, category: CategoryT) {
-            let buttons = self.buttons.borrow();
-            assert!(buttons.contains_key(&category), "The NavBar needs to have a buttons in this category.");
-            assert!(
-                buttons[&category].entries.contains_key(name),
-                "The NavBar needs to have a button with this name!"
-            );
-            let button = &buttons[&category].entries[name];
-            if button.has_stack_child {
+            let has_child = {
+                let buttons = self.buttons.borrow();
+                assert!(buttons.contains_key(&category), "The NavBar needs to have a buttons in this category.");
+                assert!(
+                    buttons[&category].entries.contains_key(name),
+                    "The NavBar needs to have a button with this name!"
+                );
+                let button = &buttons[&category].entries[name];
+                Self::handle_selections(Rc::clone(&self.selected_buttons), category, &button.button);
+                button.has_stack_child
+            };
+
+            if has_child {
                 self.stack.set_visible_child_name(name);
             }
-            Self::handle_selections(Rc::clone(&self.selected_buttons), category, &button.button);
         }
 
         ///
