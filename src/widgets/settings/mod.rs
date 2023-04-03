@@ -6,7 +6,7 @@ use crate::ProgramState;
 use gdk4::glib::clone;
 use gdk4::prelude::*;
 use gtk4::traits::ToggleButtonExt;
-use gtk4::{glib, Adjustment, Orientation, PositionType, Scale, ToggleButton};
+use gtk4::{glib, Adjustment, Orientation, PositionType, Scale, ToggleButton, Window};
 use gtk4::{traits::WidgetExt, traits::*, Box as GtkBox, CenterBox, DropDown, Expression, Inhibit, Label, StringList, Switch, Widget};
 
 pub mod settings_screen;
@@ -191,8 +191,20 @@ fn create_new_rules_switch() -> Widget {
 }
 
 fn create_fullscreen_switch() -> Widget {
-    // TODO: Switch to fullscreen
-    create_settings_switch("Fullscreen", |_, state| println!("Switch 'Fullscreen' is now {state}"))
+    create_settings_switch_default_state(
+        "Fullscreen",
+        |switch, state| {
+            println!("Switch 'Fullscreen' is now {state}");
+            match switch.root() {
+                Some(root) => match root.dynamic_cast::<Window>() {
+                    Ok(window) => window.set_fullscreened(state),
+                    Err(_) => eprintln!("Fullscreen: Root of switch is not a window!"),
+                },
+                None => eprintln!("Fullscreen: Cannot change fullscreen mode, switch has no root!"),
+            };
+        },
+        false,
+    )
 }
 
 fn create_keybindings_setting() -> Widget {
@@ -200,9 +212,13 @@ fn create_keybindings_setting() -> Widget {
 }
 
 fn create_settings_switch<F: Fn(&Switch, bool) + 'static>(text: &str, callback: F) -> Widget {
-    let switch = Switch::builder().state(true).build();
     // TODO: Read current state from settings/backend and set accordingly
-    switch.set_state(true);
+    create_settings_switch_default_state(text, callback, true)
+}
+
+fn create_settings_switch_default_state<F: Fn(&Switch, bool) + 'static>(text: &str, callback: F, start_state: bool) -> Widget {
+    let switch = Switch::builder().state(true).build();
+    switch.set_state(start_state);
     switch.connect_state_set(move |switch, state| {
         callback(switch, state);
         Inhibit::default()
