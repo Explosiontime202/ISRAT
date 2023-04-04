@@ -1,6 +1,5 @@
 #![windows_subsystem = "windows"]
 
-use crate::widgets::enter_results::EnterResultScreen;
 use adw::prelude::*;
 use auto_save::{spawn_autosave_thread, AutoSaveMsg};
 use data::{Competition, CompetitionData, Team};
@@ -20,8 +19,11 @@ use std::{
     time::Duration,
 };
 use widgets::{
+    enter_results::EnterResultScreen,
     group_overview::GroupOverviewScreen,
+    group_screen::GroupScreen,
     home_screen::HomeScreen,
+    match_history::MatchHistoryScreen,
     navbar::{NavBar, NavBarCategoryTrait},
     settings::settings_screen::SettingsScreen,
 };
@@ -139,20 +141,30 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, program_state: Rc<ProgramS
                 clone!(@weak enter_results => move |_, _, _| enter_results.reload()),
             );
 
+            let match_history = MatchHistoryScreen::new(&program_state);
+            nav_bar.add_child_with_callback(
+                &match_history,
+                String::from("Match History"),
+                MainNavBarCategory::Group,
+                clone!(@weak match_history => move |_, _, _| match_history.reload()),
+            );
+
             for (group_idx, group) in data.group_names.as_ref().unwrap().iter().enumerate() {
                 nav_bar.add_custom_nav_button(
                     group.as_str(),
                     MainNavBarCategory::GroupSelector,
-                    clone!(@weak group_overview, @weak enter_results => move |nav_bar, _, _| {
-                        group_overview.show_group(group_idx as u32);
-                        enter_results.show_group(group_idx as u32);
-                        if !nav_bar.is_category_shown(MainNavBarCategory::Group) {
-                            nav_bar.show_category(MainNavBarCategory::Group);
-                        }
-                        let selected = nav_bar.get_selected_categories();
-                        if !selected.contains(&MainNavBarCategory::Group) {
-                            nav_bar.show_child("Overview", MainNavBarCategory::Group);
-                        }
+                    clone!(@weak group_overview, @weak enter_results, @weak match_history => move |nav_bar, _, _| {
+                            group_overview.show_group(group_idx as u32);
+                            enter_results.show_group(group_idx as u32);
+                            match_history.show_group(group_idx as u32);
+
+                            if !nav_bar.is_category_shown(MainNavBarCategory::Group) {
+                                nav_bar.show_category(MainNavBarCategory::Group);
+                            }
+                            let selected = nav_bar.get_selected_categories();
+                            if !selected.contains(&MainNavBarCategory::Group) {
+                                nav_bar.show_child("Overview", MainNavBarCategory::Group);
+                            }
                     }),
                 );
             }
@@ -214,6 +226,7 @@ fn initial_state() -> CompetitionPtr {
         additional_text: String::from("Der SV Musterverein bedankt sich für die Teilnahme\nund wünscht ein sichere Heimreise!"),
         count_teams: 20,
         count_groups: 2,
+        count_batches: vec![],
         team_distribution: [2, 10],
         teams: Some(vec![
             vec![

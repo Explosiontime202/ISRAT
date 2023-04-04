@@ -7,6 +7,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use super::group_screen::GroupScreen;
+
 mod inner {
     use super::*;
 
@@ -227,18 +229,20 @@ impl GroupOverviewScreen {
         obj.set_hexpand(true);
         obj
     }
+}
 
+impl GroupScreen for GroupOverviewScreen {
     ///
     /// Display the overview for the group with index `group_idx`.
     ///
-    pub fn show_group(&self, group_idx: u32) {
+    fn show_group(&self, group_idx: u32) {
         self.imp().set_group_idx(group_idx);
     }
 
     ///
     /// Reload the widget from the data pointer.
     ///
-    pub fn reload(&self) {
+    fn reload(&self) {
         self.imp().reload();
     }
 }

@@ -1,7 +1,9 @@
 mod common;
 pub mod enter_results;
 pub mod group_overview;
+pub mod group_screen;
 pub mod home_screen;
+pub mod match_history;
 pub mod navbar;
 pub mod new_screen;
 pub mod settings;

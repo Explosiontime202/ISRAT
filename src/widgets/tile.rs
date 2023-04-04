@@ -61,9 +61,13 @@ mod inner {
         ///
         pub fn set_child(&self, child: impl IsA<Widget>) {
             assert!(self.title.borrow().is_some());
+            let mut child_borrow = self.child.borrow_mut();
+            if let Some(cur_child) = child_borrow.as_ref() {
+                cur_child.unparent();
+            }
             child.add_css_class("tile_child");
             child.set_parent(&*self.obj());
-            *self.child.borrow_mut() = Some(child.into());
+            *child_borrow = Some(child.into());
         }
 
         ///

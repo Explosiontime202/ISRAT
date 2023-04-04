@@ -233,6 +233,7 @@ pub struct CompetitionData {
     pub additional_text: String,
     pub count_teams: u32,
     pub count_groups: u32,
+    pub count_batches: Vec<u32>,          // count of batches per group
     pub team_distribution: [u32; 2],      // count_groups x count_teams_per_group
     pub teams: Option<Vec<Vec<Team>>>,    // for each group a vector of teams, ordered by ids
     pub group_names: Option<Vec<String>>, // a vector of the group names, ordered by id
@@ -261,6 +262,7 @@ impl CompetitionData {
             additional_text: String::from(""),
             count_teams: 0,
             count_groups: 0,
+            count_batches: vec![],
             team_distribution: [0, 0],
             teams: None,
             group_names: None,
@@ -385,8 +387,7 @@ impl CompetitionData {
             .iter()
             .filter(|&match_| match_.result == MatchResult::Break)
             .filter(|&match_| match_.batch == current_batch)
-            .flat_map(|match_| [match_.team_a, match_.team_b])
-            .map(|team_id| &teams[team_id])
+            .map(|match_| &teams[match_.team_a])
             .collect()
     }
 
@@ -451,6 +452,8 @@ impl CompetitionData {
                     }
                     self.matches.push(group);
                 }
+
+                self.count_batches = vec![team_count as u32; self.count_groups as usize];
             } else {
                 // TODO: Implement match generation for even team count per group without breaks
                 todo!();
@@ -491,6 +494,8 @@ impl CompetitionData {
                 }
                 self.matches.push(group);
             }
+
+            self.count_batches = vec![self.team_distribution[1] as u32; self.count_groups as usize];
         }
     }
 
@@ -504,6 +509,7 @@ impl CompetitionData {
     /// Increases the current batch of the group.
     ///
     pub fn enter_match_results(&mut self, group_idx: usize, match_results: HashMap<MatchID, [u32; 2]>) {
+        assert!(self.current_batch[group_idx] < self.count_batches[group_idx]);
         for match_ in &mut self.matches[group_idx] {
             if let Some([points_a, points_b]) = match_results.get(&match_.id) {
                 assert!(match_.result == MatchResult::NotPlayed);
@@ -516,6 +522,14 @@ impl CompetitionData {
             }
         }
         self.current_batch[group_idx] += 1;
+    }
+
+    pub fn get_current_batch(&self, group_idx: usize) -> u32 {
+        self.current_batch[group_idx]
+    }
+
+    pub fn get_batch_for_group(&self, group_idx: usize, batch_idx: u32) -> Vec<&Match> {
+        self.matches[group_idx].iter().filter(|_match| _match.batch == batch_idx).collect()
     }
 
     pub fn get_result_as_html(&self) -> String {
