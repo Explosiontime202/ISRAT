@@ -16,14 +16,13 @@ use std::collections::HashSet;
 use std::hash::Hash;
 use std::rc::Rc;
 use std::sync::Once;
+use std::{cell::Cell, mem};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap},
 };
 
 mod inner {
-    use std::mem;
-
     use super::*;
 
     #[derive(Debug)]
@@ -39,6 +38,8 @@ mod inner {
         buttons: RefCell<BTreeMap<CategoryT, CategoryEntry>>,
         /// Stores which button in each category is selected, it is not necessary for a category to have a selected button
         selected_buttons: Rc<RefCell<HashMap<CategoryT, Button>>>,
+        /// Stores whether separators between categories are shown
+        use_separators: Cell<bool>,
     }
 
     impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> Default for NavBar<CategoryT> {
@@ -194,6 +195,7 @@ mod inner {
                 separators,
                 buttons,
                 selected_buttons,
+                use_separators: Cell::new(false),
             }
         }
 
@@ -537,41 +539,43 @@ mod inner {
         /// If there is no other category shown, no separator will be inserted.
         ///
         fn insert_separator_for_category(&self, category: CategoryT) {
-            let mut buttons = self.buttons.borrow_mut();
-            let (separator_before, separator_after) = match (
-                Self::prev_category_shown(&*buttons, category),
-                Self::next_category_shown(&*buttons, category),
-            ) {
-                (None, None) => (None, None), // there is no other shown category, no separator necessary
-                (Some(prev_cat), None) => {
-                    // this category will be the new last category => separator to previous category
-                    let new_sep = Self::create_nav_bar_separator();
-                    buttons.get_mut(&prev_cat).unwrap().separator_after = Some(new_sep.clone());
-                    (Some(new_sep), None)
-                }
-                (None, Some(next_cat)) => {
-                    // this category wll be the new first category => separator to next category
-                    let new_sep = Self::create_nav_bar_separator();
-                    buttons.get_mut(&next_cat).unwrap().separator_before = Some(new_sep.clone());
-                    (None, Some(new_sep))
-                }
-                (Some(prev_cat), Some(_)) => {
-                    // this category will be in the middle => new separator to other categories, adjust separator pointer
-                    let new_sep = Self::create_nav_bar_separator();
-                    let sep_after = mem::replace(&mut buttons.get_mut(&prev_cat).unwrap().separator_after, Some(new_sep.clone()));
-                    (Some(new_sep), sep_after)
-                }
-            };
+            if self.use_separators.get() {
+                let mut buttons = self.buttons.borrow_mut();
+                let (separator_before, separator_after) = match (
+                    Self::prev_category_shown(&*buttons, category),
+                    Self::next_category_shown(&*buttons, category),
+                ) {
+                    (None, None) => (None, None), // there is no other shown category, no separator necessary
+                    (Some(prev_cat), None) => {
+                        // this category will be the new last category => separator to previous category
+                        let new_sep = Self::create_nav_bar_separator();
+                        buttons.get_mut(&prev_cat).unwrap().separator_after = Some(new_sep.clone());
+                        (Some(new_sep), None)
+                    }
+                    (None, Some(next_cat)) => {
+                        // this category wll be the new first category => separator to next category
+                        let new_sep = Self::create_nav_bar_separator();
+                        buttons.get_mut(&next_cat).unwrap().separator_before = Some(new_sep.clone());
+                        (None, Some(new_sep))
+                    }
+                    (Some(prev_cat), Some(_)) => {
+                        // this category will be in the middle => new separator to other categories, adjust separator pointer
+                        let new_sep = Self::create_nav_bar_separator();
+                        let sep_after = mem::replace(&mut buttons.get_mut(&prev_cat).unwrap().separator_after, Some(new_sep.clone()));
+                        (Some(new_sep), sep_after)
+                    }
+                };
 
-            let category_entry = buttons.get_mut(&category).unwrap();
+                let category_entry = buttons.get_mut(&category).unwrap();
 
-            // insert a new separator before the button_box
-            if let Some(new_sep) = separator_before.as_ref() {
-                new_sep.insert_before(&self.navigation_box, Some(&category_entry.button_box));
+                // insert a new separator before the button_box
+                if let Some(new_sep) = separator_before.as_ref() {
+                    new_sep.insert_before(&self.navigation_box, Some(&category_entry.button_box));
+                }
+
+                category_entry.separator_before = separator_before;
+                category_entry.separator_after = separator_after;
             }
-
-            category_entry.separator_before = separator_before;
-            category_entry.separator_after = separator_after;
         }
 
         ///
@@ -580,31 +584,33 @@ mod inner {
         /// If no separator is available, none will be removed.
         ///
         fn remove_separator_for_category(&self, category: CategoryT) {
-            let mut buttons = self.buttons.borrow_mut();
-            let removed_sep = match (
-                Self::prev_category_shown(&buttons, category),
-                Self::next_category_shown(&buttons, category),
-            ) {
-                (None, None) => None, // this is/was only shown category, nothing to do
-                (Some(prev_cat), None) => mem::take(&mut buttons.get_mut(&prev_cat).unwrap().separator_after), // this was the last shown category
-                (None, Some(next_cat)) => mem::take(&mut buttons.get_mut(&next_cat).unwrap().separator_before), // this was the first shown category
-                (Some(prev_cat), Some(next_cat)) => {
-                    // somewhere in the middle
+            if self.use_separators.get() {
+                let mut buttons = self.buttons.borrow_mut();
+                let removed_sep = match (
+                    Self::prev_category_shown(&buttons, category),
+                    Self::next_category_shown(&buttons, category),
+                ) {
+                    (None, None) => None, // this is/was only shown category, nothing to do
+                    (Some(prev_cat), None) => mem::take(&mut buttons.get_mut(&prev_cat).unwrap().separator_after), // this was the last shown category
+                    (None, Some(next_cat)) => mem::take(&mut buttons.get_mut(&next_cat).unwrap().separator_before), // this was the first shown category
+                    (Some(prev_cat), Some(next_cat)) => {
+                        // somewhere in the middle
 
-                    let next_before_separator = buttons.get_mut(&next_cat).unwrap().separator_before.clone();
-                    let removed_sep = mem::replace(&mut buttons.get_mut(&prev_cat).unwrap().separator_after, next_before_separator);
+                        let next_before_separator = buttons.get_mut(&next_cat).unwrap().separator_before.clone();
+                        let removed_sep = mem::replace(&mut buttons.get_mut(&prev_cat).unwrap().separator_after, next_before_separator);
 
-                    removed_sep
+                        removed_sep
+                    }
+                };
+
+                if let Some(removed_sep) = removed_sep {
+                    removed_sep.unparent();
                 }
-            };
 
-            if let Some(removed_sep) = removed_sep {
-                removed_sep.unparent();
+                let category_entry = buttons.get_mut(&category).unwrap();
+                category_entry.separator_before = None;
+                category_entry.separator_after = None;
             }
-
-            let category_entry = buttons.get_mut(&category).unwrap();
-            category_entry.separator_before = None;
-            category_entry.separator_after = None;
         }
 
         ///
@@ -654,6 +660,13 @@ mod inner {
             let selected_buttons = self.selected_buttons.borrow();
             selected_buttons.iter().map(|(category, _)| *category).collect()
         }
+
+        ///
+        /// Sets whether separators are shown between the categories.
+        ///
+        pub fn set_use_separators(&self, use_separators: bool) {
+            self.use_separators.set(use_separators);
+        }
     }
 
     ///
@@ -692,8 +705,22 @@ glib::wrapper! {
 }
 
 impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> NavBar<CategoryT> {
+    ///
+    /// Creates a new NavBar. Shows separators between the categories.
+    /// If you want to modify this behavior, please use `with_use_separators`.
+    ///
     pub fn new() -> Self {
-        glib::Object::new::<Self>()
+        Self::with_use_separators(true)
+    }
+
+    ///
+    /// Creates a new NavBar.
+    /// Shows separators between the categories iff `use_separators` is set.
+    ///
+    pub fn with_use_separators(use_separators: bool) -> Self {
+        let obj = glib::Object::new::<Self>();
+        obj.imp().set_use_separators(use_separators);
+        obj
     }
 
     ///

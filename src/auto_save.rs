@@ -45,7 +45,13 @@ pub fn spawn_autosave_thread(start_interval: Duration, competition: Weak<RwLock<
 
             let start = SystemTime::now();
             sleep(Duration::new(1, 0));
-            let diff = SystemTime::now().duration_since(start).expect("The clock has run backwards!");
+            let diff = match SystemTime::now().duration_since(start) {
+                Ok(diff) => diff,
+                Err(err) => {
+                    eprintln!("The clock has run backwards!: {}", err.to_string());
+                    continue;
+                }
+            };
 
             if skip_interval >= diff {
                 skip_interval -= diff;
