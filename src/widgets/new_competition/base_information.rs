@@ -4,11 +4,14 @@ use gdk4::{glib::clone, prelude::*, subclass::prelude::*};
 use gtk4::Align;
 use gtk4::{
     glib, subclass::widget::*, traits::*, Box as GtkBox, Button, Calendar, CenterBox, Entry, EntryBuffer, FlowBox, Grid, Justification, Label,
-    Orientation, TextBuffer, TextView, Widget, Window,
+    Notebook, Orientation, PackType, TextBuffer, TextView, Widget, Window,
 };
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 mod inner {
+    use gtk4::Image;
+
+    use crate::widgets::{new_competition::group_page::GroupPage, table::Table};
 
     use super::*;
 
@@ -25,6 +28,8 @@ mod inner {
         secretary_buffer: EntryBuffer,
         additional_text_buffer: TextBuffer,
         date_time: RefCell<Option<glib::DateTime>>,
+        group_idx_counter: Cell<u32>,
+        team_idx_counter: Cell<u32>,
     }
 
     impl Default for BaseInformationScreen {
@@ -56,7 +61,7 @@ mod inner {
             obj.set_hexpand(true);
 
             let base_info = self.create_base_info_tile();
-            let groups_tile = Tile::new("Groups & Teams");
+            let groups_tile = self.create_groups_tile();
 
             self.flow_box.insert(&base_info, -1);
             self.flow_box.insert(&groups_tile, -1);
@@ -110,6 +115,8 @@ mod inner {
                 secretary_buffer: EntryBuffer::new(None::<String>),
                 additional_text_buffer: TextBuffer::new(None),
                 date_time: RefCell::new(None),
+                group_idx_counter: Cell::new(0),
+                team_idx_counter: Cell::new(0),
             }
         }
 
@@ -135,7 +142,7 @@ mod inner {
 
             insert_into_grid("Competition Name", &Entry::with_buffer(&self.competition_name_buffer).upcast_ref());
 
-            let date_time_button = Button::builder().child(&self.date_time_label).build();
+            let date_time_button = Button::builder().child(&self.date_time_label).css_classes(["elevated"]).build();
             date_time_button.connect_clicked(clone!(@weak self as this => move |_| this.open_date_time_window()));
             insert_into_grid("Date", &date_time_button.into());
 
@@ -154,11 +161,10 @@ mod inner {
                 .bottom_margin(5)
                 .vexpand(true)
                 .build();
-            self.additional_text_buffer.insert_at_cursor("test-abc");
+
             insert_into_grid("Additional text on bottom of result list", &additional_text_view.upcast_ref());
             additional_text_view.set_halign(Align::Fill);
 
-            
             // TODO:Limit number of lines of additional text, e.g. somewhere between 3 and 5
             // self.additional_text_buffer.connect_insert_text(|buf, iter, string| {});
 
@@ -263,6 +269,73 @@ mod inner {
             cancel_button.connect_clicked(clone!(@weak window => move |_| {
                 window.close();
             }));
+        }
+
+        ///
+        /// Creates the tile where the user can create groups and enter team names.
+        ///
+        fn create_groups_tile(&self) -> Widget {
+            let groups_tile = Tile::new("Groups & Teams");
+            let notebook = Notebook::builder().scrollable(true).show_border(false).build();
+
+            // default create a group
+            self.create_new_groups_tab(&notebook);
+
+            // add button to add more groups
+            let button_hbox = GtkBox::new(Orientation::Horizontal, 5);
+            button_hbox.append(&Image::from_icon_name("list-add"));
+            button_hbox.append(&Label::new(Some("Add Group")));
+            let add_group_button = Button::builder().child(&button_hbox).build();
+            notebook.set_action_widget(&add_group_button, PackType::End);
+
+            add_group_button.connect_clicked(clone!(@weak notebook, @weak self as this => move |_| {
+                this.create_new_groups_tab(&notebook);
+                // select last child, i.e. the new created one
+                notebook.set_current_page(None);
+            }));
+
+            groups_tile.set_child(notebook);
+            groups_tile.into()
+        }
+
+        fn create_new_groups_tab(&self, notebook: &Notebook) {
+            let group_idx_counter = self.group_idx_counter.get();
+            let page = GroupPage::new();
+
+            let label = CenterBox::new();
+            label.set_start_widget(Some(&Label::new(Some(&format!("Group {}", group_idx_counter)))));
+
+            // add button to be able to remove this group from the notebook
+            let button = Button::from_icon_name("list-remove");
+            button.add_css_class("group_remove");
+            button.connect_clicked(clone!(@weak notebook, @weak page => move |_| {
+                if notebook.n_pages() > 1 {
+                    let page_pos = notebook.page_num(&page).unwrap();
+                    notebook.remove_page(Some(page_pos));
+                    if notebook.n_pages() == 1 {
+                        // only one group page left, cannot be removed => disable remove button of this widget
+                        let page = notebook.nth_page(Some(0)).unwrap();
+                        let tab_label = notebook.tab_label(&page).unwrap();
+                        tab_label.last_child().unwrap().set_sensitive(false);
+                    }
+                }
+            }));
+            label.set_end_widget(Some(&button));
+
+            // if no page is available, the remove button should not be active
+            if notebook.n_pages() == 0 {
+                button.set_sensitive(false);
+            }
+
+            // re-enable remove button of other tab if previously only one group page was available
+            if notebook.n_pages() == 1 {
+                let page = notebook.nth_page(Some(0)).unwrap();
+                let tab_label = notebook.tab_label(&page).unwrap();
+                tab_label.last_child().unwrap().set_sensitive(true);
+            }
+
+            notebook.append_page(&page, Some(&label));
+            self.group_idx_counter.set(group_idx_counter + 1);
         }
     }
 }

@@ -1,4 +1,4 @@
-/*use gdk4::subclass::prelude::*;
+use gdk4::subclass::prelude::*;
 use gtk4::{glib, subclass::widget::*, traits::*, Box as GtkBox, Button, Widget};
 
 mod inner {
@@ -46,4 +46,3 @@ impl BaseInformationScreen {
         glib::Object::new::<Self>()
     }
 }
-*/

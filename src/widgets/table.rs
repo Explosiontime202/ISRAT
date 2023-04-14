@@ -178,6 +178,17 @@ mod inner {
             }
             *row_count = 1;
         }
+
+        ///
+        /// Remove the `idx`-th row.
+        ///
+        pub fn remove_row(&self, idx: u32) {
+            assert!(*self.header_set.borrow());
+            let mut row_count = self.row_count.borrow_mut();
+            assert!(idx < *row_count - 1);
+            self.grid.remove_row((idx + 1) as i32);
+            *row_count -= 1;
+        }
     }
 }
 
@@ -243,5 +254,12 @@ impl Table {
     ///
     pub fn clear_rows(&self) {
         self.imp().clear_rows();
+    }
+
+    ///
+    /// Removes the `idx`-th row.
+    ///
+    pub fn remove_row(&self, idx: u32) {
+        self.imp().remove_row(idx);
     }
 }

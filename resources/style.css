@@ -37,7 +37,7 @@ nav_button:active {
 
 nav_button.selected {
     color: #d65307;
-} 
+}
 
 label.headline {
     font-size: 2em;
@@ -111,7 +111,7 @@ scale highlight {
 }
 
 table_entry {
-    margin: 10px;   
+    margin: 10px;
 }
 
 table_header {
@@ -119,14 +119,18 @@ table_header {
     border-radius: 15px;
 }
 
+button.elevated,
 entry {
     background-color: #232323;
     margin: 5px;
     outline-color: #d65307;
 }
 
-entry:hover {
-	background-color: #272727;
+button.elevated:hover,
+button.elevated:focus,
+entry:hover,
+entry:focus {
+    background-color: #272727;
 }
 
 entry.error {
@@ -139,6 +143,10 @@ highlighted_button {
     border-radius: 10px;
 }
 
+highlighted_button.action {
+    margin: 5px;
+}
+
 highlighted_button:hover {
     background-color: #e65307;
 }
@@ -149,4 +157,93 @@ highlighted_button:active {
 
 highlighted_button label {
     margin: 10px;
+}
+
+time_selector {
+    margin: 10px;
+}
+
+spinbutton.vertical {
+    margin: 5px;
+}
+
+label.day-number:selected {
+    background-color: #d65307;
+}
+
+textview {
+    background-color: #232323;
+    margin: 5px;
+    outline-color: #d65307;
+}
+
+textview:hover,
+textview:focus {
+    background-color: #272727;
+}
+
+button,
+arrow {
+    background-color: #212121;
+}
+
+button:hover,
+arrow:hover {
+    background-color: #252525;
+}
+
+entry_button {
+    background-color: #232323;
+}
+
+tab:checked {
+    box-shadow: 0 -4px #d65307 inset;
+}
+
+tab:hover {
+    background-color: #252525;
+}
+
+button.group_remove {
+    background-color: inherit;
+}
+
+button.group_remove:hover {
+    background-color: #292929;
+}
+
+button.group_remove:disabled {
+    opacity: 0.3;
+}
+
+notebook stack {
+    background-color: inherit;
+}
+
+list {
+    background-color: inherit;
+}
+
+list:drop(active) {
+    box-shadow: none;
+}
+
+row.drag-hover-top {
+    border-top: 2px solid #d65307;
+}
+
+row.drag-hover-bottom {
+    border-bottom: 2px solid #d65307;
+}
+
+row:hover {
+	background-color: #252525;
+}
+
+row button {
+	background-color: inherit;
+}
+
+row button:hover {
+	background-color: #292929;
 }

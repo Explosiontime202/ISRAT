@@ -4,6 +4,7 @@ use gtk4::{traits::*, Application, ApplicationWindow};
 use self::base_information::BaseInformationScreen;
 
 mod base_information;
+mod group_page;
 mod team_information;
 
 pub fn create_new_competition_screen(application: &Application) {
