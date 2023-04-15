@@ -6,6 +6,7 @@ use self::base_information::BaseInformationScreen;
 mod base_information;
 mod group_page;
 mod team_information;
+mod team_name_position_object;
 
 pub fn create_new_competition_screen(application: &Application) {
     let window = ApplicationWindow::builder()

@@ -222,6 +222,7 @@ notebook stack {
 
 list {
     background-color: inherit;
+    margin-top: 5px;
 }
 
 list:drop(active) {
@@ -229,11 +230,11 @@ list:drop(active) {
 }
 
 row.drag-hover-top {
-    border-top: 2px solid #d65307;
+    border-top: 1.5px solid #d65307;
 }
 
 row.drag-hover-bottom {
-    border-bottom: 2px solid #d65307;
+    border-bottom: 1.5px solid #d65307;
 }
 
 row:hover {
