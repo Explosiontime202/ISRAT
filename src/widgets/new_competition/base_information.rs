@@ -1,18 +1,15 @@
+use crate::widgets::new_competition::group_page::GroupPage;
 use crate::widgets::tile::Tile;
 use crate::widgets::time_selector::TimeSelector;
 use gdk4::{glib::clone, prelude::*, subclass::prelude::*};
 use gtk4::Align;
 use gtk4::{
-    glib, subclass::widget::*, traits::*, Box as GtkBox, Button, Calendar, CenterBox, Entry, EntryBuffer, FlowBox, Grid, Justification, Label,
+    glib, subclass::widget::*, traits::*, Box as GtkBox, Button, Calendar, CenterBox, Entry, EntryBuffer, FlowBox, Grid, Image, Justification, Label,
     Notebook, Orientation, PackType, TextBuffer, TextView, Widget, Window,
 };
 use std::cell::{Cell, RefCell};
 
 mod inner {
-    use gtk4::Image;
-
-    use crate::widgets::{new_competition::group_page::GroupPage, table::Table};
-
     use super::*;
 
     #[derive(Debug)]
@@ -29,7 +26,6 @@ mod inner {
         additional_text_buffer: TextBuffer,
         date_time: RefCell<Option<glib::DateTime>>,
         group_idx_counter: Cell<u32>,
-        team_idx_counter: Cell<u32>,
     }
 
     impl Default for BaseInformationScreen {
@@ -116,7 +112,6 @@ mod inner {
                 additional_text_buffer: TextBuffer::new(None),
                 date_time: RefCell::new(None),
                 group_idx_counter: Cell::new(0),
-                team_idx_counter: Cell::new(0),
             }
         }
 
@@ -140,18 +135,39 @@ mod inner {
                 row_counter += 1;
             };
 
-            insert_into_grid("Competition Name", &Entry::with_buffer(&self.competition_name_buffer).upcast_ref());
+            let connect_check_chars = |entry: &Entry| {
+                entry.connect_text_notify(|entry| {
+                    // show error when disallowed characters are entered
+                    if !entry.text().chars().all(|c| is_valid_name_character(c)) {
+                        if !entry.css_classes().contains(&"error".into()) {
+                            entry.error_bell();
+                        }
+                        entry.add_css_class("error");
+                    } else {
+                        // text is valid, reset possibly set error marker
+                        entry.remove_css_class("error");
+                    }
+                });
+            };
+
+            let create_entry = |buffer: &EntryBuffer| -> Widget {
+                let entry = Entry::with_buffer(buffer);
+                connect_check_chars(&entry);
+                entry.upcast()
+            };
+
+            insert_into_grid("Competition Name", &create_entry(&self.competition_name_buffer));
 
             let date_time_button = Button::builder().child(&self.date_time_label).css_classes(["elevated"]).build();
             date_time_button.connect_clicked(clone!(@weak self as this => move |_| this.open_date_time_window()));
             insert_into_grid("Date", &date_time_button.into());
 
-            insert_into_grid("Location", &Entry::with_buffer(&self.location_buffer).upcast_ref());
-            insert_into_grid("Executor", &Entry::with_buffer(&self.executor_buffer).upcast_ref());
-            insert_into_grid("Organizer", &Entry::with_buffer(&self.organizer_buffer).upcast_ref());
-            insert_into_grid("Referee", &Entry::with_buffer(&self.referee_buffer).upcast_ref());
-            insert_into_grid("Competition Manager", &Entry::with_buffer(&self.competition_manager_buffer).upcast_ref());
-            insert_into_grid("Secretary", &Entry::with_buffer(&self.secretary_buffer).upcast_ref());
+            insert_into_grid("Location", &create_entry(&self.location_buffer));
+            insert_into_grid("Executor", &create_entry(&self.executor_buffer));
+            insert_into_grid("Organizer", &create_entry(&self.organizer_buffer));
+            insert_into_grid("Referee", &create_entry(&self.referee_buffer));
+            insert_into_grid("Competition Manager", &create_entry(&self.competition_manager_buffer));
+            insert_into_grid("Secretary", &create_entry(&self.secretary_buffer));
 
             let additional_text_view = TextView::builder()
                 .buffer(&self.additional_text_buffer)
@@ -349,4 +365,8 @@ impl BaseInformationScreen {
     pub fn new() -> Self {
         glib::Object::new::<Self>()
     }
+}
+
+pub fn is_valid_name_character(c: char) -> bool {
+    c.is_ascii_lowercase() || c.is_ascii_uppercase() || c.is_ascii_whitespace() || c.is_ascii_digit() || c == '-'
 }

@@ -1,3 +1,5 @@
+use super::base_information::is_valid_name_character;
+use super::team_name_position_object::TeamNamePositionObject;
 use gdk4::{glib::clone, prelude::*, subclass::prelude::*, ContentFormats, ContentProvider, DragAction};
 use gtk4::{
     gio::ListStore, glib, subclass::widget::*, traits::*, Align, Box as GtkBox, BoxLayout, Button, CenterBox, DragSource, DropTarget, Entry,
@@ -5,8 +7,6 @@ use gtk4::{
 };
 use std::cell::{Cell, RefCell};
 use std::mem;
-
-use super::team_name_position_object::TeamNamePositionObject;
 
 mod inner {
     use super::*;
@@ -307,8 +307,17 @@ mod inner {
                 .xalign(0.5)
                 .build();
 
-            entry.buffer().connect_text_notify(|_buf| {
-                // TODO: Show error when disallowed characters are entered
+            entry.connect_text_notify(|entry| {
+                // show error when disallowed characters are entered
+                if !entry.text().chars().all(|c| is_valid_name_character(c)) {
+                    if !entry.css_classes().contains(&"error".into()) {
+                        entry.error_bell();
+                    }
+                    entry.add_css_class("error");
+                } else {
+                    // text is valid, reset possibly set error marker
+                    entry.remove_css_class("error");
+                }
             });
 
             let remove_button = Button::from_icon_name("list-remove");

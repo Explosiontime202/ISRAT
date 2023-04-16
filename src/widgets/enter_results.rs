@@ -231,7 +231,9 @@ mod inner {
             entry.connect_text_notify(|entry| {
                 if !entry.text().chars().all(|c| c.is_ascii_digit()) {
                     // text contains invalid character, i.e. non-digit, set error marker
-                    entry.error_bell();
+                    if !entry.css_classes().contains(&"error".into()) {
+                        entry.error_bell();
+                    }
                     entry.add_css_class("error");
                 } else {
                     // text is valid, reset error marker
