@@ -1,11 +1,17 @@
 use super::base_information::is_valid_name_character;
 use super::team_name_position_object::TeamNamePositionObject;
-use gdk4::{glib::clone, prelude::*, subclass::prelude::*, ContentFormats, ContentProvider, DragAction};
+use gdk4::{
+    glib::{clone, closure_local, once_cell::sync::Lazy, subclass::Signal},
+    prelude::*,
+    subclass::prelude::*,
+    ContentFormats, ContentProvider, DragAction,
+};
 use gtk4::{
     gio::ListStore, glib, subclass::widget::*, traits::*, Align, Box as GtkBox, BoxLayout, Button, CenterBox, DragSource, DropTarget, Entry,
-    EntryBuffer, Image, Label, LayoutManager, ListBox, ListBoxRow, Orientation, SelectionMode, Widget, WidgetPaintable,
+    EntryBuffer, Image, Label, LayoutManager, ListBox, ListBoxRow, Orientation, ScrolledWindow, SelectionMode, Widget, WidgetPaintable,
 };
 use std::cell::{Cell, RefCell};
+use std::collections::HashSet;
 use std::mem;
 
 mod inner {
@@ -13,7 +19,9 @@ mod inner {
 
     #[derive(Debug)]
     pub struct GroupPage {
-        /// The ListBox storing the team name entries. (a direct child)
+        /// The ScrolledWindow containing the team_name_list. (a direct child)
+        scrolled_window: ScrolledWindow,
+        /// The ListBox storing the team name entries.
         /// The rows can be reordered by drag'n'drop.
         team_name_list: ListBox,
         /// The CenterBox containing the button to add a new team. (a direct child)
@@ -28,6 +36,8 @@ mod inner {
         row_below: RefCell<Option<ListBoxRow>>,
         /// Stores the team name entries as well as their positions, model of `team_name_list`.
         team_model: ListStore,
+        ///
+        erroneous_entries: RefCell<HashSet<EntryBuffer>>,
     }
 
     impl Default for GroupPage {
@@ -65,15 +75,22 @@ mod inner {
                 }),
             );
 
-            self.team_name_list.set_parent(&*obj);
+            self.scrolled_window.set_child(Some(&self.team_name_list));
+            self.scrolled_window.set_visible(false);
+            self.scrolled_window.set_parent(&*obj);
             self.setup_drop_target();
 
             self.create_add_team_button();
         }
 
         fn dispose(&self) {
-            self.team_name_list.unparent();
+            self.scrolled_window.unparent();
             self.add_team_box.unparent();
+        }
+
+        fn signals() -> &'static [Signal] {
+            static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| vec![Signal::builder("all-entries-valid").param_types([bool::static_type()]).build()]);
+            SIGNALS.as_ref()
         }
     }
     impl WidgetImpl for GroupPage {}
@@ -81,12 +98,17 @@ mod inner {
     impl GroupPage {
         pub fn new() -> Self {
             Self {
+                scrolled_window: ScrolledWindow::builder()
+                    .propagate_natural_height(true)
+                    .hscrollbar_policy(gtk4::PolicyType::Never)
+                    .build(),
                 team_name_list: ListBox::builder().selection_mode(SelectionMode::None).build(),
                 add_team_box: CenterBox::new(),
                 team_counter: Cell::new(0),
                 row_above: RefCell::default(),
                 row_below: RefCell::default(),
                 team_model: ListStore::new(TeamNamePositionObject::static_type()),
+                erroneous_entries: RefCell::default(),
             }
         }
 
@@ -95,7 +117,7 @@ mod inner {
         ///
         fn create_add_team_button(&self) {
             let add_center_box = CenterBox::builder().css_name("team_add_center").build();
-            let add_team_button = Button::builder().child(&add_center_box).build();
+            let add_team_button = Button::builder().child(&add_center_box).focusable(false).build();
             add_center_box.set_start_widget(Some(&Image::from_icon_name("list-add")));
             add_center_box.set_end_widget(Some(&Label::new(Some("Add Team"))));
 
@@ -274,6 +296,10 @@ mod inner {
             let buffer = EntryBuffer::new(Some(generic_team_name));
             let data = TeamNamePositionObject::new(self.team_model.n_items(), buffer);
             self.team_model.append(&data);
+
+            if self.team_model.n_items() == 1 {
+                self.scrolled_window.set_visible(true);
+            }
         }
 
         ///
@@ -284,6 +310,9 @@ mod inner {
             self.rotate_entries(index, self.team_model.n_items() - 1, RotateDirection::Down);
             // then remove it
             self.team_model.remove(self.team_model.n_items() - 1);
+            if self.team_model.n_items() == 0 {
+                self.scrolled_window.set_visible(false);
+            }
         }
 
         ///
@@ -307,27 +336,34 @@ mod inner {
                 .xalign(0.5)
                 .build();
 
-            entry.connect_text_notify(|entry| {
+            entry.connect_text_notify(clone!(@weak self as this => move |entry| {
+                let mut erroneous_entries = this.erroneous_entries.borrow_mut();
                 // show error when disallowed characters are entered
                 if !entry.text().chars().all(|c| is_valid_name_character(c)) {
                     if !entry.css_classes().contains(&"error".into()) {
                         entry.error_bell();
                     }
                     entry.add_css_class("error");
-                } else {
+                    erroneous_entries.insert(entry.buffer());
+                    drop(erroneous_entries);
+                    this.obj().emit_all_entries_valid(this.are_all_entries_valid());
+                } else if erroneous_entries.contains(&entry.buffer())  {
                     // text is valid, reset possibly set error marker
+                    erroneous_entries.remove(&entry.buffer());
                     entry.remove_css_class("error");
+                    drop(erroneous_entries);
+                    this.obj().emit_all_entries_valid(this.are_all_entries_valid());
                 }
-            });
+            }));
 
-            let remove_button = Button::from_icon_name("list-remove");
+            let remove_button = Button::builder().icon_name("list-remove").focusable(false).build();
 
             row.append(&dnd_icon);
             row.append(&number_label);
             row.append(&entry);
             row.append(&remove_button);
 
-            let list_box_row = ListBoxRow::builder().child(&row).build();
+            let list_box_row = ListBoxRow::builder().child(&row).focusable(false).build();
 
             remove_button.connect_clicked(clone!(@weak self as this, @weak list_box_row => move |_| {
                 this.remove_team(list_box_row.index() as u32);
@@ -391,6 +427,10 @@ mod inner {
                 next_row.remove_css_class("drag-hover-top");
             }
         }
+
+        fn are_all_entries_valid(&self) -> bool {
+            self.erroneous_entries.borrow().is_empty()
+        }
     }
 
     /// The direction in which the entries should be rotated.
@@ -409,5 +449,19 @@ glib::wrapper! {
 impl GroupPage {
     pub fn new() -> Self {
         glib::Object::new::<Self>()
+    }
+
+    pub fn connect_all_entries_valid<F: Fn(&Self, bool) + 'static>(&self, f: F) {
+        self.connect_closure(
+            "all-entries-valid",
+            true,
+            closure_local!(move |page: &Self, all_entries_valid: bool| {
+                f(page, all_entries_valid);
+            }),
+        );
+    }
+
+    pub fn emit_all_entries_valid(&self, all_entries_valid: bool) {
+        let _: () = self.emit_by_name("all-entries-valid", &[&all_entries_valid.to_value()]);
     }
 }

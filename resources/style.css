@@ -135,28 +135,43 @@ entry:focus {
 
 entry.error {
     outline-color: red;
+    color: red;
 }
 
+next_button,
 highlighted_button {
     background-color: #d65307;
     color: black;
     border-radius: 10px;
 }
 
+next_button.action,
 highlighted_button.action {
     margin: 5px;
 }
 
+next_button:hover,
 highlighted_button:hover {
     background-color: #e65307;
 }
 
+next_button:active,
 highlighted_button:active {
     background-color: #ff5307;
 }
 
+next_button label,
 highlighted_button label {
     margin: 10px;
+}
+
+next_button {
+    margin: 20px;
+}
+
+next_button:disabled {
+    background-color: #252525;
+    color: white;
 }
 
 time_selector {
@@ -165,6 +180,10 @@ time_selector {
 
 spinbutton.vertical {
     margin: 5px;
+}
+
+spinbutton>text {
+    background-color: #d65307;
 }
 
 label.day-number:selected {
@@ -238,13 +257,13 @@ row.drag-hover-bottom {
 }
 
 row:hover {
-	background-color: #252525;
+    background-color: #252525;
 }
 
 row button {
-	background-color: inherit;
+    background-color: inherit;
 }
 
 row button:hover {
-	background-color: #292929;
+    background-color: #292929;
 }

@@ -1,31 +1,59 @@
 use crate::widgets::new_competition::group_page::GroupPage;
 use crate::widgets::tile::Tile;
 use crate::widgets::time_selector::TimeSelector;
-use gdk4::{glib::clone, prelude::*, subclass::prelude::*};
-use gtk4::Align;
+use gdk4::{
+    glib::{clone, closure_local, once_cell::sync::Lazy, subclass::Signal},
+    prelude::*,
+    subclass::prelude::*,
+};
 use gtk4::{
-    glib, subclass::widget::*, traits::*, Box as GtkBox, Button, Calendar, CenterBox, Entry, EntryBuffer, FlowBox, Grid, Image, Justification, Label,
-    Notebook, Orientation, PackType, TextBuffer, TextView, Widget, Window,
+    glib, subclass::widget::*, traits::*, Align, Box as GtkBox, Button, Calendar, CenterBox, Entry, EntryBuffer, FlowBox, Grid, Image, Justification,
+    Label, LayoutManager, Notebook, Orientation, PackType, TextBuffer, TextView, Widget, Window,
 };
 use std::cell::{Cell, RefCell};
+use std::collections::HashSet;
 
 mod inner {
     use super::*;
 
     #[derive(Debug)]
     pub struct BaseInformationScreen {
+        /// The FlowBox storing the main tiles. (a direct child)
         flow_box: FlowBox,
+        /// The Buffer of the competition name entry field.
         competition_name_buffer: EntryBuffer,
+        /// The label displaying the currently selected date & time, if any.
+        /// Part of the button, used to open the date & time chooser.
         date_time_label: Label,
+        /// Buffer of the location entry field.
         location_buffer: EntryBuffer,
+        /// Buffer of the executor entry field.
         executor_buffer: EntryBuffer,
+        /// Buffer of the organizer entry field.
         organizer_buffer: EntryBuffer,
+        /// Buffer of the referee entry field.
         referee_buffer: EntryBuffer,
+        /// Buffer of the competition manager entry field.
         competition_manager_buffer: EntryBuffer,
+        /// Buffer of the secretary entry field.
         secretary_buffer: EntryBuffer,
+        /// Buffer of the additional text field.
         additional_text_buffer: TextBuffer,
+        /// Currently entered date and time, can be None if no date and time was entered yet.
         date_time: RefCell<Option<glib::DateTime>>,
+        /// Increment-only counter, used to generate generic default group names.
         group_idx_counter: Cell<u32>,
+        /// A vector of all currently available groups.
+        groups: RefCell<Vec<Group>>,
+        /// A set of all group pages currently containing invalid inputs.
+        erroneous_groups: RefCell<HashSet<GroupPage>>,
+        /// A set of all group name buffers currently containing invalid chars.
+        erroneous_group_names: RefCell<HashSet<EntryBuffer>>,
+        /// A set of all base information entry buffers currently containing invalid chars.
+        erroneous_base_infos: RefCell<HashSet<EntryBuffer>>,
+        /// A button to switch to the next stage of the new competition creation.
+        /// Will be insensitive if there are any invalid inputs.
+        next_button_center: CenterBox,
     }
 
     impl Default for BaseInformationScreen {
@@ -41,7 +69,6 @@ mod inner {
         type ParentType = gtk4::Widget;
 
         fn class_init(klass: &mut Self::Class) {
-            // The layout manager determines how child widgets are laid out.
             klass.set_layout_manager_type::<gtk4::BoxLayout>();
             klass.set_css_name("base_information");
         }
@@ -53,6 +80,9 @@ mod inner {
 
             let obj = self.obj();
 
+            obj.property::<LayoutManager>("layout_manager")
+                .set_property("orientation", Orientation::Vertical);
+
             self.flow_box.set_hexpand(true);
             obj.set_hexpand(true);
 
@@ -62,7 +92,7 @@ mod inner {
             self.flow_box.insert(&base_info, -1);
             self.flow_box.insert(&groups_tile, -1);
 
-            // make TextView focusable with one click
+            // make flowbox children not focusable
             self.flow_box.set_focusable(false);
             self.flow_box.set_focus_on_click(false);
             {
@@ -79,10 +109,17 @@ mod inner {
             }
 
             self.flow_box.set_parent(&*obj);
+            self.init_next_button();
         }
 
         fn dispose(&self) {
             self.flow_box.unparent();
+            self.next_button_center.unparent();
+        }
+
+        fn signals() -> &'static [Signal] {
+            static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| vec![Signal::builder("all-entries-valid").param_types([bool::static_type()]).build()]);
+            SIGNALS.as_ref()
         }
     }
     impl WidgetImpl for BaseInformationScreen {}
@@ -97,6 +134,7 @@ mod inner {
                 .homogeneous(true)
                 .focus_on_click(false)
                 .focusable(false)
+                .vexpand(true)
                 .build();
 
             Self {
@@ -112,7 +150,46 @@ mod inner {
                 additional_text_buffer: TextBuffer::new(None),
                 date_time: RefCell::new(None),
                 group_idx_counter: Cell::new(0),
+                groups: RefCell::default(),
+                erroneous_groups: RefCell::default(),
+                erroneous_group_names: RefCell::default(),
+                erroneous_base_infos: RefCell::default(),
+                next_button_center: CenterBox::new(),
             }
+        }
+
+        ///
+        /// Initializes the button to switch to the next screen.
+        /// Button will be set insensitive if there are some invalid inputs.
+        ///
+        fn init_next_button(&self) {
+            let center_box = CenterBox::new();
+            center_box.set_start_widget(Some(&Label::new(Some("Next"))));
+            center_box.set_end_widget(Some(&Image::from_icon_name("go-next")));
+            let next_button = Button::builder().child(&center_box).css_name("next_button").build();
+            self.next_button_center.set_end_widget(Some(&next_button));
+            self.next_button_center.set_parent(&*self.obj());
+
+            next_button.connect_clicked(clone!(@weak self as this => move |_button| {
+                // button is only enabled if all entries are valid, no checks here necessary
+                // we can just switch to the next screen
+                // TODO: implement
+                todo!();
+            }));
+
+            self.obj().connect_all_entries_valid(clone!(@weak next_button => move |_, all_valid| {
+                next_button.set_sensitive(all_valid);
+            }));
+        }
+
+        ///
+        /// Returns whether all group entries are in a valid state.
+        ///
+        fn are_all_entries_valid(&self) -> bool {
+            // TODO: Check for empty text fields and empty groups or groups with only 1 team (+ possibly other invalid group constellations?)
+            self.erroneous_groups.borrow().is_empty()
+                && self.erroneous_group_names.borrow().is_empty()
+                && self.erroneous_base_infos.borrow().is_empty()
         }
 
         ///
@@ -136,18 +213,25 @@ mod inner {
             };
 
             let connect_check_chars = |entry: &Entry| {
-                entry.connect_text_notify(|entry| {
+                entry.connect_text_notify(clone!(@weak self as this => move |entry| {
+                    let mut erroneous_group_names = this.erroneous_base_infos.borrow_mut();
                     // show error when disallowed characters are entered
                     if !entry.text().chars().all(|c| is_valid_name_character(c)) {
                         if !entry.css_classes().contains(&"error".into()) {
                             entry.error_bell();
                         }
                         entry.add_css_class("error");
-                    } else {
+                        erroneous_group_names.insert(entry.buffer());
+                        drop(erroneous_group_names);
+                        this.obj().emit_all_entries_valid(this.are_all_entries_valid());
+                    } else if erroneous_group_names.contains(&entry.buffer()) {
                         // text is valid, reset possibly set error marker
                         entry.remove_css_class("error");
+                        erroneous_group_names.remove(&entry.buffer());
+                        drop(erroneous_group_names);
+                        this.obj().emit_all_entries_valid(this.are_all_entries_valid());
                     }
-                });
+                }));
             };
 
             let create_entry = |buffer: &EntryBuffer| -> Widget {
@@ -301,7 +385,7 @@ mod inner {
             let button_hbox = GtkBox::new(Orientation::Horizontal, 5);
             button_hbox.append(&Image::from_icon_name("list-add"));
             button_hbox.append(&Label::new(Some("Add Group")));
-            let add_group_button = Button::builder().child(&button_hbox).build();
+            let add_group_button = Button::builder().child(&button_hbox).focusable(false).build();
             notebook.set_action_widget(&add_group_button, PackType::End);
 
             add_group_button.connect_clicked(clone!(@weak notebook, @weak self as this => move |_| {
@@ -314,20 +398,68 @@ mod inner {
             groups_tile.into()
         }
 
+        ///
+        /// Creates a new tab in `notebook` with a generic default group name created with `group_idx_counter`.
+        /// Adds a GroupPage as child to the Notebook.
+        ///
         fn create_new_groups_tab(&self, notebook: &Notebook) {
             let group_idx_counter = self.group_idx_counter.get();
+            self.group_idx_counter.set(group_idx_counter + 1);
+
             let page = GroupPage::new();
 
-            let label = CenterBox::new();
-            label.set_start_widget(Some(&Label::new(Some(&format!("Group {}", group_idx_counter)))));
+            page.connect_all_entries_valid(clone!(@weak self as this => move |page, all_valid| {
+                    {
+                        let mut erroneous_groups = this.erroneous_groups.borrow_mut();
+                        match all_valid {
+                            true => erroneous_groups.remove(page),
+                            false => erroneous_groups.insert(page.clone()),
+                        };
+                    }
+                    this.obj().emit_all_entries_valid(this.are_all_entries_valid());
+            }));
+
+            let center_box = CenterBox::builder().hexpand(true).focusable(false).build();
+            let group_name_buffer = EntryBuffer::new(Some(&format!("Group {}", group_idx_counter)));
+            let group_name_entry = Entry::builder()
+                .buffer(&group_name_buffer)
+                .hexpand(true)
+                .max_width_chars(16)
+                .width_chars(8)
+                .build();
+
+            group_name_entry.connect_text_notify(clone!(@weak self as this => move |entry| {
+                let mut erroneous_base_infos = this.erroneous_group_names.borrow_mut();
+                // show error when disallowed characters are entered
+                if !entry.text().chars().all(|c| is_valid_name_character(c)) {
+                    if !entry.css_classes().contains(&"error".into()) {
+                        entry.error_bell();
+                    }
+                    entry.add_css_class("error");
+                    erroneous_base_infos.insert(entry.buffer());
+                    drop(erroneous_base_infos);
+                    this.obj().emit_all_entries_valid(this.are_all_entries_valid());
+                } else if erroneous_base_infos.contains(&entry.buffer()) {
+                    // text is valid, reset possibly set error marker
+                    entry.remove_css_class("error");
+                    erroneous_base_infos.remove(&entry.buffer());
+                    drop(erroneous_base_infos);
+                    this.obj().emit_all_entries_valid(this.are_all_entries_valid());
+                }
+            }));
+
+            center_box.set_start_widget(Some(&group_name_entry));
 
             // add button to be able to remove this group from the notebook
-            let button = Button::from_icon_name("list-remove");
+            let button = Button::builder().icon_name("list-remove").focusable(false).build();
             button.add_css_class("group_remove");
-            button.connect_clicked(clone!(@weak notebook, @weak page => move |_| {
+            button.connect_clicked(clone!(@weak self as this, @weak notebook, @weak page => move |_| {
                 if notebook.n_pages() > 1 {
                     let page_pos = notebook.page_num(&page).unwrap();
+                    // remove page & group name buffer
                     notebook.remove_page(Some(page_pos));
+                    this.groups.borrow_mut().remove(page_pos as usize);
+
                     if notebook.n_pages() == 1 {
                         // only one group page left, cannot be removed => disable remove button of this widget
                         let page = notebook.nth_page(Some(0)).unwrap();
@@ -336,7 +468,7 @@ mod inner {
                     }
                 }
             }));
-            label.set_end_widget(Some(&button));
+            center_box.set_end_widget(Some(&button));
 
             // if no page is available, the remove button should not be active
             if notebook.n_pages() == 0 {
@@ -350,9 +482,20 @@ mod inner {
                 tab_label.last_child().unwrap().set_sensitive(true);
             }
 
-            notebook.append_page(&page, Some(&label));
-            self.group_idx_counter.set(group_idx_counter + 1);
+            notebook.append_page(&page, Some(&center_box));
+
+            center_box.parent().unwrap().set_focusable(false);
+            self.groups.borrow_mut().push(Group {
+                name_buffer: group_name_buffer,
+                page,
+            });
         }
+    }
+
+    #[derive(Debug)]
+    struct Group {
+        name_buffer: EntryBuffer,
+        page: GroupPage,
     }
 }
 
@@ -365,8 +508,28 @@ impl BaseInformationScreen {
     pub fn new() -> Self {
         glib::Object::new::<Self>()
     }
+
+    pub fn connect_all_entries_valid<F: Fn(&Self, bool) + 'static>(&self, f: F) {
+        self.connect_closure(
+            "all-entries-valid",
+            true,
+            closure_local!(move |page: &Self, all_entries_valid: bool| {
+                f(page, all_entries_valid);
+            }),
+        );
+    }
+
+    ///
+    /// Emits a signal whether all entries contains valid text.
+    ///
+    pub fn emit_all_entries_valid(&self, all_entries_valid: bool) {
+        let _: () = self.emit_by_name("all-entries-valid", &[&all_entries_valid.to_value()]);
+    }
 }
 
+///
+/// Returns whether a character is a valid character in a group/team name or in any base information.
+///
 pub fn is_valid_name_character(c: char) -> bool {
     c.is_ascii_lowercase() || c.is_ascii_uppercase() || c.is_ascii_whitespace() || c.is_ascii_digit() || c == '-'
 }
