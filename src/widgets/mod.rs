@@ -1,5 +1,6 @@
 mod common;
 pub mod enter_results;
+pub mod fix_indexed_list;
 pub mod group_overview;
 pub mod group_screen;
 pub mod home_screen;

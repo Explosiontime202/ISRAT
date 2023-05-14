@@ -123,8 +123,6 @@ mod inner {
     }
 
     impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> ObjectSubclass for NavBar<CategoryT> {
-        // NavBar<CategoryT::NAME>
-        // const NAME: &'static str = concatcp!("NavBar<", , ">");
         const NAME: &'static str = CategoryT::NAV_BAR_NAME;
         type Type = super::NavBar<CategoryT>;
         type ParentType = gtk4::Widget;
