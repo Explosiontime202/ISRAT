@@ -55,6 +55,15 @@ Copy the dependencies to the build folder of ISRAT (replace `[path_to_israt]` wi
 cp -r ./vcpkg [path_to_israt]/target/vcpkg
 ```
 
+Now we need to install gtk and it's components. We use [gvsbuild](https://github.com/wingtk/gvsbuild) which needs to be installed.
+Therefore please follow to the installation guide on the Github page.
+
+After the installation of `gvsbuild` you can build `gtk` and `libadwaita`:
+```sh
+gvsbuild build gtk
+gvsbuild build libadwaita
+```
+
 Now you can build ISRAT:
 
 ```sh
