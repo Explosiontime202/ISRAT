@@ -451,9 +451,10 @@ mod inner {
             center_box.set_start_widget(Some(&group_name_entry));
 
             // add button to be able to remove this group from the notebook
-            let button = Button::builder().icon_name("list-remove").focusable(false).build();
-            button.add_css_class("group_remove");
-            button.connect_clicked(clone!(@weak self as this, @weak notebook, @weak page => move |_| {
+            let remove_button = Button::builder().icon_name("list-remove").focusable(false).build();
+            remove_button.add_css_class("group_remove");
+            let group_name_buffer = group_name_entry.buffer();
+            remove_button.connect_clicked(clone!(@weak self as this, @weak notebook, @weak page, @weak group_name_buffer => move |_| {
                 if notebook.n_pages() > 1 {
                     let page_pos = notebook.page_num(&page).unwrap();
                     // remove page & group name buffer
@@ -466,13 +467,17 @@ mod inner {
                         let tab_label = notebook.tab_label(&page).unwrap();
                         tab_label.last_child().unwrap().set_sensitive(false);
                     }
+
+                    this.erroneous_groups.borrow_mut().remove(&page);
+                    this.erroneous_group_names.borrow_mut().remove(&group_name_buffer);
+                    this.obj().emit_all_entries_valid(this.are_all_entries_valid());
                 }
             }));
-            center_box.set_end_widget(Some(&button));
+            center_box.set_end_widget(Some(&remove_button));
 
             // if no page is available, the remove button should not be active
             if notebook.n_pages() == 0 {
-                button.set_sensitive(false);
+                remove_button.set_sensitive(false);
             }
 
             // re-enable remove button of other tab if previously only one group page was available
