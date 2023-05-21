@@ -10,8 +10,8 @@ use gdk4::glib::{
 };
 use gdk4::{ContentFormats, ContentProvider, DragAction};
 use gtk4::{
-    glib, prelude::*, subclass::prelude::*, Box as GtkBox, Button, CenterBox, DragSource, DropTarget, Image, Label, ListBox, ListBoxRow, Orientation,
-    ScrolledWindow, SelectionMode, Widget, WidgetPaintable,
+    glib, prelude::*, subclass::prelude::*, Box as GtkBox, Button, CenterBox, DragSource, DropTarget, Image, Label, LayoutManager, ListBox,
+    ListBoxRow, Orientation, ScrolledWindow, SelectionMode, Widget, WidgetPaintable,
 };
 use std::{
     cell::{Cell, RefCell},
@@ -31,8 +31,6 @@ pub enum RotateDirection {
 }
 
 mod inner {
-    use gtk4::LayoutManager;
-
     use super::*;
 
     #[derive(Debug)]
@@ -73,7 +71,7 @@ mod inner {
             }
         }
     }
-    
+
     // ----- begin of macro expansion of glib::object_subclass -----
     unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> ObjectSubclassType for FixIndexedList<DataType> {
         #[inline]
@@ -172,7 +170,6 @@ mod inner {
     }
     // ----- end of macro expansion of glib::object_subclass -----
 
-
     impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> ObjectImpl for FixIndexedList<DataType> {
         fn constructed(&self) {
             self.parent_constructed();
@@ -263,18 +260,19 @@ mod inner {
             // request a new data widget from the using widget
             let data_widget = self.obj().emit_create_data_widget(data.get_data());
 
-            let remove_button = Button::builder().icon_name("list-remove").focusable(false).build();
-
             row.append(&dnd_icon);
             row.append(&number_label);
             row.append(&data_widget);
-            row.append(&remove_button);
 
             let list_box_row = ListBoxRow::builder().child(&row).focusable(false).build();
 
-            remove_button.connect_clicked(clone!(@weak self as this, @weak list_box_row => move |_| {
-                this.remove_row(list_box_row.index() as u32);
-            }));
+            if self.allow_count_changes.get() {
+                let remove_button = Button::builder().icon_name("list-remove").focusable(false).build();
+                remove_button.connect_clicked(clone!(@weak self as this, @weak list_box_row => move |_| {
+                    this.remove_row(list_box_row.index() as u32);
+                }));
+                row.append(&remove_button);
+            }
 
             drag_source.connect_prepare(clone!(@weak data, @weak row => @default-panic, move |drag_source, x, y| {
                 drag_source.set_icon(Some(&WidgetPaintable::new(Some(&row))), x as i32, y as i32);
@@ -456,7 +454,15 @@ mod inner {
         fn append_row(&self) {
             assert!(self.allow_count_changes.get());
             let data_obj = self.obj().emit_create_data_object();
-            self.model.append(data_obj);
+            self.append_row_with_object(data_obj);
+        }
+
+        ///
+        /// Adds a new row to the list. The signal "create-data-object" is not emitted, but the given object is used.
+        /// Emits the signal "row-count".
+        ///
+        pub fn append_row_with_object(&self, data_object: DataType) {
+            self.model.append(data_object);
             self.obj().emit_row_count(self.model.n_items());
         }
 
@@ -476,7 +482,7 @@ mod inner {
 
         ///
         /// Sets `allow_count_changes` and creates the append row button if set to `true`.
-        /// 
+        ///
         pub fn set_allow_count_changes(&self, allow_count_changes: bool) {
             self.allow_count_changes.set(allow_count_changes);
             if allow_count_changes {
@@ -486,7 +492,7 @@ mod inner {
 
         ///
         /// Creates the append row button. Uses the signal "create-append-widget" to get the label of the append button.
-        /// 
+        ///
         fn setup_append_row_button(&self) {
             let append_center_box = CenterBox::builder().css_name("team_add_center").build();
             let append_team_button = Button::builder().child(&append_center_box).focusable(false).build();
@@ -511,16 +517,32 @@ mod inner {
 
 // The implementation is above the struct definition in order to keep the actual important part visible and not hidden in the mess below.
 impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> FixIndexedList<DataType> {
+    ///
+    /// Before any widget is appended, the signal "create-data-widget" must be connected!
+    ///
     pub fn new() -> Self {
         Object::new::<Self>()
+    }
+
+    ///
+    /// Creates a FixIndexedList with the given objects.
+    /// `create_data_widgets_func` is connected to the signal "create-data-widget".
+    ///
+    pub fn with_default_objects<F: Fn(&Self, &DataType) -> Widget + 'static>(data_objects: Vec<DataType>, create_data_widgets_func: F) -> Self {
+        let obj = Self::new();
+        obj.connect_create_data_widget(create_data_widgets_func);
+        for data_object in data_objects {
+            obj.imp().append_row_with_object(data_object);
+        }
+        obj
     }
 
     ///
     /// `allow_count_changes` specifies whether rows can be appended and removed.
     /// The according widgets are shown or not.
     /// The default value is false.
-    /// 
-    /// If setting `true`, this method has to be called **after** `connect_create_append_widget` 
+    ///
+    /// If setting `true`, this method has to be called **after** `connect_create_append_widget`
     /// in order to be able to create the widget for the append button.
     ///
     #[inline]

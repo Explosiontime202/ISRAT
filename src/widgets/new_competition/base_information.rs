@@ -118,7 +118,12 @@ mod inner {
         }
 
         fn signals() -> &'static [Signal] {
-            static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| vec![Signal::builder("all-entries-valid").param_types([bool::static_type()]).build()]);
+            static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
+                vec![
+                    Signal::builder("all-entries-valid").param_types([bool::static_type()]).build(),
+                    Signal::builder("next-screen").build(),
+                ]
+            });
             SIGNALS.as_ref()
         }
     }
@@ -173,9 +178,12 @@ mod inner {
             next_button.connect_clicked(clone!(@weak self as this => move |_button| {
                 // button is only enabled if all entries are valid, no checks here necessary
                 // we can just switch to the next screen
-                // TODO: implement
-                todo!();
+                debug_assert!(this.are_all_entries_valid());
+                this.obj().emit_next_screen();
             }));
+
+            // set next button not sensitive by default
+            next_button.set_sensitive(false);
 
             self.obj().connect_all_entries_valid(clone!(@weak next_button => move |_, all_valid| {
                 next_button.set_sensitive(all_valid);
@@ -454,25 +462,27 @@ mod inner {
             let remove_button = Button::builder().icon_name("list-remove").focusable(false).build();
             remove_button.add_css_class("group_remove");
             let group_name_buffer = group_name_entry.buffer();
-            remove_button.connect_clicked(clone!(@weak self as this, @weak notebook, @weak page, @weak group_name_buffer => move |_| {
-                if notebook.n_pages() > 1 {
-                    let page_pos = notebook.page_num(&page).unwrap();
-                    // remove page & group name buffer
-                    notebook.remove_page(Some(page_pos));
-                    this.groups.borrow_mut().remove(page_pos as usize);
+            remove_button.connect_clicked(
+                clone!(@weak self as this, @weak notebook, @weak page, @weak group_name_buffer => move |_| {
+                    if notebook.n_pages() > 1 {
+                        let page_pos = notebook.page_num(&page).unwrap();
+                        // remove page & group name buffer
+                        notebook.remove_page(Some(page_pos));
+                        this.groups.borrow_mut().remove(page_pos as usize);
 
-                    if notebook.n_pages() == 1 {
-                        // only one group page left, cannot be removed => disable remove button of this widget
-                        let page = notebook.nth_page(Some(0)).unwrap();
-                        let tab_label = notebook.tab_label(&page).unwrap();
-                        tab_label.last_child().unwrap().set_sensitive(false);
+                        if notebook.n_pages() == 1 {
+                            // only one group page left, cannot be removed => disable remove button of this widget
+                            let page = notebook.nth_page(Some(0)).unwrap();
+                            let tab_label = notebook.tab_label(&page).unwrap();
+                            tab_label.last_child().unwrap().set_sensitive(false);
+                        }
+
+                        this.erroneous_groups.borrow_mut().remove(&page);
+                        this.erroneous_group_names.borrow_mut().remove(&group_name_buffer);
+                        this.obj().emit_all_entries_valid(this.are_all_entries_valid());
                     }
-
-                    this.erroneous_groups.borrow_mut().remove(&page);
-                    this.erroneous_group_names.borrow_mut().remove(&group_name_buffer);
-                    this.obj().emit_all_entries_valid(this.are_all_entries_valid());
-                }
-            }));
+                }),
+            );
             center_box.set_end_widget(Some(&remove_button));
 
             // if no page is available, the remove button should not be active
@@ -518,8 +528,18 @@ impl BaseInformationScreen {
         self.connect_closure(
             "all-entries-valid",
             true,
-            closure_local!(move |page: &Self, all_entries_valid: bool| {
-                f(page, all_entries_valid);
+            closure_local!(move |base_info_screen: &Self, all_entries_valid: bool| {
+                f(base_info_screen, all_entries_valid);
+            }),
+        );
+    }
+
+    pub fn connect_next_screen<F: Fn(&Self) + 'static>(&self, f: F) {
+        self.connect_closure(
+            "next-screen",
+            true,
+            closure_local!(move |base_info_screen: &Self| {
+                f(base_info_screen);
             }),
         );
     }
@@ -527,8 +547,17 @@ impl BaseInformationScreen {
     ///
     /// Emits a signal whether all entries contains valid text.
     ///
+    #[inline]
     pub fn emit_all_entries_valid(&self, all_entries_valid: bool) {
         let _: () = self.emit_by_name("all-entries-valid", &[&all_entries_valid.to_value()]);
+    }
+
+    ///
+    /// Emits a signal which tells that the next button was pressed and the next screen should be shown.
+    ///
+    #[inline]
+    pub fn emit_next_screen(&self) {
+        let _: () = self.emit_by_name("next-screen", &[]);
     }
 }
 

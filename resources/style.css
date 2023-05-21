@@ -267,3 +267,12 @@ row button {
 row button:hover {
     background-color: #292929;
 }
+
+team_selector_box,
+player_name_box {
+    margin: 25px;
+}
+
+row:selected {
+    background-color: #d65307;
+}
