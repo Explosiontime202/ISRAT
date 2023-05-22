@@ -1,15 +1,20 @@
-use crate::widgets::navbar::{NavBar, NavBarCategoryTrait};
+use crate::{
+    data::CompetitionData,
+    widgets::navbar::{NavBar, NavBarCategoryTrait},
+    ProgramState,
+};
 use gdk4::glib::{self, clone};
 use gtk4::{traits::*, Application, ApplicationWindow};
+use std::{cell::RefCell, rc::Rc};
 
 use self::{base_information::BaseInformationScreen, team_information::TeamInformationScreen};
 
 mod base_information;
 mod group_page;
-mod team_information;
 mod group_team_object;
+mod team_information;
 
-pub fn create_new_competition_screen(application: &Application) {
+pub fn create_new_competition_screen(application: &Application, program_state: &Rc<ProgramState>) {
     let window = ApplicationWindow::builder()
         .application(application)
         .default_width(1280)
@@ -20,22 +25,31 @@ pub fn create_new_competition_screen(application: &Application) {
         .build();
     window.present();
 
+    let new_competition: Rc<RefCell<CompetitionData>> = Rc::default();
+    // *new_competition.borrow_mut() = program_state.competition.read().unwrap().data.as_ref().unwrap().clone();
+
     let nav_bar = NavBar::<NewScreenNavBarCategory>::with_use_separators(false);
 
     // add screens
-    let base_information = BaseInformationScreen::new();
+    let base_information = BaseInformationScreen::new(&new_competition);
     nav_bar.add_child(
         &base_information,
         "Base Information".to_string(),
         NewScreenNavBarCategory::BaseInformation,
     );
 
-    let team_information = TeamInformationScreen::new();
+    let team_information = TeamInformationScreen::new(&new_competition);
     nav_bar.add_child(
         &team_information,
         "Team Information".to_string(),
         NewScreenNavBarCategory::TeamInformation,
     );
+
+    nav_bar.connect_show_child_before(clone!(@weak team_information => move |_, child| {
+        if &team_information == child {
+            team_information.reload();
+        }
+    }));
 
     // hide TeamInformation by default
     nav_bar.hide_category(NewScreenNavBarCategory::TeamInformation);

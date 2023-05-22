@@ -49,8 +49,9 @@ fn test_read_write() {
         additional_text: String::from("Der SV Musterverein bedankt sich für die Teilnahme\nund wünscht ein sichere Heimreise!"),
         count_teams: 20,
         count_groups: 2,
+        count_batches: vec![],
         team_distribution: [2, 10],
-        teams: Some(vec![
+        teams: vec![
             vec![
                 Team {
                     name: String::from("Musterteam A"),
@@ -321,8 +322,8 @@ fn test_read_write() {
                     ],
                 },*/
             ],
-        ]),
-        group_names: Some(vec![String::from("Gruppe BLAU"), String::from("Gruppe ROT")]),
+        ],
+        group_names: vec![String::from("Gruppe BLAU"), String::from("Gruppe ROT")],
         matches: vec![],
         current_batch: vec![1, 0],
         with_break: true,
@@ -350,20 +351,17 @@ fn test_read_write() {
     debug_assert_eq!(data.additional_text, read_data.additional_text);
     debug_assert_eq!(data.count_teams, read_data.count_teams);
     debug_assert_eq!(data.team_distribution, read_data.team_distribution);
-    debug_assert_eq!(data.teams.is_none(), read_data.teams.is_none());
-    if let Some(data_teams) = data.teams.as_ref() {
-        if let Some(read_teams) = read_data.teams.as_ref() {
-            debug_assert_eq!(data_teams.len(), read_teams.len());
-            data_teams.iter().zip(read_teams.iter()).for_each(|(data_group, read_group)| {
-                debug_assert_eq!(data_group.len(), read_group.len());
-                data_group.iter().zip(read_group.iter()).for_each(|(data_team, read_team)| {
-                    debug_assert_eq!(data_team.name, read_team.name);
-                    debug_assert_eq!(data_team.region, read_team.region);
-                    debug_assert_eq!(data_team.player_names, read_team.player_names);
-                });
-            });
-        }
-    }
+    debug_assert_eq!(data.teams.len(), read_data.teams.len());
+    data.teams.iter().zip(read_data.teams.iter()).for_each(|(data_group, read_group)| {
+        debug_assert_eq!(data_group.len(), read_group.len());
+        data_group.iter().zip(read_group.iter()).for_each(|(data_team, read_team)| {
+            debug_assert_eq!(data_team.name, read_team.name);
+            debug_assert_eq!(data_team.region, read_team.region);
+            debug_assert_eq!(data_team.player_names, read_team.player_names);
+        });
+    });
+        
+    
     debug_assert_eq!(data.group_names, read_data.group_names);
     debug_assert_eq!(data.matches.len(), read_data.matches.len());
 

@@ -83,6 +83,8 @@ fn create_behavior_settings(program_state: &Rc<ProgramState>) -> Vec<Widget> {
     vec
 }
 
+// TODO: use gio::Settings
+
 fn create_language_setting() -> Widget {
     // TODO: Change language of GUI accordingly
     create_settings_selector("Language", &["EN", "DE"], |_, sel_idx, sel_option| {
@@ -157,7 +159,11 @@ fn create_auto_save_switch(interval_drop_down: DropDown, program_state: &Rc<Prog
             false => AutoSaveMsg::Stop,
         };
         match program_state_weak.upgrade() {
-            Some(program_state) => program_state.auto_save_channel.send(msg).unwrap(),
+            Some(program_state) => {
+                if let Some(auto_save_channel) = program_state.auto_save_channel.as_ref() {
+                    auto_save_channel.send(msg).unwrap();
+                }
+            }
             None => eprintln!("Cannot send msg to auto-save!"),
         }
     })
@@ -177,10 +183,13 @@ fn create_auto_save_interval_setting(program_state: &Rc<ProgramState>) -> Widget
     let test = auto_save_intervals.iter().map(|(s, _)| *s).collect::<Vec<&str>>();
     let program_state_weak = Rc::downgrade(program_state);
     create_settings_selector("Auto-save interval", &test, move |_, sel_idx, _| match program_state_weak.upgrade() {
-        Some(program_state) => program_state
-            .auto_save_channel
-            .send(AutoSaveMsg::Interval(auto_save_intervals[sel_idx as usize].1))
-            .unwrap(),
+        Some(program_state) => {
+            if let Some(auto_save_channel) = program_state.auto_save_channel.as_ref() {
+                auto_save_channel
+                    .send(AutoSaveMsg::Interval(auto_save_intervals[sel_idx as usize].1))
+                    .unwrap();
+            }
+        }
         None => eprintln!("Cannot send msg to auto-save!"),
     })
 }

@@ -233,13 +233,13 @@ pub struct CompetitionData {
     pub additional_text: String,
     pub count_teams: u32,
     pub count_groups: u32,
-    pub count_batches: Vec<u32>,          // count of batches per group
-    pub team_distribution: [u32; 2],      // count_groups x count_teams_per_group
-    pub teams: Option<Vec<Vec<Team>>>,    // for each group a vector of teams, ordered by ids
-    pub group_names: Option<Vec<String>>, // a vector of the group names, ordered by id
-    pub matches: Vec<Vec<Match>>,         // a Match vector for each group
-    pub current_batch: Vec<u32>,          // the current batch of matches played for each group
-    pub with_break: bool,                 // defines whether theres a break for the teams, only important for a even team count
+    pub count_batches: Vec<u32>,     // count of batches per group
+    pub team_distribution: [u32; 2], // count_groups x count_teams_per_group
+    pub teams: Vec<Vec<Team>>,       // for each group a vector of teams, ordered by ids
+    pub group_names: Vec<String>,    // a vector of the group names, ordered by id
+    pub matches: Vec<Vec<Match>>,    // a Match vector for each group
+    pub current_batch: Vec<u32>,     // the current batch of matches played for each group
+    pub with_break: bool,            // defines whether theres a break for the teams, only important for a even team count
 }
 
 impl Default for CompetitionData {
@@ -264,8 +264,8 @@ impl CompetitionData {
             count_groups: 0,
             count_batches: vec![],
             team_distribution: [0, 0],
-            teams: None,
-            group_names: None,
+            teams: vec![],
+            group_names: vec![],
             matches: vec![],
             current_batch: vec![],
             with_break: true,
@@ -273,14 +273,14 @@ impl CompetitionData {
     }
 
     fn calc_all_interim_result(&mut self) -> Vec<Option<Vec<InterimResultEntry>>> {
-        (0..self.teams.as_ref().unwrap().len())
+        (0..self.teams.len())
             .map(|group_idx| Some(self.calc_interim_result_for_group(group_idx)))
             .collect()
     }
 
     pub fn calc_interim_result_for_group(&self, group_idx: usize) -> Vec<InterimResultEntry> {
         // create table with entries for all teams in this group
-        let group_size = self.teams.as_ref().unwrap()[group_idx].len();
+        let group_size = self.teams[group_idx].len();
         let mut table: Vec<InterimResultEntry> = (0..group_size)
             .map(|team_idx| InterimResultEntry {
                 team_idx,
@@ -382,7 +382,7 @@ impl CompetitionData {
 
     pub fn teams_on_break_for_group(&self, group_idx: usize) -> Vec<&Team> {
         let current_batch = self.current_batch[group_idx];
-        let teams = &self.teams.as_ref().unwrap()[group_idx];
+        let teams = &self.teams[group_idx];
         self.matches[group_idx]
             .iter()
             .filter(|&match_| match_.result == MatchResult::Break)
@@ -605,9 +605,9 @@ impl CompetitionData {
         let mut count_teams_without_name = 0;
         let mut previous_new_page = true; // determines whether the header is printed, for first team true
 
-        let groups = self.group_names.as_ref().unwrap().iter().enumerate().map(|(group_idx, group_name)| {
+        let groups = self.group_names.iter().enumerate().map(|(group_idx, group_name)| {
             assert!(current_interim_result[group_idx].is_some());
-            let team_names = &self.teams.as_ref().unwrap()[group_idx];
+            let team_names = &self.teams[group_idx];
             let group_result = current_interim_result[group_idx].as_ref().unwrap().iter().enumerate().map(|(rank, i_res)| {
                 let team = &team_names[i_res.team_idx];
                 let display_player_names = rank < player_names_until;
@@ -721,13 +721,8 @@ impl CompetitionData {
 
         let mut previous_new_page = true; // determines whether the header is printed, for first team true
 
-        assert!(self.group_names.is_some());
-        assert!(self.teams.is_some());
-
         let groups = self
             .teams
-            .as_ref()
-            .unwrap()
             .iter()
             .enumerate()
             .map(|(group_idx, teams_in_group)| {
@@ -765,7 +760,7 @@ impl CompetitionData {
             {}
         ",
                     if previous_new_page { header.as_str() } else { "" },
-                    self.group_names.as_ref().unwrap()[group_idx],
+                    self.group_names[group_idx],
                     group_result,
                     if self.team_distribution[1] > 15 {
                         previous_new_page = true;
@@ -813,7 +808,7 @@ impl CompetitionData {
     }
 
     fn get_team_match_plans_as_latex(&self) -> String {
-        let matchplans = self.teams.as_ref().unwrap().iter().enumerate().map(|(group_idx, group)| {
+        let matchplans = self.teams.iter().enumerate().map(|(group_idx, group)| {
             format!("
                 {}
                 ",
@@ -845,7 +840,7 @@ impl CompetitionData {
                                 format!("{}{}", if start_of_match {"@"} else {""}, opponent_idx + 1),
                                 _match.lane + 1,
                                 _match.team_a + 1,
-                                self.teams.as_ref().unwrap()[group_idx][opponent_idx].name
+                                self.teams[group_idx][opponent_idx].name
                                 )
                             }
                         }).collect::<Vec<String>>().join(r"\hline");
@@ -913,13 +908,13 @@ impl CompetitionData {
             .iter()
             .enumerate()
             .map(|(group_idx, group_matches)| {
-                let group_name = &self.group_names.as_ref().unwrap()[group_idx];
+                let group_name = &self.group_names[group_idx];
                 group_matches
                 .iter()
                 .filter(|&_match| _match.result != MatchResult::Break)
                 .map(|_match| {
-                    let team_a_name = &self.teams.as_ref().unwrap()[group_idx][_match.team_a].name;
-                    let team_b_name = &self.teams.as_ref().unwrap()[group_idx][_match.team_b].name;
+                    let team_a_name = &self.teams[group_idx][_match.team_a].name;
+                    let team_b_name = &self.teams[group_idx][_match.team_b].name;
                     format!(
 r"
     \LARGE
@@ -993,59 +988,53 @@ r"
     }
 
     fn get_as_json_string(&self) -> String {
-        let teams = if let Some(teams_vec) = self.teams.as_ref() {
-            teams_vec
-                .iter()
-                .map(|group| {
-                    format!(
-                        r"[
+        let teams = self
+            .teams
+            .iter()
+            .map(|group| {
+                format!(
+                    r"[
             {}
         ]",
-                        group
-                            .iter()
-                            .map(|team| {
-                                format!(
-                                    r#"{{
+                    group
+                        .iter()
+                        .map(|team| {
+                            format!(
+                                r#"{{
                 "name": "{}",
                 "region": "{}",
                 "player_names": [
                     {}
                 ]
             }}"#,
-                                    &team.name,
-                                    &team.region,
-                                    team.player_names
-                                        .iter()
-                                        .map(|player_name_opt| {
-                                            if let Some(player_name) = player_name_opt {
-                                                format!("\"{player_name}\"")
-                                            } else {
-                                                String::from("null")
-                                            }
-                                        })
-                                        .collect::<Vec<String>>()
-                                        .join(",\n                    ")
-                                )
-                            })
-                            .collect::<Vec<String>>()
-                            .join(",\n            ")
-                    )
-                })
-                .collect::<Vec<String>>()
-                .join(",\n        ")
-        } else {
-            String::from("")
-        };
+                                &team.name,
+                                &team.region,
+                                team.player_names
+                                    .iter()
+                                    .map(|player_name_opt| {
+                                        if let Some(player_name) = player_name_opt {
+                                            format!("\"{player_name}\"")
+                                        } else {
+                                            String::from("null")
+                                        }
+                                    })
+                                    .collect::<Vec<String>>()
+                                    .join(",\n                    ")
+                            )
+                        })
+                        .collect::<Vec<String>>()
+                        .join(",\n            ")
+                )
+            })
+            .collect::<Vec<String>>()
+            .join(",\n        ");
 
-        let group_names = if let Some(group_names) = self.group_names.as_ref() {
-            group_names
-                .iter()
-                .map(|group_name| format!("\"{group_name}\""))
-                .collect::<Vec<String>>()
-                .join(",\n        ")
-        } else {
-            String::from("")
-        };
+        let group_names = self
+            .group_names
+            .iter()
+            .map(|group_name| format!("\"{group_name}\""))
+            .collect::<Vec<String>>()
+            .join(",\n        ");
 
         let matches = self
             .matches

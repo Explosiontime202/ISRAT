@@ -1,3 +1,4 @@
+use crate::data::CompetitionData;
 use crate::widgets::{fix_indexed_list::FixIndexedList, new_competition::group_team_object::GroupTeamObject, tile::Tile};
 use gdk4::{
     gio::ListStore,
@@ -12,6 +13,7 @@ use gtk4::{
     StringObject, Widget,
 };
 use std::cell::RefCell;
+use std::rc::Rc;
 
 mod inner {
     use super::*;
@@ -23,17 +25,24 @@ mod inner {
         player_name_buffer: Vec<EntryBuffer>,
         selected_team_obj: RefCell<Option<GroupTeamObject>>,
         selected_group: RefCell<Option<String>>,
+        new_competition_data: RefCell<Rc<RefCell<CompetitionData>>>,
+        team_model: ListStore,
+        group_model: StringList,
     }
 
     impl Default for TeamInformationScreen {
         fn default() -> Self {
             let player_name_buffer: Vec<EntryBuffer> = (0..6).map(|_| EntryBuffer::new(None::<&str>)).collect();
+            let team_name_model = ListStore::new(GroupTeamObject::static_type());
 
             Self {
                 tile: Tile::new("Team Information"),
                 player_name_buffer,
                 selected_team_obj: RefCell::new(None),
                 selected_group: RefCell::new(None),
+                new_competition_data: RefCell::default(),
+                team_model: team_name_model,
+                group_model: StringList::default(),
             }
         }
     }
@@ -112,6 +121,7 @@ mod inner {
             team_selector_box.append(&search_box);
 
             let team_selector_list = ListBox::builder().selection_mode(gtk4::SelectionMode::Single).build();
+            // TODO: retrieve model on show
             let model = self.setup_team_model(&search_entry, &team_selector_list, &group_selector);
 
             team_selector_list.bind_model(
@@ -134,6 +144,9 @@ mod inner {
                     }
                 }
             }));
+
+            // default select first item
+            team_selector_list.select_row(team_selector_list.row_at_index(0).as_ref());
 
             team_selector_box.append(&team_selector_list);
 
@@ -171,8 +184,8 @@ mod inner {
         fn create_group_selector(&self) -> DropDown {
             // TODO: Maybe replace by list of checkboxes to allow the user to select more than one group, but not all.
 
-            let group_model = self.setup_group_model();
-            let group_selector = DropDown::builder().model(&group_model).build();
+            self.setup_group_model();
+            let group_selector = DropDown::builder().model(&self.group_model).build();
 
             let group_selector_factory = {
                 let factory = SignalListItemFactory::new();
@@ -264,14 +277,6 @@ mod inner {
         /// Requires `search_entry`, `group_selector` and `list_box` to connect signals.
         ///
         fn setup_team_model(&self, search_entry: &SearchEntry, list_box: &ListBox, group_selector: &DropDown) -> FilterListModel {
-            // retrieve the teams with their group and insert them into a ListStore
-            let team_names = self.retrieve_team_names();
-            let list_store = ListStore::new(GroupTeamObject::static_type());
-
-            for (group_name, team_name) in team_names {
-                list_store.append(&GroupTeamObject::new(group_name.into(), team_name.into()))
-            }
-
             // filter by team names, i.e. by what was typed in the search entry
             let team_name_filter = {
                 let team_name_expression = PropertyExpression::new(GroupTeamObject::static_type(), Expression::NONE, "team-name");
@@ -334,7 +339,7 @@ mod inner {
             filter.append(team_name_filter.clone());
             filter.append(group_name_filter);
 
-            let model = FilterListModel::new(Some(list_store), Some(filter.clone()));
+            let model = FilterListModel::new(Some(self.team_model.clone()), Some(filter.clone()));
 
             // when the filter has changed, check whether the previously selected row passes through the filter and mark it as selected
             filter.connect_changed(clone!(@weak self as this, @weak filter, @weak list_box, @weak model => move |_, _| {
@@ -361,24 +366,40 @@ mod inner {
             model
         }
 
-        fn setup_group_model(&self) -> StringList {
-            let mut group_names = self.retrieve_group_names();
-
-            // add possibility to select all groups
-            group_names.insert(0, Self::ALL_GROUPS_SELECTOR_STR);
-
-            let string_list = StringList::new(&group_names);
-            string_list
+        fn setup_group_model(&self) {
+            // insert select all groups marker
+            self.group_model.append(Self::ALL_GROUPS_SELECTOR_STR);
         }
 
-        fn retrieve_team_names(&self) -> Vec<(&str, &str)> {
-            // TODO: Actually get the real team names
-            vec![("Group A", "SV Musterverein"), ("Group B", "TuS Test"), ("Group A", "DJK Pfosten")]
+        pub fn reload(&self) {
+            // remove all items from team model
+            for idx in (1..self.team_model.n_items()).rev() {
+                self.team_model.remove(idx);
+            }
+
+            // remove all items from group model (except all groups selector)
+            for idx in (1..self.group_model.n_items()).rev() {
+                self.group_model.remove(idx);
+            }
+
+            // and insert new teams & groups
+            let new_competition_data = self.new_competition_data.borrow();
+            let data = new_competition_data.borrow();
+            for (group_idx, group_teams) in data.teams.iter().enumerate() {
+                let group_name = &data.group_names[group_idx];
+                for team in group_teams.iter() {
+                    self.team_model.append(&GroupTeamObject::new(group_name.clone(), team.name.clone()))
+                }
+            }
+
+            for name in data.group_names.iter() {
+                self.group_model.append(&name);
+            }
+            
         }
 
-        fn retrieve_group_names(&self) -> Vec<&str> {
-            // TODO: Actually get real group names
-            vec!["Group A", "Group B"]
+        pub fn set_program_state(&self, data: Rc<RefCell<CompetitionData>>) {
+            *self.new_competition_data.borrow_mut() = data;
         }
     }
 }
@@ -389,8 +410,10 @@ glib::wrapper! {
 }
 
 impl TeamInformationScreen {
-    pub fn new() -> Self {
-        glib::Object::new::<Self>()
+    pub fn new(competition_data: &Rc<RefCell<CompetitionData>>) -> Self {
+        let obj = glib::Object::new::<Self>();
+        obj.imp().set_program_state(Rc::clone(competition_data));
+        obj
     }
 
     #[inline]
@@ -407,5 +430,9 @@ impl TeamInformationScreen {
     #[inline]
     fn emit_selected_team(&self, selected_team: String) {
         let _: () = self.emit_by_name("selected-team", &[&selected_team]);
+    }
+
+    pub fn reload(&self) {
+        self.imp().reload();
     }
 }

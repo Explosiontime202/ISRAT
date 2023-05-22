@@ -186,9 +186,9 @@ mod inner {
             let data = competition.data.as_ref().unwrap();
 
             // use possibly new group name
-            self.title.set_label(data.group_names.as_ref().unwrap()[group_idx].as_str());
+            self.title.set_label(data.group_names[group_idx].as_str());
 
-            let teams = &data.teams.as_ref().unwrap()[group_idx];
+            let teams = &data.teams[group_idx];
 
             let next_matches = data.next_matches_for_group(group_idx);
 

@@ -73,7 +73,7 @@ mod inner {
         }
 
         pub fn create_child_widgets(&self, program_state: &Rc<ProgramState>) {
-            let last_competitions = LastCompetitionsWidget::new();
+            let last_competitions = LastCompetitionsWidget::new(program_state);
             self.flow_box.insert(&last_competitions, -1);
 
             let quick_settings = QuickSettingsWidget::new(program_state);

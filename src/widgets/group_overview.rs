@@ -150,11 +150,11 @@ mod inner {
             let data = competition.data.as_ref().unwrap();
 
             // use possibly new group name
-            self.title.set_label(data.group_names.as_ref().unwrap()[group_idx].as_str());
+            self.title.set_label(data.group_names[group_idx].as_str());
 
             // calculate current interim result
             let interim_result = data.calc_interim_result_for_group(group_idx);
-            let teams = &data.teams.as_ref().unwrap()[group_idx];
+            let teams = &data.teams[group_idx];
 
             // update title of interim result table
             let new_interim_result_title = if data.current_batch[group_idx] == 0 {

@@ -46,7 +46,7 @@ fn main() -> glib::ExitCode {
     app.connect_startup(|_| load_css());
     let program_state = Rc::new(ProgramState {
         competition: Arc::clone(&competition),
-        auto_save_channel: auto_save_channel.clone(),
+        auto_save_channel: Some(auto_save_channel.clone()),
     });
     app.connect_activate(move |app| build_main_screen(app, Rc::clone(&program_state)));
 
@@ -124,7 +124,6 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, program_state: Rc<ProgramS
 
     {
         if let Some(data) = program_state.competition.read().unwrap().data.as_ref() {
-            assert!(data.group_names.is_some());
             let group_overview = GroupOverviewScreen::new(&program_state);
             nav_bar.add_child_with_callback(
                 &group_overview,
@@ -149,7 +148,7 @@ fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, program_state: Rc<ProgramS
                 clone!(@weak match_history => move |_, _, _| match_history.reload()),
             );
 
-            for (group_idx, group) in data.group_names.as_ref().unwrap().iter().enumerate() {
+            for (group_idx, group) in data.group_names.iter().enumerate() {
                 nav_bar.add_custom_nav_button(
                     group.as_str(),
                     MainNavBarCategory::GroupSelector,
@@ -200,7 +199,16 @@ impl NavBarCategoryTrait for MainNavBarCategory {
 #[derive(Debug)]
 pub struct ProgramState {
     competition: CompetitionPtr,
-    auto_save_channel: Sender<AutoSaveMsg>,
+    auto_save_channel: Option<Sender<AutoSaveMsg>>,
+}
+
+impl Default for ProgramState {
+    fn default() -> Self {
+        Self {
+            competition: Default::default(),
+            auto_save_channel: Default::default(),
+        }
+    }
 }
 
 // TODO: Remove for productive builds
@@ -228,7 +236,7 @@ fn initial_state() -> CompetitionPtr {
         count_groups: 2,
         count_batches: vec![],
         team_distribution: [2, 10],
-        teams: Some(vec![
+        teams: vec![
             vec![
                 Team {
                     name: String::from("Musterteam A"),
@@ -499,8 +507,8 @@ fn initial_state() -> CompetitionPtr {
                     ],
                 },*/
             ],
-        ]),
-        group_names: Some(vec![String::from("Gruppe BLAU"), String::from("Gruppe ROT")]),
+        ],
+        group_names: vec![String::from("Gruppe BLAU"), String::from("Gruppe ROT")],
         matches: vec![],
         current_batch: vec![1, 0],
         with_break: true,

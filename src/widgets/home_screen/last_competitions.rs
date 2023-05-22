@@ -1,11 +1,16 @@
-use crate::widgets::common::img_from_bytes;
 use crate::widgets::new_competition::create_new_competition_screen;
 use crate::widgets::tile::Tile;
+use crate::{widgets::common::img_from_bytes, ProgramState};
 use chrono::{DateTime, Local};
 use gdk4::{prelude::*, subclass::prelude::*};
-use gtk4::Window;
-use gtk4::{glib, subclass::widget::*, traits::*, Box as GtkBox, Button, Label, Widget};
+use gtk4::{
+    glib::{self, clone},
+    subclass::widget::*,
+    traits::*,
+    Box as GtkBox, Button, Label, Widget, Window,
+};
 use std::path::PathBuf;
+use std::{cell::RefCell, rc::Rc};
 
 mod inner {
     use super::*;
@@ -13,6 +18,7 @@ mod inner {
     #[derive(Debug)]
     pub struct LastCompetitionsWidget {
         tile: Tile,
+        data: RefCell<Rc<ProgramState>>,
     }
 
     impl Default for LastCompetitionsWidget {
@@ -58,14 +64,15 @@ mod inner {
                 new_button_v_box.append(&new_button_text);
 
                 let new_competition_button = Button::builder().child(&new_button_v_box).css_name("tile_button").build();
-                new_competition_button.connect_clicked(|button| {
+                new_competition_button.connect_clicked(clone!(@weak self as this => move |button| {
                     println!("New competition button clicked!");
                     let window = match button.root() {
                         Some(root) => root.downcast::<Window>().unwrap(),
                         None => return,
                     };
-                    create_new_competition_screen(window.application().as_ref().unwrap());
-                });
+                    let data = this.data.borrow();
+                    create_new_competition_screen(window.application().as_ref().unwrap(), &*data);
+                }));
 
                 vbox.append(&new_competition_button);
             }
@@ -86,6 +93,7 @@ mod inner {
         fn new() -> Self {
             Self {
                 tile: Tile::new("Last Competition"),
+                data: RefCell::default(),
             }
         }
 
@@ -114,9 +122,12 @@ mod inner {
             let hbox = GtkBox::new(gtk4::Orientation::Horizontal, 0);
 
             hbox.append(&vbox);
-            // hbox.append(&icon);
 
             hbox.into()
+        }
+
+        pub fn set_data(&self, data: Rc<ProgramState>) {
+            *self.data.borrow_mut() = data;
         }
     }
 }
@@ -127,12 +138,15 @@ glib::wrapper! {
 }
 
 impl LastCompetitionsWidget {
-    pub fn new() -> Self {
-        glib::Object::new::<Self>()
+    pub fn new(data: &Rc<ProgramState>) -> Self {
+        let obj = glib::Object::new::<Self>();
+        obj.imp().set_data(Rc::clone(data));
+        obj
     }
 }
 
 fn get_last_competitions() -> Vec<LastCompetition> {
+    // TODO: retrieve from backend, i.e. gio::Settings
     vec![
         LastCompetition {
             name: String::from("Sample Competition"),

@@ -1,16 +1,17 @@
-use gdk4::glib::clone;
-use gdk4::glib::once_cell::sync::Lazy;
 use gdk4::glib::{
+    clone,
     clone::Downgrade,
+    closure_local,
+    once_cell::sync::Lazy,
+    prelude::*,
+    subclass::prelude::*,
     subclass::{
         register_type,
         types::{self, FromObject},
-        ObjectImplRef, ObjectImplWeakRef, TypeData,
+        ObjectImplRef, ObjectImplWeakRef, Signal, TypeData,
     },
     Type,
 };
-use gdk4::prelude::*;
-use gdk4::subclass::prelude::*;
 use gtk4::{glib, subclass::widget::*, traits::*, Box as GtkBox, Button, Label, Separator, Stack, Widget};
 use std::collections::HashSet;
 use std::hash::Hash;
@@ -157,6 +158,27 @@ mod inner {
             self.navigation_box.unparent();
             for separator in &self.separators {
                 separator.unparent();
+            }
+        }
+
+        fn signals() -> &'static [Signal] {
+            // Caution: This differs massively from the "normal" way of defining `signals()`
+            // Setup signals for each CategoryT separately
+            static mut SIGNALS_MAP: Lazy<HashMap<&'static str, Vec<Signal>>> = Lazy::new(|| HashMap::new());
+
+            unsafe {
+                if !SIGNALS_MAP.contains_key(&CategoryT::NAME) {
+                    SIGNALS_MAP.insert(
+                        CategoryT::NAME,
+                        vec![
+                            // emitted just before a child is shown
+                            Signal::builder("show-child-before").param_types([Widget::static_type()]).build(),
+                            // emitted just after a child was shown
+                            Signal::builder("show-child-after").param_types([Widget::static_type()]).build(),
+                        ],
+                    );
+                }
+                &SIGNALS_MAP[&CategoryT::NAME]
             }
         }
     }
@@ -426,7 +448,10 @@ mod inner {
             };
 
             if has_child {
+                let child = self.stack.child_by_name(name).unwrap();
+                self.emit_show_child_before(&child);
                 self.stack.set_visible_child_name(name);
+                self.emit_show_child_after(&child);
             }
         }
 
@@ -665,6 +690,16 @@ mod inner {
         pub fn set_use_separators(&self, use_separators: bool) {
             self.use_separators.set(use_separators);
         }
+
+        #[inline]
+        fn emit_show_child_before(&self, child: &Widget) {
+            let _: () = self.obj().emit_by_name("show-child-before", &[child]);
+        }
+
+        #[inline]
+        fn emit_show_child_after(&self, child: &Widget) {
+            let _: () = self.obj().emit_by_name("show-child-after", &[child]);
+        }
     }
 
     ///
@@ -793,6 +828,32 @@ impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> NavBar<Catego
     ///
     pub fn get_selected_categories(&self) -> HashSet<CategoryT> {
         self.imp().get_selected_categories()
+    }
+
+    ///
+    /// Connect to the "show-child-before" signal.
+    /// Signal is emitted right before a child is shown.
+    ///
+    #[inline]
+    pub fn connect_show_child_before<F: Fn(&Self, &Widget) + 'static>(&self, f: F) {
+        self.connect_closure(
+            "show-child-before",
+            true,
+            closure_local!(move |nav_bar: &Self, child: Widget| { f(nav_bar, &child) }),
+        );
+    }
+
+    ///
+    /// Connect to the "show-child-after" signal.
+    /// Signal is emitted right after a child was shown.
+    ///
+    #[inline]
+    pub fn connect_show_child_after<F: Fn(&Self, &Widget) + 'static>(&self, f: F) {
+        self.connect_closure(
+            "show-child-after",
+            true,
+            closure_local!(move |nav_bar: &Self, child: Widget| { f(nav_bar, &child) }),
+        );
     }
 }
 

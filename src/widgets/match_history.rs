@@ -121,10 +121,10 @@ mod inner {
 
             debug_assert!(competition.data.is_some());
             let data = competition.data.as_ref().unwrap();
-            let team_names = &data.teams.as_ref().unwrap()[group_idx];
+            let team_names = &data.teams[group_idx];
 
             // use possibly new group name
-            self.title.set_label(data.group_names.as_ref().unwrap()[group_idx].as_str());
+            self.title.set_label(data.group_names[group_idx].as_str());
 
             let mut tiles = self.tiles.borrow_mut();
 

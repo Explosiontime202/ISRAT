@@ -1,6 +1,6 @@
-use crate::widgets::new_competition::group_page::GroupPage;
 use crate::widgets::tile::Tile;
 use crate::widgets::time_selector::TimeSelector;
+use crate::{data::CompetitionData, widgets::new_competition::group_page::GroupPage};
 use gdk4::{
     glib::{clone, closure_local, once_cell::sync::Lazy, subclass::Signal},
     prelude::*,
@@ -12,6 +12,7 @@ use gtk4::{
 };
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
+use std::rc::Rc;
 
 mod inner {
     use super::*;
@@ -54,6 +55,8 @@ mod inner {
         /// A button to switch to the next stage of the new competition creation.
         /// Will be insensitive if there are any invalid inputs.
         next_button_center: CenterBox,
+        /// A reference to the competition data of the newly created competition by this widget.
+        new_competition_data: RefCell<Rc<RefCell<CompetitionData>>>,
     }
 
     impl Default for BaseInformationScreen {
@@ -160,6 +163,7 @@ mod inner {
                 erroneous_group_names: RefCell::default(),
                 erroneous_base_infos: RefCell::default(),
                 next_button_center: CenterBox::new(),
+                new_competition_data: RefCell::default(),
             }
         }
 
@@ -179,6 +183,7 @@ mod inner {
                 // button is only enabled if all entries are valid, no checks here necessary
                 // we can just switch to the next screen
                 debug_assert!(this.are_all_entries_valid());
+                // TODO: Save data to the competition data if something changed. (i.e. use dirty flags) 
                 this.obj().emit_next_screen();
             }));
 
@@ -505,6 +510,10 @@ mod inner {
                 page,
             });
         }
+
+        pub fn set_competition_data(&self, data: Rc<RefCell<CompetitionData>>) {
+            *self.new_competition_data.borrow_mut() = data;
+        }
     }
 
     #[derive(Debug)]
@@ -520,8 +529,10 @@ glib::wrapper! {
 }
 
 impl BaseInformationScreen {
-    pub fn new() -> Self {
-        glib::Object::new::<Self>()
+    pub fn new(competition_data: &Rc<RefCell<CompetitionData>>) -> Self {
+        let obj = glib::Object::new::<Self>();
+        obj.imp().set_competition_data(Rc::clone(competition_data));
+        obj
     }
 
     pub fn connect_all_entries_valid<F: Fn(&Self, bool) + 'static>(&self, f: F) {
