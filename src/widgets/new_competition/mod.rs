@@ -13,6 +13,7 @@ mod base_information;
 mod group_page;
 mod group_team_object;
 mod team_information;
+mod team_region_object;
 
 pub fn create_new_competition_screen(application: &Application, program_state: &Rc<ProgramState>) {
     let window = ApplicationWindow::builder()

@@ -18,6 +18,8 @@ use std::rc::Rc;
 mod inner {
     use super::*;
 
+    // TODO: Add comments
+
     #[derive(Debug)]
     pub struct TeamInformationScreen {
         // The main child containing all the content. (a direct child)
@@ -166,12 +168,13 @@ mod inner {
 
             player_name_box.append(&team_name);
 
-            let player_name_list = FixIndexedList::<EntryBuffer>::with_default_objects(
-                self.player_name_buffer.clone(),
-                clone!(@weak self as this => @default-panic, move |_, buffer| {
-                    this.create_player_row(buffer)
-                }),
-            );
+            let player_name_list =
+                FixIndexedList::<EntryBuffer, "FixIndexedList_EntryBuffer", "FixIndexedListEntry_EntryBuffer">::with_default_objects(
+                    self.player_name_buffer.clone(),
+                    clone!(@weak self as this => @default-panic, move |_, buffer| {
+                        this.create_player_row(buffer)
+                    }),
+                );
 
             player_name_box.append(&player_name_list);
             player_name_box.into()
@@ -385,20 +388,18 @@ mod inner {
             // and insert new teams & groups
             let new_competition_data = self.new_competition_data.borrow();
             let data = new_competition_data.borrow();
-            for (group_idx, group_teams) in data.teams.iter().enumerate() {
-                let group_name = &data.group_names[group_idx];
-                for team in group_teams.iter() {
-                    self.team_model.append(&GroupTeamObject::new(group_name.clone(), team.name.clone()))
+            for group in data.groups.iter() {
+                for team in group.teams.iter() {
+                    self.team_model.append(&GroupTeamObject::new(group.name.clone(), team.name.clone()))
                 }
             }
 
-            for name in data.group_names.iter() {
-                self.group_model.append(&name);
+            for group in data.groups.iter() {
+                self.group_model.append(&group.name);
             }
-            
         }
 
-        pub fn set_program_state(&self, data: Rc<RefCell<CompetitionData>>) {
+        pub fn set_competition_data(&self, data: Rc<RefCell<CompetitionData>>) {
             *self.new_competition_data.borrow_mut() = data;
         }
     }
@@ -412,7 +413,7 @@ glib::wrapper! {
 impl TeamInformationScreen {
     pub fn new(competition_data: &Rc<RefCell<CompetitionData>>) -> Self {
         let obj = glib::Object::new::<Self>();
-        obj.imp().set_program_state(Rc::clone(competition_data));
+        obj.imp().set_competition_data(Rc::clone(competition_data));
         obj
     }
 

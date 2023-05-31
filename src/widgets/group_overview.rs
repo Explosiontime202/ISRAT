@@ -150,17 +150,17 @@ mod inner {
             let data = competition.data.as_ref().unwrap();
 
             // use possibly new group name
-            self.title.set_label(data.group_names[group_idx].as_str());
+            self.title.set_label(data.groups[group_idx].name.as_str());
 
             // calculate current interim result
             let interim_result = data.calc_interim_result_for_group(group_idx);
-            let teams = &data.teams[group_idx];
+            let group = &data.groups[group_idx];
 
             // update title of interim result table
-            let new_interim_result_title = if data.current_batch[group_idx] == 0 {
+            let new_interim_result_title = if group.current_batch == 0 {
                 "Starter list".to_string()
             } else {
-                format!("Interim result after Batch {}", data.current_batch[group_idx])
+                format!("Interim result after Batch {}", group.current_batch)
             };
             self.interim_result_tile.set_title(new_interim_result_title.as_str());
 
@@ -180,7 +180,7 @@ mod inner {
                 // display interim result entry in table
                 self.interim_result_table.add_row(vec![
                     entry_idx_str.as_str(),
-                    teams[interim_result_entry.team_idx].name.as_str(),
+                    group.teams[interim_result_entry.team_idx].name.as_str(),
                     points_str.as_str(),
                     difference_str.as_str(),
                     stock_points_str.as_str(),
@@ -194,8 +194,8 @@ mod inner {
                 let lane_str = (next_match.lane + 1).to_string();
                 self.next_matches_table.add_row(vec![
                     lane_str.as_str(),
-                    teams[next_match.team_a].name.as_str(),
-                    teams[next_match.team_b].name.as_str(),
+                    group.teams[next_match.team_a].name.as_str(),
+                    group.teams[next_match.team_b].name.as_str(),
                 ]);
             }
 

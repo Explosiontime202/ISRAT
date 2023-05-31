@@ -52,8 +52,14 @@ mod inner {
     unsafe impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> ObjectSubclassType for NavBar<CategoryT> {
         #[inline]
         fn type_data() -> ::std::ptr::NonNull<TypeData> {
-            static mut DATA: TypeData = types::INIT_TYPE_DATA;
-            unsafe { ::std::ptr::NonNull::from(&mut DATA) }
+            // Make sure to keep type data for every generic type. CAUTION: this differs glib::object_subclass proc macro.
+            static mut DATA_MAP: Lazy<Vec<(&'static str, TypeData)>> = Lazy::new(|| Vec::new());
+            unsafe {
+                if !DATA_MAP.iter().any(|(key, _)| key == &CategoryT::NAME) {
+                    DATA_MAP.push((CategoryT::NAME, types::INIT_TYPE_DATA));
+                }
+                ::std::ptr::NonNull::from(&mut DATA_MAP.iter_mut().find(|(key, _)| key == &CategoryT::NAME).unwrap().1)
+            }
         }
 
         #[inline]
@@ -72,6 +78,8 @@ mod inner {
             unsafe {
                 let data = Self::type_data();
                 let type_ = data.as_ref().type_();
+
+                assert_eq!(CategoryT::NAV_BAR_NAME, type_.to_string());
 
                 type_
             }

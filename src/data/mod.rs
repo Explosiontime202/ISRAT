@@ -17,11 +17,15 @@ use self::read_write::read_from_file;
 
 pub mod read_write;
 
+pub type GroupID = u32;
+pub type MatchID = u32;
+pub type TeamID = u32;
+
 #[derive(Debug)]
 pub struct Competition {
     pub data: Option<CompetitionData>,
     pub spawned_threads: Vec<JoinHandle<()>>, // stores the join handles to the threads used to export pdf and html documents
-    pub current_interim_result: Vec<Option<Vec<InterimResultEntry>>>, // a ResultEntry vector for each group in descending order
+    pub current_interim_result: Vec<Vec<InterimResultEntry>>, // a ResultEntry vector for each group in descending order
     pub absolute_dir_path: Option<PathBuf>,   // absolute path to the folder to store the export documents and autosaves
     pub absolute_file_path: Option<PathBuf>,  // absolute path to the data file, must not be in absolute_dir_path
 }
@@ -43,11 +47,11 @@ impl Competition {
         }
     }
 
-    pub fn get_current_interim_result_for_group(&mut self, group_idx: usize) -> &Option<Vec<InterimResultEntry>> {
+    pub fn get_current_interim_result_for_group(&mut self, group_idx: usize) -> &Vec<InterimResultEntry> {
         // calculate interim result if not available
-        if self.current_interim_result[group_idx].is_none() {
+        if self.current_interim_result[group_idx].is_empty() {
             debug_assert!(self.data.is_some());
-            self.current_interim_result[group_idx] = Some(self.data.as_mut().unwrap().calc_interim_result_for_group(group_idx));
+            self.current_interim_result[group_idx] = self.data.as_mut().unwrap().calc_interim_result_for_group(group_idx);
         }
         &self.current_interim_result[group_idx]
     }
@@ -221,25 +225,38 @@ impl Competition {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+/// The relevant data about the competition.
 pub struct CompetitionData {
+    /// The name of the competition.
     pub name: String,
+    /// The date when the competition takes place, as String.
     pub date_string: String,
-    pub place: String,
+    /// The time when the competition takes place, as String.
+    pub time_string: String,
+    /// The location where the competition takes place.
+    pub location: String,
+    /// The executor of the competition, e.g. a sports association.
     pub executor: String,
+    /// The organizer of the competition, i.e. a sports club.
     pub organizer: String,
+    /// The referee of the competition.
     pub referee: String,
+    /// The competition manager of the competition, i.e. the one responsible.
     pub competition_manager: String,
-    pub clerk: String,
+    /// The secretary, tasked to enter the results.
+    pub secretary: String,
+    /// Additional text at the end of the result list, mostly greetings and sponsor texts.
     pub additional_text: String,
+    /// The cumulative amount of teams over all groups.
     pub count_teams: u32,
-    pub count_groups: u32,
-    pub count_batches: Vec<u32>,     // count of batches per group
-    pub team_distribution: [u32; 2], // count_groups x count_teams_per_group
-    pub teams: Vec<Vec<Team>>,       // for each group a vector of teams, ordered by ids
-    pub group_names: Vec<String>,    // a vector of the group names, ordered by id
-    pub matches: Vec<Vec<Match>>,    // a Match vector for each group
-    pub current_batch: Vec<u32>,     // the current batch of matches played for each group
-    pub with_break: bool,            // defines whether theres a break for the teams, only important for a even team count
+    /// The groups the competition consists of.
+    pub groups: Vec<Group>,
+    /// A set of all currently assigned group ids.
+    assigned_group_ids: HashSet<GroupID>,
+    /// A set of all currently assigned team ids.
+    assigned_team_ids: HashSet<TeamID>,
+    /// A set of all currently assigned match ids.
+    assigned_match_ids: HashSet<TeamID>,
 }
 
 impl Default for CompetitionData {
@@ -252,36 +269,66 @@ impl CompetitionData {
     pub fn empty() -> CompetitionData {
         CompetitionData {
             name: String::from(""),
-            date_string: String::from(""),
-            place: String::from(""),
-            executor: String::from(""),
-            organizer: String::from(""),
-            referee: String::from(""),
-            competition_manager: String::from(""),
-            clerk: String::from(""),
-            additional_text: String::from(""),
+            date_string: String::new(),
+            time_string: String::new(),
+            location: String::new(),
+            executor: String::new(),
+            organizer: String::new(),
+            referee: String::new(),
+            competition_manager: String::new(),
+            secretary: String::new(),
+            additional_text: String::new(),
             count_teams: 0,
-            count_groups: 0,
-            count_batches: vec![],
-            team_distribution: [0, 0],
-            teams: vec![],
-            group_names: vec![],
-            matches: vec![],
-            current_batch: vec![],
-            with_break: true,
+            groups: Vec::new(),
+            assigned_group_ids: HashSet::default(),
+            assigned_team_ids: HashSet::default(),
+            assigned_match_ids: HashSet::default(),
         }
     }
 
-    fn calc_all_interim_result(&mut self) -> Vec<Option<Vec<InterimResultEntry>>> {
-        (0..self.teams.len())
-            .map(|group_idx| Some(self.calc_interim_result_for_group(group_idx)))
+    ///
+    /// Create a new duplicate-free group id.
+    ///
+    pub fn new_group_id(&mut self) -> GroupID {
+        loop {
+            let id = rand::thread_rng().gen();
+            if !self.assigned_group_ids.contains(&id) {
+                self.assigned_group_ids.insert(id);
+                break id;
+            }
+        }
+    }
+
+    ///
+    /// Create a new duplicate-free tean id.
+    ///
+    pub fn new_team_id(&mut self) -> TeamID {
+        loop {
+            let id = rand::thread_rng().gen();
+            if !self.assigned_team_ids.contains(&id) {
+                self.assigned_team_ids.insert(id);
+                break id;
+            }
+        }
+    }
+
+    ///
+    /// Calc the current interim result for all groups.
+    ///
+    fn calc_all_interim_result(&mut self) -> Vec<Vec<InterimResultEntry>> {
+        (0..self.groups.len())
+            .map(|group_idx| self.calc_interim_result_for_group(group_idx))
             .collect()
     }
 
+    ///
+    /// Calc the current interim result for the group with index `group_idx`.
+    ///
     pub fn calc_interim_result_for_group(&self, group_idx: usize) -> Vec<InterimResultEntry> {
+        let group = &self.groups[group_idx];
+
         // create table with entries for all teams in this group
-        let group_size = self.teams[group_idx].len();
-        let mut table: Vec<InterimResultEntry> = (0..group_size)
+        let mut table: Vec<InterimResultEntry> = (0..group.teams.len())
             .map(|team_idx| InterimResultEntry {
                 team_idx,
                 match_points: [0, 0],
@@ -292,7 +339,8 @@ impl CompetitionData {
             .collect();
 
         // evaluate the match results for this group
-        self.matches[group_idx]
+        group
+            .matches
             .iter()
             .filter(|_match| _match.result != MatchResult::NotPlayed && _match.result != MatchResult::Break)
             .for_each(|_match| {
@@ -369,57 +417,69 @@ impl CompetitionData {
         table
     }
 
+    ///
+    /// Returns a vector of matches that will be played in the next batch for a given group at index `group_idx`.
+    ///
     pub fn next_matches_for_group(&self, group_idx: usize) -> Vec<&Match> {
-        let current_batch = self.current_batch[group_idx];
-        let next_matches = self.matches[group_idx]
+        let group = &self.groups[group_idx];
+        let next_matches = group
+            .matches
             .iter()
             .filter(|&match_| match_.result != MatchResult::Break)
-            .filter(|&match_| match_.batch == current_batch)
+            .filter(|&match_| match_.batch == group.current_batch)
             .collect::<Vec<&Match>>();
         next_matches.iter().for_each(|match_| assert_eq!(match_.result, MatchResult::NotPlayed));
         next_matches
     }
 
+    ///
+    /// Returns the vector of teams which are on break in the next batch for a given group at index `group_idx`.
+    ///
     pub fn teams_on_break_for_group(&self, group_idx: usize) -> Vec<&Team> {
-        let current_batch = self.current_batch[group_idx];
-        let teams = &self.teams[group_idx];
-        self.matches[group_idx]
+        let group = &self.groups[group_idx];
+        group
+            .matches
             .iter()
             .filter(|&match_| match_.result == MatchResult::Break)
-            .filter(|&match_| match_.batch == current_batch)
-            .map(|match_| &teams[match_.team_a])
+            .filter(|&match_| match_.batch == group.current_batch)
+            .map(|match_| &group.teams[match_.team_a])
             .collect()
     }
 
+    ///
+    /// Generate the matches for each group.
+    ///
     pub fn generate_matches(&mut self) {
-        assert!(self.matches.is_empty());
-
-        let mut assigned_ids = HashSet::<MatchID>::new();
-
+        // inline new_match_id here to satisfy borrow checker
         let mut new_match_id = || loop {
-            let id = Self::generate_new_match_id();
-            if !assigned_ids.contains(&id) {
-                assigned_ids.insert(id);
+            let id = rand::thread_rng().gen();
+            if !self.assigned_match_ids.contains(&id) {
+                self.assigned_match_ids.insert(id);
                 break id;
             }
         };
 
-        let team_count = self.team_distribution[1] as i32;
-        if team_count % 2 == 0 {
-            // even team count per group
-            if self.with_break {
-                for _ in 0..self.team_distribution[0] {
-                    let mut group = vec![];
+        for group in self.groups.iter_mut() {
+            assert!(group.matches.is_empty());
+            // reserve space for matches: everyone vs everyone (n * (n - 1) / 2) + a break for everyone (n9)
+            let team_count = group.teams.len();
+
+            group.matches.reserve(team_count * (team_count - 1) / 2 + team_count);
+            group.current_batch = 0;
+
+            if team_count % 2 == 0 {
+                // even team count
+                if group.with_break {
                     for batch_idx in 0..team_count {
-                        let mut batch = vec![];
                         // "(batch_idx * 2) / team_count" is a elegant way to subtract 1 if batch_idx >= team_count / 2 else 0
                         for lane_idx in 0..(team_count / 2 - (batch_idx * 2 / team_count)) {
                             // "(batch_idx * 2) / team_count" see above, but add 1 instead of subtract
-                            let team_a_idx = (lane_idx - batch_idx + (batch_idx * 2 / team_count)).rem_euclid(team_count);
-                            let team_b_idx = (team_count - lane_idx - batch_idx - 1).rem_euclid(team_count);
-                            batch.push(Match {
-                                team_a: team_a_idx as usize,
-                                team_b: team_b_idx as usize,
+                            let team_a_idx = (lane_idx as i32 - batch_idx as i32 + (batch_idx as i32 * 2 / team_count as i32))
+                                .rem_euclid(team_count as i32) as usize;
+                            let team_b_idx = (team_count as i32 - lane_idx as i32 - batch_idx as i32 - 1).rem_euclid(team_count as i32) as usize;
+                            group.matches.push(Match {
+                                team_a: team_a_idx,
+                                team_b: team_b_idx,
                                 points: None,
                                 result: MatchResult::NotPlayed,
                                 batch: batch_idx as u32,
@@ -428,19 +488,21 @@ impl CompetitionData {
                             })
                         }
 
+                        // add breaks for the teams
                         if batch_idx >= team_count / 2 {
-                            batch.push(Match {
-                                team_a: (team_count / 2 - batch_idx).rem_euclid(team_count) as usize,
-                                team_b: (team_count / 2 - batch_idx).rem_euclid(team_count) as usize,
+                            let break_idx_a = (team_count as i32 / 2 - batch_idx as i32).rem_euclid(team_count as i32) as usize;
+                            group.matches.push(Match {
+                                team_a: break_idx_a,
+                                team_b: break_idx_a,
                                 points: None,
                                 result: MatchResult::Break,
                                 batch: batch_idx as u32,
                                 lane: u32::MAX,
                                 id: new_match_id(),
                             });
-                            batch.push(Match {
-                                team_a: (team_count - batch_idx) as usize,
-                                team_b: (team_count - batch_idx) as usize,
+                            group.matches.push(Match {
+                                team_a: (team_count - batch_idx),
+                                team_b: (team_count - batch_idx),
                                 points: None,
                                 result: MatchResult::Break,
                                 batch: batch_idx as u32,
@@ -448,28 +510,22 @@ impl CompetitionData {
                                 id: new_match_id(),
                             });
                         }
-                        group.append(&mut batch);
                     }
-                    self.matches.push(group);
+                    group.count_batches = team_count as u32;
+                } else {
+                    // TODO: Implement match generation for even team count per group without breaks
+                    todo!();
                 }
-
-                self.count_batches = vec![team_count as u32; self.count_groups as usize];
             } else {
-                // TODO: Implement match generation for even team count per group without breaks
-                todo!();
-            }
-        } else {
-            // uneven team count per group
-            for _ in 0..self.team_distribution[0] {
-                let mut group = vec![];
+                // uneven team count
                 for batch_idx in 0..team_count {
-                    let mut batch = vec![];
+                    // add matches for this batch
                     for lane_idx in 0..(team_count / 2) {
-                        let team_a_idx = (lane_idx - batch_idx).rem_euclid(team_count);
-                        let team_b_idx = (team_count - lane_idx - batch_idx - 2).rem_euclid(team_count);
-                        batch.push(Match {
-                            team_a: team_a_idx as usize,
-                            team_b: team_b_idx as usize,
+                        let team_a_idx = (lane_idx as i32 - batch_idx as i32).rem_euclid(team_count as i32) as usize;
+                        let team_b_idx = (team_count as i32 - lane_idx as i32 - batch_idx as i32 - 2).rem_euclid(team_count as i32) as usize;
+                        group.matches.push(Match {
+                            team_a: team_a_idx,
+                            team_b: team_b_idx,
                             points: None,
                             result: MatchResult::NotPlayed,
                             batch: batch_idx as u32,
@@ -478,29 +534,21 @@ impl CompetitionData {
                         });
                     }
 
-                    // add break from this batch
-                    let break_idx = self.team_distribution[1] - (batch_idx as u32) - 1;
-                    batch.push(Match {
-                        team_a: break_idx as usize,
-                        team_b: break_idx as usize,
+                    // add breaks from this batch
+                    let break_idx = team_count - batch_idx - 1;
+                    group.matches.push(Match {
+                        team_a: break_idx,
+                        team_b: break_idx,
                         points: None,
                         result: MatchResult::Break,
                         batch: batch_idx as u32,
                         lane: u32::MAX,
                         id: new_match_id(),
                     });
-
-                    group.append(&mut batch);
                 }
-                self.matches.push(group);
+                group.count_batches = team_count as u32;
             }
-
-            self.count_batches = vec![self.team_distribution[1] as u32; self.count_groups as usize];
         }
-    }
-
-    fn generate_new_match_id() -> MatchID {
-        rand::thread_rng().gen()
     }
 
     ///
@@ -509,8 +557,9 @@ impl CompetitionData {
     /// Increases the current batch of the group.
     ///
     pub fn enter_match_results(&mut self, group_idx: usize, match_results: HashMap<MatchID, [u32; 2]>) {
-        assert!(self.current_batch[group_idx] < self.count_batches[group_idx]);
-        for match_ in &mut self.matches[group_idx] {
+        let mut group = &mut self.groups[group_idx];
+        assert!(group.current_batch < group.count_batches);
+        for match_ in &mut group.matches {
             if let Some([points_a, points_b]) = match_results.get(&match_.id) {
                 assert!(match_.result == MatchResult::NotPlayed);
                 match_.points = Some([*points_a as i32, *points_b as i32]);
@@ -521,15 +570,21 @@ impl CompetitionData {
                 };
             }
         }
-        self.current_batch[group_idx] += 1;
+        group.current_batch += 1;
     }
 
+    ///
+    /// Returns the current batch for a group.
+    ///
     pub fn get_current_batch(&self, group_idx: usize) -> u32 {
-        self.current_batch[group_idx]
+        self.groups[group_idx].current_batch
     }
 
+    ///
+    /// Returns the matches for the a given group at `index` and a given batch `batch_idx`.
+    ///
     pub fn get_batch_for_group(&self, group_idx: usize, batch_idx: u32) -> Vec<&Match> {
-        self.matches[group_idx].iter().filter(|_match| _match.batch == batch_idx).collect()
+        self.groups[group_idx].matches.iter().filter(|_match| _match.batch == batch_idx).collect()
     }
 
     pub fn get_result_as_html(&self) -> String {
@@ -540,6 +595,9 @@ impl CompetitionData {
         todo!();
     }
 
+    ///
+    /// Returns the header of a page as latex string.
+    ///
     fn get_header_as_latex(&self) -> String {
         format!(
             r"\begin{{center}}
@@ -555,24 +613,27 @@ impl CompetitionData {
             self.organizer,
             self.name,
             self.date_string,
-            self.place,
+            self.location,
             self.executor,
             Local::now().format("%d.%m.%Y %H:%M"),
         )
     }
 
-    fn get_result_as_latex(&self, current_interim_result: &Vec<Option<Vec<InterimResultEntry>>>) -> String {
+    ///
+    /// Returns the result list as latex string.
+    ///
+    fn get_result_as_latex(&self, current_interim_result: &Vec<Vec<InterimResultEntry>>) -> String {
         // TODO: make this configurable by the user
         let player_names_until = 3; // index of the first team which has NO player names displayed
 
         let header = self.get_header_as_latex();
 
-        // analyse if all matches were played
+        // analyze if all matches were played
         let is_final_result = self
-            .matches
+            .groups
             .iter()
-            .map(|group_matches| group_matches.iter().all(|_match| _match.result != MatchResult::NotPlayed))
-            .all(|b| b);
+            .flat_map(|group| &group.matches)
+            .all(|_match| _match.result != MatchResult::NotPlayed);
 
         let footnote = format!(
             r"
@@ -598,18 +659,16 @@ impl CompetitionData {
             self.additional_text.replace("\n", r"\\"),
             self.referee,
             self.competition_manager,
-            self.clerk
+            self.secretary
         );
 
         let mut count_teams_with_name = 0;
         let mut count_teams_without_name = 0;
         let mut previous_new_page = true; // determines whether the header is printed, for first team true
 
-        let groups = self.group_names.iter().enumerate().map(|(group_idx, group_name)| {
-            assert!(current_interim_result[group_idx].is_some());
-            let team_names = &self.teams[group_idx];
-            let group_result = current_interim_result[group_idx].as_ref().unwrap().iter().enumerate().map(|(rank, i_res)| {
-                let team = &team_names[i_res.team_idx];
+        let groups = self.groups.iter().enumerate().map(|(group_idx, group)| {
+            let group_result = current_interim_result[group_idx].iter().enumerate().map(|(rank, i_res)| {
+                let team = &group.teams[i_res.team_idx];
                 let display_player_names = rank < player_names_until;
 
                 // join player names, separate by ", ", but if no player name is given, enter "~" to force latex to actually draw the newline
@@ -644,7 +703,7 @@ impl CompetitionData {
             format!(r"
             {}
             \begin{{center}}
-                \LARGE \textbf{{{} {group_name}}}
+                \LARGE \textbf{{{}}}
                 \par
                 \small
                 \begin{{tabular}}{{
@@ -664,7 +723,7 @@ impl CompetitionData {
             {}
         ",
         if previous_new_page {header.as_str()} else {""},
-        if is_final_result {format!("Ergebnisliste {group_name}")} else {format!("Zwischenliste {group_name} nach Spiel {}", self.current_batch[group_idx])},
+        if is_final_result {format!("Ergebnisliste {}", group.name)} else {format!("Zwischenliste {} nach Spiel {}", group.name, group.current_batch)},
         group_result,
         if 3 * count_teams_with_name + count_teams_without_name > 16 {
             previous_new_page = true;
@@ -716,17 +775,21 @@ impl CompetitionData {
         )
     }
 
+    ///
+    /// Returns the start list as latex string.
+    ///
     fn get_start_list_as_latex(&self) -> String {
         let header = self.get_header_as_latex();
 
         let mut previous_new_page = true; // determines whether the header is printed, for first team true
 
         let groups = self
-            .teams
+            .groups
             .iter()
             .enumerate()
-            .map(|(group_idx, teams_in_group)| {
-                let group_result = teams_in_group
+            .map(|(group_idx, group)| {
+                let group_result = group
+                    .teams
                     .iter()
                     .enumerate()
                     .map(|(rank, team)| {
@@ -760,9 +823,9 @@ impl CompetitionData {
             {}
         ",
                     if previous_new_page { header.as_str() } else { "" },
-                    self.group_names[group_idx],
+                    group.name,
                     group_result,
-                    if self.team_distribution[1] > 15 {
+                    if self.groups[group_idx].teams.len() > 15 {
                         previous_new_page = true;
                         ""
                     } else {
@@ -807,14 +870,17 @@ impl CompetitionData {
         )
     }
 
+    ///
+    /// Return the team match plan as latex string.
+    ///
     fn get_team_match_plans_as_latex(&self) -> String {
-        let matchplans = self.teams.iter().enumerate().map(|(group_idx, group)| {
+        let matchplans = self.groups.iter().map(| group| {
             format!("
                 {}
                 ",
-                group.iter().enumerate().map(|(team_idx, team)| {
+                group.teams.iter().enumerate().map(|(team_idx, team)| {
                     let mut matches : Vec<&Match> =
-                        self.matches[group_idx]
+                        group.matches
                         .iter()
                         .filter(|&_match| {
                             _match.team_a == team_idx || _match.team_b == team_idx
@@ -840,7 +906,7 @@ impl CompetitionData {
                                 format!("{}{}", if start_of_match {"@"} else {""}, opponent_idx + 1),
                                 _match.lane + 1,
                                 _match.team_a + 1,
-                                self.teams[group_idx][opponent_idx].name
+                                group.teams[opponent_idx].name
                                 )
                             }
                         }).collect::<Vec<String>>().join(r"\hline");
@@ -904,17 +970,15 @@ impl CompetitionData {
 
     fn get_lane_match_plans_as_latex(&self) -> String {
         let matchplans = self
-            .matches
+            .groups
             .iter()
-            .enumerate()
-            .map(|(group_idx, group_matches)| {
-                let group_name = &self.group_names[group_idx];
-                group_matches
+            .map(|group| {
+                group.matches
                 .iter()
                 .filter(|&_match| _match.result != MatchResult::Break)
                 .map(|_match| {
-                    let team_a_name = &self.teams[group_idx][_match.team_a].name;
-                    let team_b_name = &self.teams[group_idx][_match.team_b].name;
+                    let team_a_name = &group.teams[_match.team_a].name;
+                    let team_b_name = &group.teams[_match.team_b].name;
                     format!(
 r"
     \LARGE
@@ -950,7 +1014,7 @@ r"
                     _match.team_a + 1,
                     _match.lane + 1,
                     _match.batch + 1,
-                    group_name,
+                    group.name,
                     team_b_name,
                     team_a_name,
                     )
@@ -986,190 +1050,99 @@ r"
             matchplans
         )
     }
-
-    fn get_as_json_string(&self) -> String {
-        let teams = self
-            .teams
-            .iter()
-            .map(|group| {
-                format!(
-                    r"[
-            {}
-        ]",
-                    group
-                        .iter()
-                        .map(|team| {
-                            format!(
-                                r#"{{
-                "name": "{}",
-                "region": "{}",
-                "player_names": [
-                    {}
-                ]
-            }}"#,
-                                &team.name,
-                                &team.region,
-                                team.player_names
-                                    .iter()
-                                    .map(|player_name_opt| {
-                                        if let Some(player_name) = player_name_opt {
-                                            format!("\"{player_name}\"")
-                                        } else {
-                                            String::from("null")
-                                        }
-                                    })
-                                    .collect::<Vec<String>>()
-                                    .join(",\n                    ")
-                            )
-                        })
-                        .collect::<Vec<String>>()
-                        .join(",\n            ")
-                )
-            })
-            .collect::<Vec<String>>()
-            .join(",\n        ");
-
-        let group_names = self
-            .group_names
-            .iter()
-            .map(|group_name| format!("\"{group_name}\""))
-            .collect::<Vec<String>>()
-            .join(",\n        ");
-
-        let matches = self
-            .matches
-            .iter()
-            .map(|group| {
-                format!(
-                    "[
-            {}
-        ]",
-                    group
-                        .iter()
-                        .map(|_match| {
-                            let points = if let Some(points) = _match.points {
-                                format!(
-                                    r#"[
-                    {},
-                    {}
-                ]"#,
-                                    points[0], points[1]
-                                )
-                            } else {
-                                String::from("null")
-                            };
-                            format!(
-                                r#"{{
-                "team_a": {},
-                "team_b": {},
-                "points": {points},
-                "result": "{}",
-                "batch": {},
-                "lane": {}
-            }}"#,
-                                _match.team_a, _match.team_b, _match.result, _match.batch, _match.lane,
-                            )
-                        })
-                        .collect::<Vec<String>>()
-                        .join(",\n            ")
-                )
-            })
-            .collect::<Vec<String>>()
-            .join(",\n        ");
-
-        let current_batch = self
-            .current_batch
-            .iter()
-            .map(|batch| batch.to_string())
-            .collect::<Vec<String>>()
-            .join(",\n        ");
-
-        format!(
-            r#"{{
-    "name": "{}",
-    "date_string": "{}",
-    "place": "{}",
-    "executor": "{}",
-    "organizer": "{}",
-    "referee": "{}",
-    "competition_manager": "{}",
-    "clerk": "{}",
-    "additional_text": "{}",
-    "count_teams": {},
-    "count_groups": {},
-    "team_distribution": [
-        {},
-        {}
-    ],
-    "teams": [
-        {teams}
-    ],
-    "group_names": [
-        {group_names}
-    ],
-    "matches": [
-        {matches}
-    ],
-    "current_batch": [
-        {current_batch}
-    ],
-    "with_break": {}
-}}
-"#,
-            self.name,
-            self.date_string,
-            self.place,
-            self.executor,
-            self.organizer,
-            self.referee,
-            self.competition_manager,
-            self.clerk,
-            self.additional_text.replace("\n", r"\n"),
-            self.count_teams,
-            self.count_groups,
-            self.team_distribution[0],
-            self.team_distribution[1],
-            self.with_break,
-        )
-    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct Team {
+/// Defines a group.
+pub struct Group {
+    /// The name of the group.
     pub name: String,
+    /// The teams in the group.
+    pub teams: Vec<Team>,
+    /// Whether there is a break for each team, only relevant for even team counts.
+    pub with_break: bool,
+    /// The amount of batches in this group.
+    pub count_batches: u32,
+    /// The batch the group is currently in.
+    pub current_batch: u32,
+    /// The matches for the group.
+    pub matches: Vec<Match>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+/// Defines a team.
+pub struct Team {
+    /// The id of the team.
+    pub id: TeamID,
+    /// The name of the team.
+    pub name: String,
+    /// The region of the team.
     pub region: String,
+    /// The names of the players, at most 6.
     pub player_names: [Option<String>; 6], // maximal 6 possible players per team
 }
 
+impl Team {
+    pub fn new(data: &mut CompetitionData, name: String, region: String) -> Self {
+        Self::with_player_names(data, name, region, Default::default())
+    }
+
+    pub fn with_player_names(data: &mut CompetitionData, name: String, region: String, player_names: [Option<String>; 6]) -> Self {
+        Self {
+            id: data.new_team_id(),
+            name,
+            region,
+            player_names,
+        }
+    }
+}
+
 #[derive(Debug)]
+/// Defines a interim result entry.
 pub struct InterimResultEntry {
+    /// The idx of the team that is represented by this entry.
     pub team_idx: usize,
+    /// The match points of this team.
     pub match_points: [i32; 2],
+    /// The stock points of this team.
     pub stock_points: [i32; 2],
+    /// The difference in stock points of this team.
     pub difference: i32,
+    /// The quotient of the stock points of this team.
     pub quotient: f32,
 }
 
-pub type MatchID = u32;
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
+/// Defines a match.
 pub struct Match {
-    // the both opponents
+    /// Opponent A.
     pub team_a: usize,
+    /// Opponent B.
     pub team_b: usize,
-    pub points: Option<[i32; 2]>, // the points of the teams if the match was already played
-    pub result: MatchResult,      // the result of the match
-    pub batch: u32,               // the index of the batch the match is in, e.g. "Spiel 4"
-    pub lane: u32,                // the number of the lane the match is played on, e.g. "Bahn 2"
-    pub id: MatchID,              // the unique id of the match (unique within a competition)
+    /// The points of the teams if the match was already played else None.
+    pub points: Option<[i32; 2]>,
+    /// The result of the match.
+    pub result: MatchResult,
+    /// The index of the batch the match is in, e.g. "Spiel 4".
+    pub batch: u32,
+    /// The number of the lane the match is played on, e.g. "Bahn 2".
+    pub lane: u32,
+    /// The unique id of the match (unique within a competition).
+    pub id: MatchID,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+/// A result of a match.
 pub enum MatchResult {
+    /// Opponent A won.
     WinnerA,
+    /// The match ended with a draw.
     Draw,
+    /// Opponent B won.
     WinnerB,
+    /// The match was not yet played.
     NotPlayed,
+    /// The match represents a break.
     Break,
 }
 
@@ -1186,20 +1159,5 @@ impl Display for MatchResult {
                 MatchResult::Break => "Break",
             }
         )
-    }
-}
-
-pub fn calc_group_possibilities(count_teams: u32) -> Vec<[u32; 2]> {
-    if count_teams == 0 {
-        Vec::new()
-    } else {
-        let mut possibilities = vec![[1, count_teams]];
-        for group_count in 2..count_teams {
-            if count_teams % group_count == 0 {
-                possibilities.push([group_count, count_teams / group_count]);
-            }
-        }
-
-        possibilities
     }
 }

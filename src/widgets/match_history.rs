@@ -121,10 +121,10 @@ mod inner {
 
             debug_assert!(competition.data.is_some());
             let data = competition.data.as_ref().unwrap();
-            let team_names = &data.teams[group_idx];
+            let group = &data.groups[group_idx];
 
             // use possibly new group name
-            self.title.set_label(data.group_names[group_idx].as_str());
+            self.title.set_label(group.name.as_str());
 
             let mut tiles = self.tiles.borrow_mut();
 
@@ -151,8 +151,8 @@ mod inner {
                     }
 
                     let lane_str = (_match.lane + 1).to_string();
-                    let team_name_a = team_names[_match.team_a].name.as_str();
-                    let team_name_b = team_names[_match.team_b].name.as_str();
+                    let team_name_a = group.teams[_match.team_a].name.as_str();
+                    let team_name_b = group.teams[_match.team_b].name.as_str();
                     let result_a_str = _match.points.unwrap()[0].to_string();
                     let result_b_str = _match.points.unwrap()[1].to_string();
                     table.add_row(vec![&lane_str, team_name_a, team_name_b, &result_a_str, &result_b_str]);

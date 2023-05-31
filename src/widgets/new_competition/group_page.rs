@@ -1,11 +1,11 @@
-use super::base_information::is_valid_name_character;
+use super::{base_information::is_valid_name_character, team_region_object::TeamRegionObject};
 use crate::widgets::fix_indexed_list::FixIndexedList;
 use gdk4::{
     glib::{clone, closure_local, once_cell::sync::Lazy, subclass::Signal},
     prelude::*,
     subclass::prelude::*,
 };
-use gtk4::{glib, prelude::*, subclass::widget::*, Align, BoxLayout, Entry, EntryBuffer, Label, LayoutManager, Orientation, Widget};
+use gtk4::{glib, prelude::*, subclass::widget::*, Align, Box as GtkBox, BoxLayout, Entry, EntryBuffer, Label, LayoutManager, Orientation, Widget};
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 
@@ -15,7 +15,7 @@ mod inner {
     #[derive(Debug)]
     pub struct GroupPage {
         /// The  FixIndexedListBox displaying the rows. (a direct child)
-        team_name_list: FixIndexedList<EntryBuffer>,
+        pub team_name_list: FixIndexedList<TeamRegionObject, "FixIndexedList_TeamRegionObject", "FixIndexedListEntry_TeamRegionObject">,
         /// A counter used to generate generic default team names. Only incremented.
         team_counter: Cell<u32>,
         /// The entry buffer which are currently in an invalid state, i.e. invalid chars were entered.
@@ -49,8 +49,8 @@ mod inner {
                 .set_property("orientation", Orientation::Vertical);
 
             self.team_name_list
-                .connect_create_data_widget(clone!(@weak self as this => @default-panic, move |_, buffer| {
-                    this.create_entry(buffer)
+                .connect_create_data_widget(clone!(@weak self as this => @default-panic, move |_, buffer_obj| {
+                    this.create_entry(buffer_obj)
                 }));
 
             self.team_name_list
@@ -58,14 +58,16 @@ mod inner {
                     let team_counter = this.team_counter.get() + 1;
                     this.team_counter.set(team_counter);
                     let generic_team_name = format!("Team {team_counter}");
-                    let buffer = EntryBuffer::new(Some(generic_team_name));
-                    buffer
+                    let team_buffer = EntryBuffer::new(Some(generic_team_name));
+                    TeamRegionObject::with_default(team_buffer, EntryBuffer::default())
                 }));
 
-            self.team_name_list.connect_row_removed(clone!(@weak self as this => move |_, buffer| {
-                this.erroneous_entries.borrow_mut().remove(buffer);
-                this.obj().emit_all_entries_valid(this.are_all_entries_valid());
-            }));
+            self.team_name_list
+                .connect_row_removed(clone!(@weak self as this => move |_, buffer_obj| {
+                    this.erroneous_entries.borrow_mut().remove(&buffer_obj.team());
+                    this.erroneous_entries.borrow_mut().remove(&buffer_obj.region());
+                    this.obj().emit_all_entries_valid(this.are_all_entries_valid());
+                }));
 
             self.team_name_list.connect_create_append_widget(|_| Label::new(Some("Add Team")).into());
 
@@ -93,10 +95,17 @@ mod inner {
             }
         }
 
-        fn create_entry(&self, entry: &EntryBuffer) -> Widget {
-            let entry = Entry::builder().buffer(entry).halign(Align::Center).hexpand(true).xalign(0.5).build();
+        fn create_entry(&self, buffer: &TeamRegionObject) -> Widget {
+            let vbox = GtkBox::new(Orientation::Horizontal, 0);
 
-            entry.connect_text_notify(clone!(@weak self as this => move |entry| {
+            let team_entry = Entry::builder()
+                .buffer(&buffer.team())
+                .halign(Align::Center)
+                .hexpand(true)
+                .xalign(0.5)
+                .build();
+
+            team_entry.connect_text_notify(clone!(@weak self as this => move |entry| {
                 let mut erroneous_entries = this.erroneous_entries.borrow_mut();
                 // show error when disallowed characters are entered
                 if !entry.text().chars().all(|c| is_valid_name_character(c)) {
@@ -116,7 +125,36 @@ mod inner {
                 }
             }));
 
-            entry.into()
+            let region_entry: Entry = Entry::builder()
+                .buffer(&buffer.region())
+                .halign(Align::Center)
+                .hexpand(true)
+                .xalign(0.5)
+                .build();
+
+            region_entry.connect_text_notify(clone!(@weak self as this => move |entry| {
+                let mut erroneous_entries = this.erroneous_entries.borrow_mut();
+                // show error when disallowed characters are entered
+                if !entry.text().chars().all(|c| is_valid_name_character(c)) {
+                    if !entry.css_classes().contains(&"error".into()) {
+                        entry.error_bell();
+                    }
+                    entry.add_css_class("error");
+                    erroneous_entries.insert(entry.buffer());
+                    drop(erroneous_entries);
+                    this.obj().emit_all_entries_valid(this.are_all_entries_valid());
+                } else if erroneous_entries.contains(&entry.buffer())  {
+                    // text is valid, reset possibly set error marker
+                    erroneous_entries.remove(&entry.buffer());
+                    entry.remove_css_class("error");
+                    drop(erroneous_entries);
+                    this.obj().emit_all_entries_valid(this.are_all_entries_valid());
+                }
+            }));
+
+            vbox.append(&team_entry);
+            vbox.append(&region_entry);
+            vbox.into()
         }
 
         fn are_all_entries_valid(&self) -> bool {
@@ -145,7 +183,21 @@ impl GroupPage {
         );
     }
 
-    pub fn emit_all_entries_valid(&self, all_entries_valid: bool) {
+    fn emit_all_entries_valid(&self, all_entries_valid: bool) {
         let _: () = self.emit_by_name("all-entries-valid", &[&all_entries_valid.to_value()]);
+    }
+
+    ///
+    /// Extract the team names and the regions from the EntryBuffers.
+    ///
+    pub fn get_team_names(&self) -> Vec<[String; 2]> {
+        let list_store = &self.imp().team_name_list.get_model();
+        let mut res = Vec::new();
+        for idx in 0..list_store.n_items() {
+            let item = list_store.item(idx).unwrap();
+            res.push([item.team().text().to_string(), item.region().text().to_string()]);
+        }
+
+        res
     }
 }

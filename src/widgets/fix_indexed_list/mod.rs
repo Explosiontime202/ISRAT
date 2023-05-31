@@ -34,11 +34,15 @@ mod inner {
     use super::*;
 
     #[derive(Debug)]
-    pub struct FixIndexedList<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> {
+    pub struct FixIndexedList<
+        DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static,
+        const TYPE_NAME: &'static str,
+        const ENTRY_TYPE_NAME: &'static str,
+    > {
         /// The actual box displaying the rows.
         list_box: ListBox,
         /// Stores the rows displayed in the list.
-        model: FixIndexedListStore<DataType>,
+        pub model: FixIndexedListStore<DataType, ENTRY_TYPE_NAME>,
         /// Contains the ListBox. (a direct child)
         scrolled_window: ScrolledWindow,
         /// Contains the button to append a row. Only present if `allow_count_changes` is set. (a direct child)
@@ -53,7 +57,9 @@ mod inner {
         allow_count_changes: Cell<bool>,
     }
 
-    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> Default for FixIndexedList<DataType> {
+    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+        Default for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+    {
         fn default() -> Self {
             let scrolled_window = ScrolledWindow::builder()
                 .propagate_natural_height(true)
@@ -73,11 +79,19 @@ mod inner {
     }
 
     // ----- begin of macro expansion of glib::object_subclass -----
-    unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> ObjectSubclassType for FixIndexedList<DataType> {
+    unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+        ObjectSubclassType for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+    {
         #[inline]
         fn type_data() -> ::std::ptr::NonNull<TypeData> {
-            static mut DATA: TypeData = types::INIT_TYPE_DATA;
-            unsafe { ::std::ptr::NonNull::from(&mut DATA) }
+            // Make sure to keep type data for every generic type. CAUTION: this differs glib::object_subclass proc macro.
+            static mut DATA_MAP: Lazy<Vec<(Type, TypeData)>> = Lazy::new(|| Vec::new());
+            unsafe {
+                if !DATA_MAP.iter().any(|(key, _)| key == &DataType::static_type()) {
+                    DATA_MAP.push((DataType::static_type(), types::INIT_TYPE_DATA));
+                }
+                ::std::ptr::NonNull::from(&mut DATA_MAP.iter_mut().find(|(key, _)| key == &DataType::static_type()).unwrap().1)
+            }
         }
 
         #[inline]
@@ -97,13 +111,17 @@ mod inner {
                 let data = Self::type_data();
                 let type_ = data.as_ref().type_();
 
+                assert_eq!(Self::NAME, type_.to_string());
+
                 type_
             }
         }
     }
 
     #[doc(hidden)]
-    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> FromObject for FixIndexedList<DataType> {
+    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+        FromObject for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+    {
         type FromObjectType = <Self as ObjectSubclass>::Type;
         #[inline]
         fn from_object(obj: &Self::FromObjectType) -> &Self {
@@ -112,8 +130,10 @@ mod inner {
     }
 
     #[doc(hidden)]
-    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> Downgrade for FixIndexedList<DataType> {
-        type Weak = ObjectImplWeakRef<FixIndexedList<DataType>>;
+    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+        Downgrade for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+    {
+        type Weak = ObjectImplWeakRef<FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>>;
 
         #[inline]
         fn downgrade(&self) -> Self::Weak {
@@ -122,7 +142,9 @@ mod inner {
         }
     }
 
-    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> FixIndexedList<DataType> {
+    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+        FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+    {
         #[inline]
         pub fn downgrade(&self) -> <Self as Downgrade>::Weak {
             Downgrade::downgrade(self)
@@ -130,8 +152,10 @@ mod inner {
     }
 
     #[doc(hidden)]
-    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> ::std::borrow::ToOwned for FixIndexedList<DataType> {
-        type Owned = ObjectImplRef<FixIndexedList<DataType>>;
+    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+        ::std::borrow::ToOwned for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+    {
+        type Owned = ObjectImplRef<FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>>;
 
         #[inline]
         fn to_owned(&self) -> Self::Owned {
@@ -140,18 +164,21 @@ mod inner {
     }
 
     #[doc(hidden)]
-    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> ::std::borrow::Borrow<FixIndexedList<DataType>>
-        for ObjectImplRef<FixIndexedList<DataType>>
+    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+        ::std::borrow::Borrow<FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>>
+        for ObjectImplRef<FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>>
     {
         #[inline]
-        fn borrow(&self) -> &FixIndexedList<DataType> {
+        fn borrow(&self) -> &FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> {
             self
         }
     }
 
-    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> ObjectSubclass for FixIndexedList<DataType> {
-        const NAME: &'static str = "FixIndexedList";
-        type Type = super::FixIndexedList<DataType>;
+    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+        ObjectSubclass for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+    {
+        const NAME: &'static str = TYPE_NAME;
+        type Type = super::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>;
         type ParentType = gtk4::Widget;
 
         type Instance = glib::subclass::basic::InstanceStruct<Self>;
@@ -170,7 +197,9 @@ mod inner {
     }
     // ----- end of macro expansion of glib::object_subclass -----
 
-    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> ObjectImpl for FixIndexedList<DataType> {
+    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+        ObjectImpl for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+    {
         fn constructed(&self) {
             self.parent_constructed();
 
@@ -181,7 +210,7 @@ mod inner {
             self.list_box.bind_model(
                 Some(&self.model.list_store),
                 clone!(@weak self as this => @default-panic, move |object| {
-                   let data: &FixIndexedListEntry<DataType> = object.downcast_ref().expect("Should have type DataType!");
+                   let data: &FixIndexedListEntry<DataType, ENTRY_TYPE_NAME> = object.downcast_ref().expect("Should have type DataType!");
                    this.create_row(data)
                 }),
             );
@@ -240,13 +269,18 @@ mod inner {
         }
     }
 
-    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> WidgetImpl for FixIndexedList<DataType> {}
+    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+        WidgetImpl for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+    {
+    }
 
-    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> FixIndexedList<DataType> {
+    impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+        FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+    {
         ///
         /// Create the widgets for a row containing the `data`.
         ///
-        pub fn create_row(&self, data: &FixIndexedListEntry<DataType>) -> Widget {
+        pub fn create_row(&self, data: &FixIndexedListEntry<DataType, ENTRY_TYPE_NAME>) -> Widget {
             let row = GtkBox::new(Orientation::Horizontal, 10);
 
             let dnd_icon = Image::from_icon_name("open-menu-symbolic");
@@ -291,7 +325,7 @@ mod inner {
         ///
         fn setup_drop_target(&self) {
             let drop_target = DropTarget::builder()
-                .formats(&ContentFormats::for_type(FixIndexedListEntry::<DataType>::static_type()))
+                .formats(&ContentFormats::for_type(FixIndexedListEntry::<DataType, ENTRY_TYPE_NAME>::static_type()))
                 .actions(DragAction::MOVE)
                 .build();
 
@@ -306,7 +340,7 @@ mod inner {
                     return false;
                 }
 
-                let dropped_data : FixIndexedListEntry<DataType> = val.get().unwrap();
+                let dropped_data : FixIndexedListEntry<DataType, ENTRY_TYPE_NAME> = val.get().unwrap();
 
                 this.handle_drop(&dropped_data);
                 this.unmark_above_below_row();
@@ -335,7 +369,7 @@ mod inner {
         /// Handle the dropped data, i.e. moving the entry at the source position to the destination position (i.e. the point where it was dropped).
         /// All other entries between are shifted upwards or downwards, depending in which direction the row was moved.
         ///
-        fn handle_drop(&self, data: &FixIndexedListEntry<DataType>) {
+        fn handle_drop(&self, data: &FixIndexedListEntry<DataType, ENTRY_TYPE_NAME>) {
             let row_above = self.row_above.borrow();
             let row_below = self.row_below.borrow();
             let src_idx = data.get_position() as u32;
@@ -368,7 +402,7 @@ mod inner {
         ///
         fn check_valid_drop(&self, value: &glib::Value) -> bool {
             // accept the drop only if a correct value type is dropped
-            let drop_data: FixIndexedListEntry<DataType> = match value.get() {
+            let drop_data: FixIndexedListEntry<DataType, ENTRY_TYPE_NAME> = match value.get() {
                 Ok(drop_data) => drop_data,
                 Err(_) => return false,
             };
@@ -516,7 +550,9 @@ mod inner {
 }
 
 // The implementation is above the struct definition in order to keep the actual important part visible and not hidden in the mess below.
-impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     ///
     /// Before any widget is appended, the signal "create-data-widget" must be connected!
     ///
@@ -615,25 +651,40 @@ impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> Fi
     pub fn emit_row_removed(&self, data: DataType) {
         let _: () = self.emit_by_name("row-removed", &[&data.to_value()]);
     }
+
+    pub fn get_model(&self) -> &FixIndexedListStore<DataType, ENTRY_TYPE_NAME> {
+        &self.imp().model
+    }
 }
 
 // This mess below is the expansion of the following macro, but as this does not work out of the box, we expanded it manually.
 // Caution: Can break with newer versions of this macro.
 /*glib::wrapper!{
-    pub struct FixIndexedList<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static >(ObjectSubclass<inner::FixIndexedList<DataType>>)
+    pub struct FixIndexedList<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str >(ObjectSubclass<inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>>)
     @extends gtk4::Widget;
 }*/
 
 // ----- begin of macro expansion of glib::wrapper -----
 #[repr(transparent)]
-pub struct FixIndexedList<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> {
+/// `DataType`: This is the type which should be stored.
+///
+/// `TYPE_NAME`: This is the name by which this type is registered in the glib. Should be: "FixIndexedList_DataType" where "DataType" is to be replaced by the name of `DataType`. Has to be unique in the whole application.
+///
+/// `ENTRY_TYPE_NAME`: This is the name by which the entry type is registered in the glib. Should be: "FixIndexedListEntry_DataType" where "DataType" is to be replaced by the name of `DataType`. Has to be unique in the whole application.
+pub struct FixIndexedList<
+    DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static,
+    const TYPE_NAME: &'static str,
+    const ENTRY_TYPE_NAME: &'static str,
+> {
     inner: glib::object::TypedObjectRef<
-        inner::FixIndexedList<DataType>,
-        <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::ParentType,
+        inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>,
+        <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::ParentType,
     >,
     phantom: std::marker::PhantomData<DataType>,
 }
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> std::clone::Clone for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    std::clone::Clone for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     #[inline]
     fn clone(&self) -> Self {
         Self {
@@ -642,7 +693,9 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> std::c
         }
     }
 }
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> std::hash::Hash for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    std::hash::Hash for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     #[inline]
     fn hash<H>(&self, state: &mut H)
     where
@@ -651,44 +704,61 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> std::h
         std::hash::Hash::hash(&self.inner, state);
     }
 }
-impl<OT: glib::object::ObjectType, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> std::cmp::PartialEq<OT>
-    for FixIndexedList<DataType>
+impl<
+        OT: glib::object::ObjectType,
+        DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static,
+        const TYPE_NAME: &'static str,
+        const ENTRY_TYPE_NAME: &'static str,
+    > std::cmp::PartialEq<OT> for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     #[inline]
     fn eq(&self, other: &OT) -> bool {
         std::cmp::PartialEq::eq(&*self.inner, glib::object::ObjectType::as_object_ref(other))
     }
 }
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> std::cmp::Eq for FixIndexedList<DataType> {}
-impl<OT: glib::object::ObjectType, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> std::cmp::PartialOrd<OT>
-    for FixIndexedList<DataType>
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    std::cmp::Eq for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
+}
+impl<
+        OT: glib::object::ObjectType,
+        DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static,
+        const TYPE_NAME: &'static str,
+        const ENTRY_TYPE_NAME: &'static str,
+    > std::cmp::PartialOrd<OT> for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     #[inline]
     fn partial_cmp(&self, other: &OT) -> Option<std::cmp::Ordering> {
         std::cmp::PartialOrd::partial_cmp(&*self.inner, glib::object::ObjectType::as_object_ref(other))
     }
 }
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> std::cmp::Ord for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    std::cmp::Ord for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         std::cmp::Ord::cmp(&*self.inner, glib::object::ObjectType::as_object_ref(other))
     }
 }
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> std::fmt::Debug for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    std::fmt::Debug for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("FixIndexedList").field("inner", &self.inner).finish()
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> From<FixIndexedList<DataType>> for glib::object::ObjectRef {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    From<FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>> for glib::object::ObjectRef
+{
     #[inline]
-    fn from(s: FixIndexedList<DataType>) -> glib::object::ObjectRef {
+    fn from(s: FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>) -> glib::object::ObjectRef {
         s.inner.into_inner()
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::translate::UnsafeFrom<glib::object::ObjectRef>
-    for FixIndexedList<DataType>
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::translate::UnsafeFrom<glib::object::ObjectRef> for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     #[inline]
     unsafe fn unsafe_from(t: glib::object::ObjectRef) -> Self {
@@ -699,15 +769,22 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::translate::GlibPtrDefault for FixIndexedList<DataType> {
-    type GlibType = *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance;
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::translate::GlibPtrDefault for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
+    type GlibType = *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance;
 }
 #[doc(hidden)]
-unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::translate::TransparentPtrType for FixIndexedList<DataType> {}
+unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::translate::TransparentPtrType for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
+}
 #[doc(hidden)]
-unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::object::ObjectType for FixIndexedList<DataType> {
-    type GlibType = <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance;
-    type GlibClassType = <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Class;
+unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::object::ObjectType for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
+    type GlibType = <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance;
+    type GlibClassType = <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Class;
     #[inline]
     fn as_object_ref(&self) -> &glib::object::ObjectRef {
         &self.inner
@@ -715,8 +792,9 @@ unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
     #[inline]
     fn as_ptr(&self) -> *mut Self::GlibType {
         unsafe {
-            *(self as *const Self as *const *const <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance)
-                as *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance
+            *(self as *const Self
+                as *const *const <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance)
+                as *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance
         }
     }
     #[inline]
@@ -725,23 +803,32 @@ unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> AsRef<glib::object::ObjectRef> for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    AsRef<glib::object::ObjectRef> for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     #[inline]
     fn as_ref(&self) -> &glib::object::ObjectRef {
         &self.inner
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> AsRef<Self> for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    AsRef<Self> for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     #[inline]
     fn as_ref(&self) -> &Self {
         self
     }
 }
 #[doc(hidden)]
-unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::object::IsA<Self> for FixIndexedList<DataType> {}
+unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::object::IsA<Self> for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
+}
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::subclass::types::FromObject for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::subclass::types::FromObject for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     type FromObjectType = Self;
     #[inline]
     fn from_object(obj: &Self::FromObjectType) -> &Self {
@@ -749,85 +836,112 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::
     }
 }
 #[doc(hidden)]
-impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
-    glib::translate::ToGlibPtr<'a, *const <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>
-    for FixIndexedList<DataType>
+impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::translate::ToGlibPtr<
+        'a,
+        *const <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     type Storage = <glib::object::ObjectRef as glib::translate::ToGlibPtr<'a, *mut glib::gobject_ffi::GObject>>::Storage;
     #[inline]
     fn to_glib_none(
         &'a self,
-    ) -> glib::translate::Stash<'a, *const <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance, Self> {
+    ) -> glib::translate::Stash<
+        'a,
+        *const <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+        Self,
+    > {
         let stash = glib::translate::ToGlibPtr::to_glib_none(&*self.inner);
         glib::translate::Stash(stash.0 as *const _, stash.1)
     }
     #[inline]
-    fn to_glib_full(&self) -> *const <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance {
+    fn to_glib_full(
+        &self,
+    ) -> *const <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance {
         glib::translate::ToGlibPtr::to_glib_full(&*self.inner) as *const _
     }
 }
 #[doc(hidden)]
-impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
-    glib::translate::ToGlibPtr<'a, *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>
-    for FixIndexedList<DataType>
+impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::translate::ToGlibPtr<
+        'a,
+        *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     type Storage = <glib::object::ObjectRef as glib::translate::ToGlibPtr<'a, *mut glib::gobject_ffi::GObject>>::Storage;
     #[inline]
     fn to_glib_none(
         &'a self,
-    ) -> glib::translate::Stash<'a, *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance, Self> {
+    ) -> glib::translate::Stash<
+        'a,
+        *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+        Self,
+    > {
         let stash = glib::translate::ToGlibPtr::to_glib_none(&*self.inner);
         glib::translate::Stash(stash.0 as *mut _, stash.1)
     }
     #[inline]
-    fn to_glib_full(&self) -> *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance {
+    fn to_glib_full(&self) -> *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance {
         glib::translate::ToGlibPtr::to_glib_full(&*self.inner) as *mut _
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
-    glib::translate::IntoGlibPtr<*mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>
-    for FixIndexedList<DataType>
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::translate::IntoGlibPtr<
+        *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     #[inline]
-    unsafe fn into_glib_ptr(self) -> *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance {
+    unsafe fn into_glib_ptr(
+        self,
+    ) -> *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance {
         let s = std::mem::ManuallyDrop::new(self);
-        glib::translate::ToGlibPtr::<*const <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>::to_glib_none(&*s).0
-            as *mut _
+        glib::translate::ToGlibPtr::<
+            *const <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+        >::to_glib_none(&*s)
+        .0 as *mut _
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
-    glib::translate::IntoGlibPtr<*const <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>
-    for FixIndexedList<DataType>
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::translate::IntoGlibPtr<
+        *const <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     #[inline]
-    unsafe fn into_glib_ptr(self) -> *const <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance {
+    unsafe fn into_glib_ptr(
+        self,
+    ) -> *const <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance {
         let s = std::mem::ManuallyDrop::new(self);
-        glib::translate::ToGlibPtr::<*const <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>::to_glib_none(&*s).0
-            as *const _
+        glib::translate::ToGlibPtr::<
+            *const <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+        >::to_glib_none(&*s)
+        .0 as *const _
     }
 }
 #[doc(hidden)]
-impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
-    glib::translate::ToGlibContainerFromSlice<'a, *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>
-    for FixIndexedList<DataType>
+impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::translate::ToGlibContainerFromSlice<
+        'a,
+        *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     type Storage = (
         std::marker::PhantomData<&'a [Self]>,
-        Option<Vec<*mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>>,
+        Option<Vec<*mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance>>,
     );
     fn to_glib_none_from_slice(
         t: &'a [Self],
     ) -> (
-        *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
         Self::Storage,
     ) {
         let mut v_ptr = Vec::with_capacity(t.len() + 1);
         unsafe {
             let ptr = v_ptr.as_mut_ptr();
             std::ptr::copy_nonoverlapping(
-                t.as_ptr() as *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+                t.as_ptr()
+                    as *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
                 ptr,
                 t.len(),
             );
@@ -835,22 +949,27 @@ impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
             v_ptr.set_len(t.len() + 1);
         }
         (
-            v_ptr.as_ptr() as *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+            v_ptr.as_ptr()
+                as *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
             (std::marker::PhantomData, Some(v_ptr)),
         )
     }
     fn to_glib_container_from_slice(
         t: &'a [Self],
     ) -> (
-        *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
         Self::Storage,
     ) {
         let v_ptr = unsafe {
             let v_ptr = glib::ffi::g_malloc(
-                std::mem::size_of::<*mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>() * (t.len() + 1),
-            ) as *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance;
+                std::mem::size_of::<
+                    *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+                >() * (t.len() + 1),
+            )
+                as *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance;
             std::ptr::copy_nonoverlapping(
-                t.as_ptr() as *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+                t.as_ptr()
+                    as *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
                 v_ptr,
                 t.len(),
             );
@@ -859,11 +978,16 @@ impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
         };
         (v_ptr, (std::marker::PhantomData, None))
     }
-    fn to_glib_full_from_slice(t: &[Self]) -> *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance {
+    fn to_glib_full_from_slice(
+        t: &[Self],
+    ) -> *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance {
         unsafe {
             let v_ptr = glib::ffi::g_malloc(
-                std::mem::size_of::<*mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>() * (t.len() + 1),
-            ) as *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance;
+                std::mem::size_of::<
+                    *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+                >() * (t.len() + 1),
+            )
+                as *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance;
             for (i, s) in t.iter().enumerate() {
                 std::ptr::write(v_ptr.add(i), glib::translate::ToGlibPtr::to_glib_full(s));
             }
@@ -873,49 +997,56 @@ impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
     }
 }
 #[doc(hidden)]
-impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
-    glib::translate::ToGlibContainerFromSlice<'a, *const *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>
-    for FixIndexedList<DataType>
+impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::translate::ToGlibContainerFromSlice<
+        'a,
+        *const *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     type Storage = (
         std::marker::PhantomData<&'a [Self]>,
-        Option<Vec<*mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>>,
+        Option<Vec<*mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance>>,
     );
     fn to_glib_none_from_slice(
         t: &'a [Self],
     ) -> (
-        *const *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        *const *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
         Self::Storage,
     ) {
         let (ptr, stash) = glib::translate::ToGlibContainerFromSlice::<
             'a,
-            *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+            *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
         >::to_glib_none_from_slice(t);
         (
-            ptr as *const *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+            ptr as *const *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
             stash,
         )
     }
     fn to_glib_container_from_slice(
         _: &'a [Self],
     ) -> (
-        *const *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        *const *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
         Self::Storage,
     ) {
         panic!("not implemented")
     }
-    fn to_glib_full_from_slice(_: &[Self]) -> *const *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance {
+    fn to_glib_full_from_slice(
+        _: &[Self],
+    ) -> *const *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance {
         panic!("not implemented")
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
-    glib::translate::FromGlibPtrNone<*mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>
-    for FixIndexedList<DataType>
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::translate::FromGlibPtrNone<
+        *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     #[inline]
     #[allow(clippy::cast_ptr_alignment)]
-    unsafe fn from_glib_none(ptr: *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance) -> Self {
+    unsafe fn from_glib_none(
+        ptr: *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    ) -> Self {
         debug_assert!(!ptr.is_null());
         debug_assert!(glib::types::instance_of::<Self>(ptr as *const _));
         FixIndexedList {
@@ -925,13 +1056,16 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
-    glib::translate::FromGlibPtrNone<*const <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>
-    for FixIndexedList<DataType>
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::translate::FromGlibPtrNone<
+        *const <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     #[inline]
     #[allow(clippy::cast_ptr_alignment)]
-    unsafe fn from_glib_none(ptr: *const <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance) -> Self {
+    unsafe fn from_glib_none(
+        ptr: *const <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    ) -> Self {
         debug_assert!(!ptr.is_null());
         debug_assert!(glib::types::instance_of::<Self>(ptr as *const _));
         FixIndexedList {
@@ -941,13 +1075,16 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
-    glib::translate::FromGlibPtrFull<*mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>
-    for FixIndexedList<DataType>
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::translate::FromGlibPtrFull<
+        *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     #[inline]
     #[allow(clippy::cast_ptr_alignment)]
-    unsafe fn from_glib_full(ptr: *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance) -> Self {
+    unsafe fn from_glib_full(
+        ptr: *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    ) -> Self {
         debug_assert!(!ptr.is_null());
         debug_assert!(glib::types::instance_of::<Self>(ptr as *const _));
         FixIndexedList {
@@ -957,14 +1094,15 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
-    glib::translate::FromGlibPtrBorrow<*mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>
-    for FixIndexedList<DataType>
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::translate::FromGlibPtrBorrow<
+        *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     #[inline]
     #[allow(clippy::cast_ptr_alignment)]
     unsafe fn from_glib_borrow(
-        ptr: *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        ptr: *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
     ) -> glib::translate::Borrowed<Self> {
         debug_assert!(!ptr.is_null());
         debug_assert!(glib::types::instance_of::<Self>(ptr as *const _));
@@ -975,27 +1113,30 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
-    glib::translate::FromGlibPtrBorrow<*const <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>
-    for FixIndexedList<DataType>
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::translate::FromGlibPtrBorrow<
+        *const <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     #[inline]
     #[allow(clippy::cast_ptr_alignment)]
     unsafe fn from_glib_borrow(
-        ptr: *const <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        ptr: *const <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
     ) -> glib::translate::Borrowed<Self> {
-        glib::translate::from_glib_borrow::<_, Self>(ptr as *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance)
+        glib::translate::from_glib_borrow::<_, Self>(
+            ptr as *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+        )
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
     glib::translate::FromGlibContainerAsVec<
-        *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
-        *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
-    > for FixIndexedList<DataType>
+        *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+        *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     unsafe fn from_glib_none_num_as_vec(
-        ptr: *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        ptr: *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
         num: usize,
     ) -> Vec<Self> {
         if num == 0 || ptr.is_null() {
@@ -1010,7 +1151,7 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
         res
     }
     unsafe fn from_glib_container_num_as_vec(
-        ptr: *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        ptr: *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
         num: usize,
     ) -> Vec<Self> {
         let res = glib::translate::FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, num);
@@ -1018,7 +1159,7 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
         res
     }
     unsafe fn from_glib_full_num_as_vec(
-        ptr: *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        ptr: *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
         num: usize,
     ) -> Vec<Self> {
         if num == 0 || ptr.is_null() {
@@ -1034,96 +1175,108 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
     glib::translate::FromGlibPtrArrayContainerAsVec<
-        *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
-        *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
-    > for FixIndexedList<DataType>
+        *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+        *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     unsafe fn from_glib_none_as_vec(
-        ptr: *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        ptr: *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
     ) -> Vec<Self> {
         glib::translate::FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr, glib::translate::c_ptr_array_len(ptr))
     }
     unsafe fn from_glib_container_as_vec(
-        ptr: *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        ptr: *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
     ) -> Vec<Self> {
         glib::translate::FromGlibContainerAsVec::from_glib_container_num_as_vec(ptr, glib::translate::c_ptr_array_len(ptr))
     }
     unsafe fn from_glib_full_as_vec(
-        ptr: *mut *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        ptr: *mut *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
     ) -> Vec<Self> {
         glib::translate::FromGlibContainerAsVec::from_glib_full_num_as_vec(ptr, glib::translate::c_ptr_array_len(ptr))
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
     glib::translate::FromGlibContainerAsVec<
-        *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
-        *const *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
-    > for FixIndexedList<DataType>
+        *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+        *const *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     unsafe fn from_glib_none_num_as_vec(
-        ptr: *const *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        ptr: *const *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
         num: usize,
     ) -> Vec<Self> {
         glib::translate::FromGlibContainerAsVec::from_glib_none_num_as_vec(ptr as *mut *mut _, num)
     }
     unsafe fn from_glib_container_num_as_vec(
-        _: *const *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        _: *const *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
         _: usize,
     ) -> Vec<Self> {
         panic!("not implemented")
     }
     unsafe fn from_glib_full_num_as_vec(
-        _: *const *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        _: *const *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
         _: usize,
     ) -> Vec<Self> {
         panic!("not implemented")
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static>
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
     glib::translate::FromGlibPtrArrayContainerAsVec<
-        *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
-        *const *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
-    > for FixIndexedList<DataType>
+        *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+        *const *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+    > for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
     unsafe fn from_glib_none_as_vec(
-        ptr: *const *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        ptr: *const *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
     ) -> Vec<Self> {
         glib::translate::FromGlibPtrArrayContainerAsVec::from_glib_none_as_vec(ptr as *mut *mut _)
     }
     unsafe fn from_glib_container_as_vec(
-        _: *const *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        _: *const *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
     ) -> Vec<Self> {
         panic!("not implemented")
     }
     unsafe fn from_glib_full_as_vec(
-        _: *const *mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+        _: *const *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
     ) -> Vec<Self> {
         panic!("not implemented")
     }
 }
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::types::StaticType for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::types::StaticType for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     #[inline]
     fn static_type() -> glib::types::Type {
         #[allow(unused_unsafe)]
         unsafe {
-            glib::translate::from_glib(glib::translate::IntoGlib::into_glib(
-                <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclassType>::type_(),
-            ))
+            glib::translate::from_glib(glib::translate::IntoGlib::into_glib(<inner::FixIndexedList<
+                DataType,
+                TYPE_NAME,
+                ENTRY_TYPE_NAME,
+            > as glib::subclass::types::ObjectSubclassType>::type_(
+            )))
         }
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::value::ValueType for FixIndexedList<DataType> {
-    type Type = FixIndexedList<DataType>;
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::value::ValueType for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
+    type Type = FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>;
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::value::ValueTypeOptional for FixIndexedList<DataType> {}
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::value::ValueTypeOptional for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
+}
 #[doc(hidden)]
-unsafe impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::value::FromValue<'a> for FixIndexedList<DataType> {
+unsafe impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::value::FromValue<'a> for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     type Checker = glib::object::ObjectValueTypeChecker<Self>;
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
@@ -1131,19 +1284,16 @@ unsafe impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'sta
         debug_assert!(!ptr.is_null());
         debug_assert_ne!((*ptr).ref_count, 0);
         <Self as glib::translate::FromGlibPtrFull<
-                *mut <inner::FixIndexedList<
-                    DataType,
-                > as glib::subclass::types::ObjectSubclass>::Instance,
-            >>::from_glib_full(
-                ptr
-                    as *mut <inner::FixIndexedList<
-                        DataType,
-                    > as glib::subclass::types::ObjectSubclass>::Instance,
-            )
+            *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+        >>::from_glib_full(
+            ptr as *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+        )
     }
 }
 #[doc(hidden)]
-unsafe impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::value::FromValue<'a> for &'a FixIndexedList<DataType> {
+unsafe impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::value::FromValue<'a> for &'a FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     type Checker = glib::object::ObjectValueTypeChecker<Self>;
     #[inline]
     unsafe fn from_value(value: &'a glib::Value) -> Self {
@@ -1152,23 +1302,25 @@ unsafe impl<'a, DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'sta
         debug_assert!(!value.data[0].v_pointer.is_null());
         debug_assert_ne!((*(value.data[0].v_pointer as *const glib::gobject_ffi::GObject)).ref_count, 0);
 
-        <FixIndexedList<DataType> as glib::object::ObjectType>::from_glib_ptr_borrow(
+        <FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::object::ObjectType>::from_glib_ptr_borrow(
             &value.data[0].v_pointer as *const glib::ffi::gpointer
-                as *const *const <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance,
+                as *const *const <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
         )
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::value::ToValue for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::value::ToValue for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     #[inline]
     fn to_value(&self) -> glib::Value {
         unsafe {
             let mut value = glib::Value::from_type_unchecked(<Self as glib::StaticType>::static_type());
             glib::gobject_ffi::g_value_take_object(
                 glib::translate::ToGlibPtrMut::to_glib_none_mut(&mut value).0,
-                glib::translate::ToGlibPtr::<*mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>::to_glib_full(
-                    self,
-                ) as *mut _,
+                glib::translate::ToGlibPtr::<
+                    *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+                >::to_glib_full(self) as *mut _,
             );
             value
         }
@@ -1179,48 +1331,55 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> ::std::convert::From<FixIndexedList<DataType>> for glib::Value {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    ::std::convert::From<FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>> for glib::Value
+{
     #[inline]
-    fn from(o: FixIndexedList<DataType>) -> Self {
+    fn from(o: FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>) -> Self {
         unsafe {
-            let mut value = glib::Value::from_type_unchecked(<FixIndexedList<DataType> as glib::StaticType>::static_type());
+            let mut value =
+                glib::Value::from_type_unchecked(<FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::StaticType>::static_type());
             glib::gobject_ffi::g_value_take_object(
-                    glib::translate::ToGlibPtrMut::to_glib_none_mut(&mut value).0,
-                    glib::translate::IntoGlibPtr::<
-                        *mut <inner::FixIndexedList<
-                            DataType,
-                        > as glib::subclass::types::ObjectSubclass>::Instance,
-                    >::into_glib_ptr(o) as *mut _,
-                );
+                glib::translate::ToGlibPtrMut::to_glib_none_mut(&mut value).0,
+                glib::translate::IntoGlibPtr::<
+                    *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+                >::into_glib_ptr(o) as *mut _,
+            );
             value
         }
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::value::ToValueOptional for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::value::ToValueOptional for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     #[inline]
     fn to_value_optional(s: Option<&Self>) -> glib::Value {
         let mut value = glib::Value::for_value_type::<Self>();
         unsafe {
             glib::gobject_ffi::g_value_take_object(
                 glib::translate::ToGlibPtrMut::to_glib_none_mut(&mut value).0,
-                glib::translate::ToGlibPtr::<*mut <inner::FixIndexedList<DataType> as glib::subclass::types::ObjectSubclass>::Instance>::to_glib_full(
-                    &s,
-                ) as *mut _,
+                glib::translate::ToGlibPtr::<
+                    *mut <inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::subclass::types::ObjectSubclass>::Instance,
+                >::to_glib_full(&s) as *mut _,
             );
         }
         value
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::clone::Downgrade for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::clone::Downgrade for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     type Weak = glib::object::WeakRef<Self>;
     #[inline]
     fn downgrade(&self) -> Self::Weak {
         <Self as glib::object::ObjectExt>::downgrade(&self)
     }
 }
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::HasParamSpec for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::HasParamSpec for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     type ParamSpec = glib::ParamSpecObject;
     type SetValue = Self;
     type BuilderFn = fn(&str) -> glib::ParamSpecObjectBuilder<Self>;
@@ -1228,60 +1387,82 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::
         |name| Self::ParamSpec::builder(name)
     }
 }
-unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::object::IsA<gtk4::Widget> for FixIndexedList<DataType> {}
+unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::object::IsA<gtk4::Widget> for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
+}
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> From<FixIndexedList<DataType>> for gtk4::Widget {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    From<FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>> for gtk4::Widget
+{
     #[inline]
-    fn from(v: FixIndexedList<DataType>) -> Self {
-        <FixIndexedList<DataType> as glib::Cast>::upcast(v)
+    fn from(v: FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>) -> Self {
+        <FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::Cast>::upcast(v)
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> AsRef<gtk4::Widget> for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    AsRef<gtk4::Widget> for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     #[inline]
     fn as_ref(&self) -> &gtk4::Widget {
         glib::object::Cast::upcast_ref(self)
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> std::borrow::Borrow<gtk4::Widget> for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    std::borrow::Borrow<gtk4::Widget> for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     #[inline]
     fn borrow(&self) -> &gtk4::Widget {
         glib::object::Cast::upcast_ref(self)
     }
 }
-unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::object::ParentClassIs for FixIndexedList<DataType> {
+unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::object::ParentClassIs for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     type Parent = gtk4::Widget;
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> AsRef<glib::object::Object> for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    AsRef<glib::object::Object> for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     #[inline]
     fn as_ref(&self) -> &glib::object::Object {
         glib::object::Cast::upcast_ref(self)
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> std::borrow::Borrow<glib::object::Object> for FixIndexedList<DataType> {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    std::borrow::Borrow<glib::object::Object> for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
     #[inline]
     fn borrow(&self) -> &glib::object::Object {
         glib::object::Cast::upcast_ref(self)
     }
 }
 #[doc(hidden)]
-impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> From<FixIndexedList<DataType>> for glib::object::Object {
+impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    From<FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>> for glib::object::Object
+{
     #[inline]
-    fn from(v: FixIndexedList<DataType>) -> Self {
-        <FixIndexedList<DataType> as glib::Cast>::upcast(v)
+    fn from(v: FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>) -> Self {
+        <FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME> as glib::Cast>::upcast(v)
     }
 }
 #[doc(hidden)]
-unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::object::IsA<glib::object::Object>
-    for FixIndexedList<DataType>
+unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::object::IsA<glib::object::Object> for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
 {
 }
 #[doc(hidden)]
-unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::object::IsClass for FixIndexedList<DataType> {}
-unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static> glib::object::ObjectSubclassIs for FixIndexedList<DataType> {
-    type Subclass = inner::FixIndexedList<DataType>;
+unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::object::IsClass for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
+}
+unsafe impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const TYPE_NAME: &'static str, const ENTRY_TYPE_NAME: &'static str>
+    glib::object::ObjectSubclassIs for FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>
+{
+    type Subclass = inner::FixIndexedList<DataType, TYPE_NAME, ENTRY_TYPE_NAME>;
 }
 // ----- end of macro expansion of glib::wrapper -----

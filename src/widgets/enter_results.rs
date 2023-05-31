@@ -185,10 +185,10 @@ mod inner {
             debug_assert!(competition.data.is_some());
             let data = competition.data.as_ref().unwrap();
 
-            // use possibly new group name
-            self.title.set_label(data.group_names[group_idx].as_str());
+            let group = &data.groups[group_idx];
 
-            let teams = &data.teams[group_idx];
+            // use possibly new group name
+            self.title.set_label(group.name.as_str());
 
             let next_matches = data.next_matches_for_group(group_idx);
 
@@ -202,15 +202,15 @@ mod inner {
             self.enter_tile.set_child(self.enter_tile_box.clone());
 
             // update title of interim result table
-            let new_enter_result_title = format!("Enter results for batch {}", data.current_batch[group_idx] + 1);
+            let new_enter_result_title = format!("Enter results for batch {}", group.current_batch + 1);
             self.enter_tile.set_title(new_enter_result_title.as_str());
 
             // rebuild enter results table
             self.enter_table.clear_rows();
             for next_match in next_matches {
                 let lane_str = (next_match.lane + 1).to_string();
-                let team_a_name = teams[next_match.team_a].name.as_str();
-                let team_b_name = teams[next_match.team_b].name.as_str();
+                let team_a_name = group.teams[next_match.team_a].name.as_str();
+                let team_b_name = group.teams[next_match.team_b].name.as_str();
 
                 let team_a_entry = Self::create_new_entry();
                 let team_b_entry = Self::create_new_entry();

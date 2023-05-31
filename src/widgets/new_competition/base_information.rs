@@ -1,3 +1,4 @@
+use crate::data::{Group, Team};
 use crate::widgets::tile::Tile;
 use crate::widgets::time_selector::TimeSelector;
 use crate::{data::CompetitionData, widgets::new_competition::group_page::GroupPage};
@@ -7,8 +8,8 @@ use gdk4::{
     subclass::prelude::*,
 };
 use gtk4::{
-    glib, subclass::widget::*, traits::*, Align, Box as GtkBox, Button, Calendar, CenterBox, Entry, EntryBuffer, FlowBox, Grid, Image, Justification,
-    Label, LayoutManager, Notebook, Orientation, PackType, TextBuffer, TextView, Widget, Window,
+    glib, prelude::*, subclass::widget::*, Align, Box as GtkBox, Button, Calendar, CenterBox, Entry, EntryBuffer, FlowBox, Grid, Image,
+    Justification, Label, LayoutManager, Notebook, Orientation, PackType, TextBuffer, TextView, Widget, Window,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
@@ -45,7 +46,7 @@ mod inner {
         /// Increment-only counter, used to generate generic default group names.
         group_idx_counter: Cell<u32>,
         /// A vector of all currently available groups.
-        groups: RefCell<Vec<Group>>,
+        groups: RefCell<Vec<GroupData>>,
         /// A set of all group pages currently containing invalid inputs.
         erroneous_groups: RefCell<HashSet<GroupPage>>,
         /// A set of all group name buffers currently containing invalid chars.
@@ -180,11 +181,7 @@ mod inner {
             self.next_button_center.set_parent(&*self.obj());
 
             next_button.connect_clicked(clone!(@weak self as this => move |_button| {
-                // button is only enabled if all entries are valid, no checks here necessary
-                // we can just switch to the next screen
-                debug_assert!(this.are_all_entries_valid());
-                // TODO: Save data to the competition data if something changed. (i.e. use dirty flags) 
-                this.obj().emit_next_screen();
+                this.handle_next();
             }));
 
             // set next button not sensitive by default
@@ -196,10 +193,78 @@ mod inner {
         }
 
         ///
+        /// Handle the event when the user presses the next button.
+        ///
+        fn handle_next(&self) {
+            // button is only enabled if all entries are valid, no checks here necessary
+            // we can just switch to the next screen
+            debug_assert!(self.are_all_entries_valid());
+
+            // TODO: Only override changed data?
+            // Current update strategy of competition data: complete override
+
+            {
+                let new_competition_data = self.new_competition_data.borrow();
+                let mut data = new_competition_data.borrow_mut();
+
+                debug_assert!(data.groups.is_empty());
+
+                data.name = self.competition_name_buffer.text().to_string();
+
+                {
+                    let date_time = self.date_time.borrow();
+                    data.date_string = date_time.as_ref().unwrap().format("%d.%B.%Y").unwrap().to_string();
+                    data.time_string = date_time.as_ref().unwrap().format("%H:%M").unwrap().to_string();
+                }
+
+                data.location = self.location_buffer.text().to_string();
+                data.executor = self.executor_buffer.text().to_string();
+                data.organizer = self.organizer_buffer.text().to_string();
+                data.referee = self.referee_buffer.text().to_string();
+                data.competition_manager = self.competition_manager_buffer.text().to_string();
+                data.secretary = self.secretary_buffer.text().to_string();
+                data.additional_text = self
+                    .additional_text_buffer
+                    .text(&self.additional_text_buffer.start_iter(), &self.additional_text_buffer.end_iter(), false)
+                    .to_string();
+
+                data.groups = self
+                    .groups
+                    .borrow()
+                    .iter()
+                    .map(|group| {
+                        let teams = group
+                            .page
+                            .get_team_names()
+                            .iter()
+                            .map(|[team_name, region_name]| Team::new(&mut data, team_name.clone(), region_name.clone()))
+                            .collect();
+
+                        Group {
+                            name: group.name_buffer.text().to_string(),
+                            teams,
+                            with_break: true, // TODO: Fix with_break
+                            count_batches: 0,
+                            current_batch: 0,
+                            matches: Vec::new(),
+                        }
+                    })
+                    .collect();
+
+                data.count_teams = data.groups.iter().map(|group| group.teams.len()).sum::<usize>() as u32;
+
+                // TODO: with break flag?!
+            }
+
+            self.obj().emit_next_screen();
+        }
+
+        ///
         /// Returns whether all group entries are in a valid state.
         ///
         fn are_all_entries_valid(&self) -> bool {
             // TODO: Check for empty text fields and empty groups or groups with only 1 team (+ possibly other invalid group constellations?)
+            // TODO: Check for empty timestamp
             self.erroneous_groups.borrow().is_empty()
                 && self.erroneous_group_names.borrow().is_empty()
                 && self.erroneous_base_infos.borrow().is_empty()
@@ -505,7 +570,7 @@ mod inner {
             notebook.append_page(&page, Some(&center_box));
 
             center_box.parent().unwrap().set_focusable(false);
-            self.groups.borrow_mut().push(Group {
+            self.groups.borrow_mut().push(GroupData {
                 name_buffer: group_name_buffer,
                 page,
             });
@@ -517,7 +582,7 @@ mod inner {
     }
 
     #[derive(Debug)]
-    struct Group {
+    struct GroupData {
         name_buffer: EntryBuffer,
         page: GroupPage,
     }

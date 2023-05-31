@@ -6,20 +6,25 @@ use std::marker::PhantomData;
 /// This is a wrapper around a gio::ListStore
 /// Every element consists of an index and the actual user data
 /// When reordering the elements, the index will stay at the same positions at all times, only the user data is reordered.
+///
+/// `DataType`: This is the type which should be stored.
+///
+/// `TYPE_NAME`: This is the name by which the entry type is registered in the glib. Should be: "FixIndexedListEntry_DataType" where "DataType" has to be replaced by the name of `DataType`. Has to be unique in the whole application.
+///
 #[derive(Debug)]
-pub struct FixIndexedListStore<DataType> {
+pub struct FixIndexedListStore<DataType, const TYPE_NAME: &'static str> {
     pub list_store: ListStore,
     phantom_data: PhantomData<DataType>,
 }
 
-impl<DataType: Default + ObjectExt + 'static> FixIndexedListStore<DataType> {
+impl<DataType: Default + ObjectExt + 'static, const TYPE_NAME: &'static str> FixIndexedListStore<DataType, TYPE_NAME> {
     ///
     /// Rotates the entries in the ListStore for positions in the interval `[src_idx, dst_idx]` in `rot_direction`.
     /// Entries rotated out on either side of the interval are moved in from the other side.
     /// The positions stored in the FixIndexedListEntry stay the same, only the user data is rotated around.
     ///
     pub fn rotate_entries(&self, src_idx: u32, dst_idx: u32, rot_direction: RotateDirection) {
-        let src_data: FixIndexedListEntry<DataType> = self
+        let src_data: FixIndexedListEntry<DataType, TYPE_NAME> = self
             .list_store
             .item(src_idx)
             .expect("Row data must exists!")
@@ -37,7 +42,7 @@ impl<DataType: Default + ObjectExt + 'static> FixIndexedListStore<DataType> {
         };
         //
         while cmp_f(&next_modify_idx, &(src_idx as i32)) {
-            let row_data: FixIndexedListEntry<DataType> = self
+            let row_data: FixIndexedListEntry<DataType, TYPE_NAME> = self
                 .list_store
                 .item(next_modify_idx as u32)
                 .expect("Row data must exists!")
@@ -60,7 +65,7 @@ impl<DataType: Default + ObjectExt + 'static> FixIndexedListStore<DataType> {
     /// Appends `data` to the end of the ListStore.
     ///
     pub fn append(&self, data: DataType) {
-        let entry = FixIndexedListEntry::<DataType>::new(self.n_items(), data);
+        let entry = FixIndexedListEntry::<DataType, TYPE_NAME>::new(self.n_items(), data);
         self.list_store.append(&entry);
     }
 
@@ -84,7 +89,7 @@ impl<DataType: Default + ObjectExt + 'static> FixIndexedListStore<DataType> {
     ///
     pub fn get(&self, index: u32) -> Option<DataType> {
         let object = self.list_store.item(index);
-        let entry_opt: Option<&FixIndexedListEntry<DataType>> = object.and_downcast_ref();
+        let entry_opt: Option<&FixIndexedListEntry<DataType, TYPE_NAME>> = object.and_downcast_ref();
         if let Some(entry) = entry_opt {
             debug_assert_eq!(entry.get_position(), index);
         }
@@ -97,12 +102,22 @@ impl<DataType: Default + ObjectExt + 'static> FixIndexedListStore<DataType> {
     pub fn n_items(&self) -> u32 {
         self.list_store.n_items()
     }
+
+    ///
+    /// Get the item at `index`.
+    ///
+    pub fn item(&self, index: u32) -> Option<DataType> {
+        self.list_store
+            .item(index)
+            .and_downcast_ref()
+            .map(|x: &FixIndexedListEntry<DataType, TYPE_NAME>| x.get_data())
+    }
 }
 
-impl<DataType: Default + ObjectExt + 'static> Default for FixIndexedListStore<DataType> {
+impl<DataType: Default + ObjectExt + 'static, const TYPE_NAME: &'static str> Default for FixIndexedListStore<DataType, TYPE_NAME> {
     fn default() -> Self {
         Self {
-            list_store: ListStore::new(FixIndexedListEntry::<DataType>::static_type()),
+            list_store: ListStore::new(FixIndexedListEntry::<DataType, TYPE_NAME>::static_type()),
             phantom_data: PhantomData::<DataType>::default(),
         }
     }
