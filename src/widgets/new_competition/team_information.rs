@@ -285,7 +285,7 @@ mod inner {
                 let team_name_expression = PropertyExpression::new(GroupTeamObject::static_type(), Expression::NONE, "team-name");
                 let team_name_filter = StringFilter::builder()
                     .expression(team_name_expression)
-                    .match_mode(gtk4::StringFilterMatchMode::Prefix)
+                    .match_mode(gtk4::StringFilterMatchMode::Substring)
                     .search("")
                     .build();
 

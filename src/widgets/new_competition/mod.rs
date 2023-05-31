@@ -40,23 +40,22 @@ pub fn create_new_competition_screen(application: &Application, program_state: &
     );
 
     let team_information = TeamInformationScreen::new(&new_competition);
-    nav_bar.add_child(
+    nav_bar.add_child_with_callback(
         &team_information,
         "Team Information".to_string(),
         NewScreenNavBarCategory::TeamInformation,
-    );
-
-    nav_bar.connect_show_child_before(clone!(@weak team_information => move |_, child| {
-        if &team_information == child {
+        clone!(@weak base_information, @weak team_information => move |_, _, _| {
+            base_information.store_data();
             team_information.reload();
-        }
-    }));
+        }),
+    );
 
     // hide TeamInformation by default
     nav_bar.hide_category(NewScreenNavBarCategory::TeamInformation);
 
     // connect signals to show / hide categories and children
     base_information.connect_next_screen(clone!(@weak nav_bar => move |_| {
+        println!("Next screen!");
         nav_bar.show_child("Team Information", NewScreenNavBarCategory::TeamInformation);
     }));
 

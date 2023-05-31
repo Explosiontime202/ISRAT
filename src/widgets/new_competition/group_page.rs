@@ -103,6 +103,7 @@ mod inner {
                 .halign(Align::Center)
                 .hexpand(true)
                 .xalign(0.5)
+                .placeholder_text("Teamname")
                 .build();
 
             team_entry.connect_text_notify(clone!(@weak self as this => move |entry| {
@@ -130,6 +131,7 @@ mod inner {
                 .halign(Align::Center)
                 .hexpand(true)
                 .xalign(0.5)
+                .placeholder_text("Region")
                 .build();
 
             region_entry.connect_text_notify(clone!(@weak self as this => move |entry| {

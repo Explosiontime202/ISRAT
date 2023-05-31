@@ -181,7 +181,7 @@ mod inner {
             self.next_button_center.set_parent(&*self.obj());
 
             next_button.connect_clicked(clone!(@weak self as this => move |_button| {
-                this.handle_next();
+                this.obj().emit_next_screen();
             }));
 
             // set next button not sensitive by default
@@ -193,9 +193,9 @@ mod inner {
         }
 
         ///
-        /// Handle the event when the user presses the next button.
+        /// Stores the entered data to the CompetitionData.
         ///
-        fn handle_next(&self) {
+        pub fn store_data(&self) {
             // button is only enabled if all entries are valid, no checks here necessary
             // we can just switch to the next screen
             debug_assert!(self.are_all_entries_valid());
@@ -207,7 +207,7 @@ mod inner {
                 let new_competition_data = self.new_competition_data.borrow();
                 let mut data = new_competition_data.borrow_mut();
 
-                debug_assert!(data.groups.is_empty());
+                data.groups.clear(); // TODO: need to keep previously entered information, i.e. player names
 
                 data.name = self.competition_name_buffer.text().to_string();
 
@@ -255,8 +255,6 @@ mod inner {
 
                 // TODO: with break flag?!
             }
-
-            self.obj().emit_next_screen();
         }
 
         ///
@@ -312,24 +310,27 @@ mod inner {
                 }));
             };
 
-            let create_entry = |buffer: &EntryBuffer| -> Widget {
-                let entry = Entry::with_buffer(buffer);
+            let create_entry = |buffer: &EntryBuffer, place_holder: &str| -> Widget {
+                let entry = Entry::builder().buffer(buffer).placeholder_text(place_holder).build();
                 connect_check_chars(&entry);
                 entry.upcast()
             };
 
-            insert_into_grid("Competition Name", &create_entry(&self.competition_name_buffer));
+            insert_into_grid("Competition Name", &create_entry(&self.competition_name_buffer, "Competition Name"));
 
             let date_time_button = Button::builder().child(&self.date_time_label).css_classes(["elevated"]).build();
             date_time_button.connect_clicked(clone!(@weak self as this => move |_| this.open_date_time_window()));
             insert_into_grid("Date", &date_time_button.into());
 
-            insert_into_grid("Location", &create_entry(&self.location_buffer));
-            insert_into_grid("Executor", &create_entry(&self.executor_buffer));
-            insert_into_grid("Organizer", &create_entry(&self.organizer_buffer));
-            insert_into_grid("Referee", &create_entry(&self.referee_buffer));
-            insert_into_grid("Competition Manager", &create_entry(&self.competition_manager_buffer));
-            insert_into_grid("Secretary", &create_entry(&self.secretary_buffer));
+            insert_into_grid("Location", &create_entry(&self.location_buffer, "Location"));
+            insert_into_grid("Executor", &create_entry(&self.executor_buffer, "Executor"));
+            insert_into_grid("Organizer", &create_entry(&self.organizer_buffer, "Organizer"));
+            insert_into_grid("Referee", &create_entry(&self.referee_buffer, "Referee"));
+            insert_into_grid(
+                "Competition Manager",
+                &create_entry(&self.competition_manager_buffer, "Competition Manager"),
+            );
+            insert_into_grid("Secretary", &create_entry(&self.secretary_buffer, "Secretary"));
 
             let additional_text_view = TextView::builder()
                 .buffer(&self.additional_text_buffer)
@@ -504,6 +505,7 @@ mod inner {
                 .hexpand(true)
                 .max_width_chars(16)
                 .width_chars(8)
+                .placeholder_text("Groupname")
                 .build();
 
             group_name_entry.connect_text_notify(clone!(@weak self as this => move |entry| {
@@ -598,6 +600,13 @@ impl BaseInformationScreen {
         let obj = glib::Object::new::<Self>();
         obj.imp().set_competition_data(Rc::clone(competition_data));
         obj
+    }
+
+    ///
+    /// Causes the write back of the data stored in the Buffer to the CompetitionData.
+    /// 
+    pub fn store_data(&self) {
+        self.imp().store_data();
     }
 
     pub fn connect_all_entries_valid<F: Fn(&Self, bool) + 'static>(&self, f: F) {
