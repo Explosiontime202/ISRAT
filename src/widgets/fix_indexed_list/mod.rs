@@ -250,7 +250,7 @@ mod inner {
                         vec![
                             // emitted when the FixIndexedList requests the using widget to create a new widget for a given data from type DataType
                             Signal::builder("create-data-widget")
-                                .param_types([DataType::static_type()])
+                                .param_types([u32::static_type(), DataType::static_type()])
                                 .return_type::<Widget>()
                                 .build(),
                             // emitted when the FixIndexedList requests the using widget to create a new data object of type DataType
@@ -292,7 +292,7 @@ mod inner {
                 .build();
 
             // request a new data widget from the using widget
-            let data_widget = self.obj().emit_create_data_widget(data.get_data());
+            let data_widget = self.obj().emit_create_data_widget(data.get_position(), data.get_data());
 
             row.append(&dnd_icon);
             row.append(&number_label);
@@ -564,7 +564,7 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const 
     /// Creates a FixIndexedList with the given objects.
     /// `create_data_widgets_func` is connected to the signal "create-data-widget".
     ///
-    pub fn with_default_objects<F: Fn(&Self, &DataType) -> Widget + 'static>(data_objects: Vec<DataType>, create_data_widgets_func: F) -> Self {
+    pub fn with_default_objects<F: Fn(&Self, u32, &DataType) -> Widget + 'static>(data_objects: Vec<DataType>, create_data_widgets_func: F) -> Self {
         let obj = Self::new();
         obj.connect_create_data_widget(create_data_widgets_func);
         for data_object in data_objects {
@@ -587,11 +587,11 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const 
     }
 
     #[inline]
-    pub fn connect_create_data_widget<F: Fn(&Self, &DataType) -> Widget + 'static>(&self, f: F) {
+    pub fn connect_create_data_widget<F: Fn(&Self, u32, &DataType) -> Widget + 'static>(&self, f: F) {
         self.connect_closure(
             "create-data-widget",
             true,
-            closure_local!(move |list: &Self, data: DataType| { f(list, &data) }),
+            closure_local!(move |list: &Self, position: u32, data: DataType| { f(list, position, &data) }),
         );
     }
 
@@ -628,8 +628,8 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const 
     }
 
     #[inline]
-    pub fn emit_create_data_widget(&self, data: DataType) -> Widget {
-        self.emit_by_name("create-data-widget", &[&data.to_value()])
+    pub fn emit_create_data_widget(&self, position: u32, data: DataType) -> Widget {
+        self.emit_by_name("create-data-widget", &[&position.to_value(), &data.to_value()])
     }
 
     #[inline]

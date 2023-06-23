@@ -49,7 +49,7 @@ mod inner {
                 .set_property("orientation", Orientation::Vertical);
 
             self.team_name_list
-                .connect_create_data_widget(clone!(@weak self as this => @default-panic, move |_, buffer_obj| {
+                .connect_create_data_widget(clone!(@weak self as this => @default-panic, move |_, _, buffer_obj| {
                     this.create_entry(buffer_obj)
                 }));
 

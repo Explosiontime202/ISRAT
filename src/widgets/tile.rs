@@ -81,7 +81,7 @@ mod inner {
                 Some(label) => label.set_text(title),
                 None => {
                     let new_label = Label::new(Some(title));
-                    new_label.add_css_class("tile_headline");
+                    new_label.add_css_class("subheadline");
                     new_label.set_parent(&*self.obj());
                     *label = Some(new_label);
                 }

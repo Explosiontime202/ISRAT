@@ -160,7 +160,7 @@ mod inner {
                 .orientation(gtk4::Orientation::Vertical)
                 .css_name("player_name_box")
                 .build();
-            let team_name = Label::new(None);
+            let team_name = Label::builder().css_classes(["subheadline"]).build();
 
             self.obj().connect_selected_team(clone!(@weak team_name => move |_, selected_team_name| {
                 team_name.set_label(selected_team_name.as_str());
@@ -171,8 +171,8 @@ mod inner {
             let player_name_list =
                 FixIndexedList::<EntryBuffer, "FixIndexedList_EntryBuffer", "FixIndexedListEntry_EntryBuffer">::with_default_objects(
                     self.player_name_buffer.clone(),
-                    clone!(@weak self as this => @default-panic, move |_, buffer| {
-                        this.create_player_row(buffer)
+                    clone!(@weak self as this => @default-panic, move |_, position, buffer| {
+                        this.create_player_row(position, buffer)
                     }),
                 );
 
@@ -243,8 +243,14 @@ mod inner {
         }
 
         /// Creates a new row for a player name, represented by `buffer`.
-        fn create_player_row(&self, buffer: &EntryBuffer) -> Widget {
-            let entry = Entry::builder().buffer(buffer).halign(Align::Center).hexpand(true).xalign(0.5).build();
+        fn create_player_row(&self, position: u32, buffer: &EntryBuffer) -> Widget {
+            let entry = Entry::builder()
+                .buffer(buffer)
+                .halign(Align::Center)
+                .hexpand(true)
+                .xalign(0.5)
+                .placeholder_text(format!("Player {}", position + 1))
+                .build();
             entry.set_max_width_chars(1000);
 
             // TODO: implement
@@ -353,7 +359,8 @@ mod inner {
                         // find index of team in model
                         let mut team_idx = None;
                         for idx in 0..model.n_items() {
-                            if model.item(idx).and_downcast::<GroupTeamObject>().as_ref().unwrap() == team {
+                            let model_item = model.item(idx).and_downcast::<GroupTeamObject>().unwrap();
+                            if &model_item == team {
                                 team_idx = Some(idx as i32);
                             }
                         };
