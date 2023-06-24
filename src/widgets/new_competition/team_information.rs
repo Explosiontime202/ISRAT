@@ -1,4 +1,4 @@
-use crate::data::CompetitionData;
+use crate::data::{CompetitionData, Group, Team};
 use crate::widgets::{fix_indexed_list::FixIndexedList, new_competition::group_team_object::GroupTeamObject, tile::Tile};
 use gdk4::{
     gio::ListStore,
@@ -8,9 +8,9 @@ use gdk4::{
     subclass::prelude::*,
 };
 use gtk4::{
-    glib, subclass::widget::*, traits::*, Align, BoolFilter, Box as GtkBox, CenterBox, ClosureExpression, DropDown, Entry, EntryBuffer, EveryFilter,
-    Expression, FilterListModel, Image, Label, ListBox, Paned, PropertyExpression, SearchEntry, SignalListItemFactory, StringFilter, StringList,
-    StringObject, Widget,
+    glib, prelude::*, subclass::widget::*, Align, BoolFilter, Box as GtkBox, CenterBox, ClosureExpression, DropDown, Entry, EntryBuffer, EveryFilter,
+    Expression, FilterListModel, Image, Label, ListBox, Orientation, Paned, PropertyExpression, SearchEntry, SignalListItemFactory, StringFilter,
+    StringList, StringObject, Widget,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -22,13 +22,20 @@ mod inner {
 
     #[derive(Debug)]
     pub struct TeamInformationScreen {
-        // The main child containing all the content. (a direct child)
+        /// The main child containing all the content. (a direct child)
         tile: Tile,
+        /// The 6 player name buffer.
         player_name_buffer: Vec<EntryBuffer>,
+        /// An option for the currently selected team, i.e. those player names can be edited.
         selected_team_obj: RefCell<Option<GroupTeamObject>>,
+        /// The currently selected group to filter for.
+        /// Is None if for no group should be filtered.
         selected_group: RefCell<Option<String>>,
+        /// A reference to the data of the competition which is currently created.
         new_competition_data: RefCell<Rc<RefCell<CompetitionData>>>,
+        /// The model containing all teams, in pairs (team_name, group_name) stored in `GroupTeamObject`s.
         team_model: ListStore,
+        /// The model containing all the groups.
         group_model: StringList,
     }
 
@@ -69,7 +76,7 @@ mod inner {
             self.tile.set_hexpand(true);
 
             let paned = Paned::builder()
-                .orientation(gtk4::Orientation::Horizontal)
+                .orientation(Orientation::Horizontal)
                 .vexpand(true)
                 .shrink_start_child(false)
                 .shrink_end_child(false)
@@ -93,7 +100,11 @@ mod inner {
         }
 
         fn signals() -> &'static [Signal] {
-            static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| vec![Signal::builder("selected-team").param_types([String::static_type()]).build()]);
+            static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
+                vec![Signal::builder("selected-team")
+                    .param_types([String::static_type(), String::static_type()])
+                    .build()]
+            });
             SIGNALS.as_ref()
         }
     }
@@ -128,10 +139,9 @@ mod inner {
 
             team_selector_list.bind_model(
                 Some(&model),
-                clone!(@weak team_selector_list => @default-panic, move |obj| {
+                clone!(@weak self as this, @weak team_selector_list => @default-panic, move |obj| {
                     let string_obj: &GroupTeamObject = obj.downcast_ref().unwrap();
-                    Label::new(Some(&string_obj.team_name())).into()
-                    // TODO: Also show group name to distinguish teams with same names in different groups
+                    Self::create_team_widget(&string_obj.team_name(), &string_obj.group_name())
                 }),
             );
 
@@ -139,10 +149,19 @@ mod inner {
                 if let Some(row) = row_opt {
                     let team: GroupTeamObject = model.item(row.index() as u32).and_downcast().unwrap();
 
+                    // save player names before selecting the new one
+                    if let Some(prev_selected) = this.selected_team_obj.borrow().as_ref() {
+                        if prev_selected != &team {
+                            this.save_player_names(&prev_selected.team_name(), &prev_selected.group_name());
+                            this.clear_player_name_entries();
+                        }
+                    }
+
                     // only override selected_team_obj if it is currently none or another string is stored
                     if this.selected_team_obj.borrow().is_none() || this.selected_team_obj.borrow().as_ref().unwrap() != &team {
                         *this.selected_team_obj.borrow_mut() = Some(team.clone());
-                        this.obj().emit_selected_team(team.team_name().into());
+                        this.load_player_names(&team.team_name(), &team.group_name());
+                        this.obj().emit_selected_team(team.team_name(), team.group_name());
                     }
                 }
             }));
@@ -155,18 +174,113 @@ mod inner {
             team_selector_box
         }
 
+        ///
+        /// Creates a widget for a given `team_name` and `group_name` to be displayed in the `team_selector_list`.
+        ///
+        fn create_team_widget(team_name: &str, group_name: &str) -> Widget {
+            let center_box = CenterBox::new();
+            let hbox = GtkBox::new(Orientation::Horizontal, 10);
+
+            hbox.append(&Label::new(Some(team_name)));
+
+            hbox.append(&Label::builder().label("-").css_classes(["dimmed"]).build());
+            hbox.append(&Label::builder().label(group_name).css_classes(["dimmed"]).build());
+            center_box.set_center_widget(Some(&hbox));
+            center_box.into()
+        }
+
+        ///
+        /// Save currently entered player names to the competition data.
+        /// Stores None for empty fields.
+        ///
+        fn save_player_names(&self, team_name: &str, group_name: &str) {
+            let data_ptr = self.new_competition_data.borrow();
+            let mut data = data_ptr.borrow_mut();
+
+            // find team in group
+            let team = Self::find_team(&mut data, team_name, group_name);
+
+            // overwrite player names
+            for (idx, buffer) in self.player_name_buffer.iter().enumerate() {
+                team.player_names[idx] = if !buffer.text().is_empty() { Some(buffer.text().into()) } else { None };
+            }
+        }
+
+        ///
+        /// Loads player names from competition data into entry buffer.
+        ///
+        fn load_player_names(&self, team_name: &str, group_name: &str) {
+            let data_ptr = self.new_competition_data.borrow();
+            let mut data = data_ptr.borrow_mut();
+
+            // find team in group
+            let team = Self::find_team(&mut data, team_name, group_name);
+
+            // overwrite plyer name entry buffer
+            for (idx, buffer) in self.player_name_buffer.iter().enumerate() {
+                buffer.set_text(if let Some(player_name) = team.player_names[idx].as_ref() {
+                    player_name
+                } else {
+                    ""
+                });
+            }
+        }
+
+        ///
+        /// Finds the unique team for `team_name` and `group_name`.
+        ///
+        fn find_team<'a>(data: &'a mut CompetitionData, team_name: &str, group_name: &str) -> &'a mut Team {
+            let mut teams: Vec<&'a mut Team> = data
+                .groups
+                .iter_mut()
+                .filter(|group: &&'a mut Group| &group.name == group_name)
+                .flat_map(|group| &mut group.teams)
+                .filter(|team| &team.name == team_name)
+                .collect();
+
+            assert!(
+                teams.len() == 1,
+                "Found multiple teams with the same name ({team_name}) in the same group ({group_name})!"
+            );
+
+            teams.remove(0)
+        }
+
+        ///
+        /// Resets all entries in `player_name_buffer`.
+        ///
+        fn clear_player_name_entries(&self) {
+            // TODO: clear errors
+            for buffer in &self.player_name_buffer {
+                buffer.set_text("");
+            }
+        }
+
         fn create_player_name_box(&self) -> Widget {
-            let player_name_box = GtkBox::builder()
-                .orientation(gtk4::Orientation::Vertical)
-                .css_name("player_name_box")
-                .build();
+            let player_name_box = GtkBox::builder().orientation(Orientation::Vertical).css_name("player_name_box").build();
+
+            let team_name_center = CenterBox::new();
+            let team_name_box = GtkBox::new(Orientation::Horizontal, 10);
             let team_name = Label::builder().css_classes(["subheadline"]).build();
+            let hyphen = Label::builder().label("-").css_classes(["subheadline", "dimmed"]).visible(false).build();
+            let group_name = Label::builder().css_classes(["subheadline", "dimmed"]).build();
 
-            self.obj().connect_selected_team(clone!(@weak team_name => move |_, selected_team_name| {
-                team_name.set_label(selected_team_name.as_str());
-            }));
+            self.obj().connect_selected_team(
+                clone!(@weak team_name, @weak group_name, @weak hyphen => move |_, selected_team_name, selected_group_name| {
+                    team_name.set_label(&selected_team_name);
+                    group_name.set_label(&selected_group_name);
+                    if !hyphen.is_visible() {
+                        hyphen.set_visible(true);
+                    }
+                }),
+            );
 
-            player_name_box.append(&team_name);
+            team_name_box.append(&team_name);
+            team_name_box.append(&hyphen);
+            team_name_box.append(&group_name);
+
+            team_name_center.set_center_widget(Some(&team_name_box));
+            player_name_box.append(&team_name_center);
 
             let player_name_list =
                 FixIndexedList::<EntryBuffer, "FixIndexedList_EntryBuffer", "FixIndexedListEntry_EntryBuffer">::with_default_objects(
@@ -326,8 +440,7 @@ mod inner {
 
                 group_selector.connect_selected_item_notify(clone!(@weak self as this, @weak group_name_filter => move |group_selector| {
                     // update the stored selected group, store none if all groups are selected
-                    let group: StringObject = group_selector.selected_item().and_downcast().unwrap();
-                    {
+                    if let Some(group) = group_selector.selected_item().and_downcast::<StringObject>() {
                         let mut sel_group = this.selected_group.borrow_mut();
                         if group.string() == Self::ALL_GROUPS_SELECTOR_STR {
                             *sel_group = None;
@@ -365,10 +478,11 @@ mod inner {
                             }
                         };
 
-                        assert!(team_idx.is_some());
-                        // find row and select row
-                        let row = list_box.row_at_index(team_idx.unwrap()).unwrap();
-                        list_box.select_row(Some(&row));
+                        if let Some(idx) = team_idx {
+                            // find row and select row
+                            let row = list_box.row_at_index(idx).unwrap();
+                            list_box.select_row(Some(&row));
+                        }
                     }
                 }
             }));
@@ -382,13 +496,15 @@ mod inner {
         }
 
         pub fn reload(&self) {
+            self.clear_player_name_entries();
+
             // remove all items from team model
-            for idx in (1..self.team_model.n_items()).rev() {
+            for idx in (0..self.team_model.n_items()).rev() {
                 self.team_model.remove(idx);
             }
 
             // remove all items from group model (except all groups selector)
-            for idx in (1..self.group_model.n_items()).rev() {
+            for idx in (0..self.group_model.n_items()).rev() {
                 self.group_model.remove(idx);
             }
 
@@ -425,19 +541,19 @@ impl TeamInformationScreen {
     }
 
     #[inline]
-    fn connect_selected_team<F: Fn(&Self, String) + 'static>(&self, f: F) {
+    fn connect_selected_team<F: Fn(&Self, String, String) + 'static>(&self, f: F) {
         self.connect_closure(
             "selected-team",
             true,
-            closure_local!(move |team_info_screen: &Self, selected_team: String| {
-                f(team_info_screen, selected_team);
+            closure_local!(move |team_info_screen: &Self, selected_team: String, selected_group_name: String| {
+                f(team_info_screen, selected_team, selected_group_name);
             }),
         );
     }
 
     #[inline]
-    fn emit_selected_team(&self, selected_team: String) {
-        let _: () = self.emit_by_name("selected-team", &[&selected_team]);
+    fn emit_selected_team(&self, selected_team: String, selected_group_name: String) {
+        let _: () = self.emit_by_name("selected-team", &[&selected_team, &selected_group_name]);
     }
 
     pub fn reload(&self) {

@@ -271,8 +271,6 @@ mod inner {
         /// Returns whether all group entries are in a valid state.
         ///
         fn are_all_entries_valid(&self) -> bool {
-            // TODO: Are there other possibly invalid group constellations to check for?
-
             let empty_text_fields = self.referee_buffer.length() == 0
                 || self.executor_buffer.length() == 0
                 || self.location_buffer.length() == 0
@@ -517,7 +515,7 @@ mod inner {
             }));
 
             let center_box = CenterBox::builder().hexpand(true).focusable(false).build();
-            let group_name_buffer = EntryBuffer::new(Some(&format!("Group {}", group_idx_counter)));
+            let group_name_buffer = EntryBuffer::new(Some(&format!("Group {}", group_idx_counter + 1)));
             let group_name_entry = Entry::builder()
                 .buffer(&group_name_buffer)
                 .hexpand(true)
