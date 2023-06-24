@@ -16,6 +16,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 mod inner {
+    use gtk4::NotebookPage;
+
     use super::*;
 
     #[derive(Debug)]
@@ -41,12 +43,12 @@ mod inner {
         secretary_buffer: EntryBuffer,
         /// Buffer of the additional text field.
         additional_text_buffer: TextBuffer,
+        /// The notebook storing all group pages.
+        notebook: Notebook,
         /// Currently entered date and time, can be None if no date and time was entered yet.
         date_time: RefCell<Option<glib::DateTime>>,
         /// Increment-only counter, used to generate generic default group names.
         group_idx_counter: Cell<u32>,
-        /// A vector of all currently available groups.
-        groups: RefCell<Vec<GroupData>>,
         /// A set of all group pages currently containing invalid inputs.
         erroneous_groups: RefCell<HashSet<GroupPage>>,
         /// A set of all group name buffers currently containing invalid chars.
@@ -146,6 +148,8 @@ mod inner {
                 .vexpand(true)
                 .build();
 
+            let notebook = Notebook::builder().scrollable(true).show_border(false).build();
+
             Self {
                 flow_box,
                 competition_name_buffer: EntryBuffer::new(None::<String>),
@@ -157,9 +161,9 @@ mod inner {
                 competition_manager_buffer: EntryBuffer::new(None::<String>),
                 secretary_buffer: EntryBuffer::new(None::<String>),
                 additional_text_buffer: TextBuffer::new(None),
+                notebook,
                 date_time: RefCell::new(None),
                 group_idx_counter: Cell::new(0),
-                groups: RefCell::default(),
                 erroneous_groups: RefCell::default(),
                 erroneous_group_names: RefCell::default(),
                 erroneous_base_infos: RefCell::default(),
@@ -228,20 +232,26 @@ mod inner {
                     .text(&self.additional_text_buffer.start_iter(), &self.additional_text_buffer.end_iter(), false)
                     .to_string();
 
+                // let notebook_page: NotebookPage = notebook.pages().item(page_pos).and_downcast().unwrap();
                 data.groups = self
-                    .groups
-                    .borrow()
+                    .notebook
+                    .pages()
                     .iter()
-                    .map(|group| {
-                        let teams = group
-                            .page
+                    .map(|iter| {
+                        let notebook_page: NotebookPage = iter.unwrap();
+                        let group_page: GroupPage = notebook_page.child().downcast().unwrap();
+
+                        let teams = group_page
                             .get_team_names()
                             .iter()
                             .map(|[team_name, region_name]| Team::new(&mut data, team_name.clone(), region_name.clone()))
                             .collect();
 
+                        let label_center: CenterBox = notebook_page.tab().and_downcast().unwrap();
+                        let name_buffer: Entry = label_center.start_widget().and_downcast().unwrap();
+
                         Group {
-                            name: group.name_buffer.text().to_string(),
+                            name: name_buffer.text().to_string(),
                             teams,
                             with_break: true, // TODO: Fix with_break
                             count_batches: 0,
@@ -261,11 +271,21 @@ mod inner {
         /// Returns whether all group entries are in a valid state.
         ///
         fn are_all_entries_valid(&self) -> bool {
-            // TODO: Check for empty text fields and empty groups or groups with only 1 team (+ possibly other invalid group constellations?)
-            // TODO: Check for empty timestamp
+            // TODO: Are there other possibly invalid group constellations to check for?
+
+            let empty_text_fields = self.referee_buffer.length() == 0
+                || self.executor_buffer.length() == 0
+                || self.location_buffer.length() == 0
+                || self.organizer_buffer.length() == 0
+                || self.secretary_buffer.length() == 0
+                || self.competition_name_buffer.length() == 0
+                || self.competition_manager_buffer.length() == 0;
+
             self.erroneous_groups.borrow().is_empty()
                 && self.erroneous_group_names.borrow().is_empty()
                 && self.erroneous_base_infos.borrow().is_empty()
+                && !empty_text_fields
+                && self.date_time.borrow().is_some()
         }
 
         ///
@@ -292,21 +312,19 @@ mod inner {
                 entry.connect_text_notify(clone!(@weak self as this => move |entry| {
                     let mut erroneous_group_names = this.erroneous_base_infos.borrow_mut();
                     // show error when disallowed characters are entered
-                    if !entry.text().chars().all(|c| is_valid_name_character(c)) {
+                    if entry.text().is_empty() || !entry.text().chars().all(|c| is_valid_name_character(c)) {
                         if !entry.css_classes().contains(&"error".into()) {
                             entry.error_bell();
                         }
                         entry.add_css_class("error");
                         erroneous_group_names.insert(entry.buffer());
-                        drop(erroneous_group_names);
-                        this.obj().emit_all_entries_valid(this.are_all_entries_valid());
                     } else if erroneous_group_names.contains(&entry.buffer()) {
                         // text is valid, reset possibly set error marker
                         entry.remove_css_class("error");
                         erroneous_group_names.remove(&entry.buffer());
-                        drop(erroneous_group_names);
-                        this.obj().emit_all_entries_valid(this.are_all_entries_valid());
                     }
+                    drop(erroneous_group_names);
+                    this.obj().emit_all_entries_valid(this.are_all_entries_valid());
                 }));
             };
 
@@ -441,6 +459,7 @@ mod inner {
                 let date_time_str = calendar_date.format("%d.%B %Y, %H:%M").expect("Failed to format current date time!");
                 this.date_time_label.set_label(&date_time_str);
                 *this.date_time.borrow_mut() = Some(calendar_date);
+                this.obj().emit_all_entries_valid(this.are_all_entries_valid());
                 window.close();
             }));
 
@@ -455,25 +474,24 @@ mod inner {
         ///
         fn create_groups_tile(&self) -> Widget {
             let groups_tile = Tile::new("Groups & Teams");
-            let notebook = Notebook::builder().scrollable(true).show_border(false).build();
 
             // default create a group
-            self.create_new_groups_tab(&notebook);
+            self.create_new_groups_tab();
 
             // add button to add more groups
             let button_hbox = GtkBox::new(Orientation::Horizontal, 5);
             button_hbox.append(&Image::from_icon_name("list-add"));
             button_hbox.append(&Label::new(Some("Add Group")));
             let add_group_button = Button::builder().child(&button_hbox).focusable(false).build();
-            notebook.set_action_widget(&add_group_button, PackType::End);
+            self.notebook.set_action_widget(&add_group_button, PackType::End);
 
-            add_group_button.connect_clicked(clone!(@weak notebook, @weak self as this => move |_| {
-                this.create_new_groups_tab(&notebook);
+            add_group_button.connect_clicked(clone!(@weak self as this => move |_| {
+                this.create_new_groups_tab();
                 // select last child, i.e. the new created one
-                notebook.set_current_page(None);
+                this.notebook.set_current_page(None);
             }));
 
-            groups_tile.set_child(notebook);
+            groups_tile.set_child(self.notebook.clone());
             groups_tile.into()
         }
 
@@ -481,7 +499,7 @@ mod inner {
         /// Creates a new tab in `notebook` with a generic default group name created with `group_idx_counter`.
         /// Adds a GroupPage as child to the Notebook.
         ///
-        fn create_new_groups_tab(&self, notebook: &Notebook) {
+        fn create_new_groups_tab(&self) {
             let group_idx_counter = self.group_idx_counter.get();
             self.group_idx_counter.set(group_idx_counter + 1);
 
@@ -534,59 +552,50 @@ mod inner {
             let remove_button = Button::builder().icon_name("list-remove").focusable(false).build();
             remove_button.add_css_class("group_remove");
             let group_name_buffer = group_name_entry.buffer();
-            remove_button.connect_clicked(
-                clone!(@weak self as this, @weak notebook, @weak page, @weak group_name_buffer => move |_| {
-                    if notebook.n_pages() > 1 {
-                        let page_pos = notebook.page_num(&page).unwrap();
-                        // remove page & group name buffer
-                        notebook.remove_page(Some(page_pos));
-                        this.groups.borrow_mut().remove(page_pos as usize);
+            remove_button.connect_clicked(clone!(@weak self as this, @weak page, @weak group_name_buffer => move |_| {
+                if this.notebook.n_pages() > 1 {
+                    let page_pos = this.notebook.page_num(&page).unwrap();
+                    // remove page
+                    this.notebook.remove_page(Some(page_pos));
 
-                        if notebook.n_pages() == 1 {
-                            // only one group page left, cannot be removed => disable remove button of this widget
-                            let page = notebook.nth_page(Some(0)).unwrap();
-                            let tab_label = notebook.tab_label(&page).unwrap();
-                            tab_label.last_child().unwrap().set_sensitive(false);
-                        }
-
-                        this.erroneous_groups.borrow_mut().remove(&page);
-                        this.erroneous_group_names.borrow_mut().remove(&group_name_buffer);
-                        this.obj().emit_all_entries_valid(this.are_all_entries_valid());
+                    if this.notebook.n_pages() == 1 {
+                        // only one group page left, cannot be removed => disable remove button of this widget
+                        let page = this.notebook.nth_page(Some(0)).unwrap();
+                        let tab_label = this.notebook.tab_label(&page).unwrap();
+                        tab_label.last_child().unwrap().set_sensitive(false);
                     }
-                }),
-            );
+
+                    this.erroneous_groups.borrow_mut().remove(&page);
+                    this.erroneous_group_names.borrow_mut().remove(&group_name_buffer);
+                    this.obj().emit_all_entries_valid(this.are_all_entries_valid());
+                }
+            }));
             center_box.set_end_widget(Some(&remove_button));
 
             // if no page is available, the remove button should not be active
-            if notebook.n_pages() == 0 {
+            if self.notebook.n_pages() == 0 {
                 remove_button.set_sensitive(false);
             }
 
             // re-enable remove button of other tab if previously only one group page was available
-            if notebook.n_pages() == 1 {
-                let page = notebook.nth_page(Some(0)).unwrap();
-                let tab_label = notebook.tab_label(&page).unwrap();
+            if self.notebook.n_pages() == 1 {
+                let page = self.notebook.nth_page(Some(0)).unwrap();
+                let tab_label = self.notebook.tab_label(&page).unwrap();
                 tab_label.last_child().unwrap().set_sensitive(true);
             }
 
-            notebook.append_page(&page, Some(&center_box));
+            self.notebook.append_page(&page, Some(&center_box));
 
             center_box.parent().unwrap().set_focusable(false);
-            self.groups.borrow_mut().push(GroupData {
-                name_buffer: group_name_buffer,
-                page,
-            });
+
+            // group is invalid as it has no teams
+            self.erroneous_groups.borrow_mut().insert(page.clone());
+            self.obj().emit_all_entries_valid(self.are_all_entries_valid());
         }
 
         pub fn set_competition_data(&self, data: Rc<RefCell<CompetitionData>>) {
             *self.new_competition_data.borrow_mut() = data;
         }
-    }
-
-    #[derive(Debug)]
-    struct GroupData {
-        name_buffer: EntryBuffer,
-        page: GroupPage,
     }
 }
 
@@ -604,7 +613,7 @@ impl BaseInformationScreen {
 
     ///
     /// Causes the write back of the data stored in the Buffer to the CompetitionData.
-    /// 
+    ///
     pub fn store_data(&self) {
         self.imp().store_data();
     }

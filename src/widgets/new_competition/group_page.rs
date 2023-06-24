@@ -66,10 +66,13 @@ mod inner {
                 .connect_row_removed(clone!(@weak self as this => move |_, buffer_obj| {
                     this.erroneous_entries.borrow_mut().remove(&buffer_obj.team());
                     this.erroneous_entries.borrow_mut().remove(&buffer_obj.region());
-                    this.obj().emit_all_entries_valid(this.are_all_entries_valid());
                 }));
 
             self.team_name_list.connect_create_append_widget(|_| Label::new(Some("Add Team")).into());
+
+            self.team_name_list.connect_row_count(clone!(@weak self as this => move |_, _| {
+                this.obj().emit_all_entries_valid(this.are_all_entries_valid());
+            }));
 
             self.team_name_list.set_allow_count_changes(true);
             self.team_name_list.set_parent(&*obj);
@@ -109,7 +112,7 @@ mod inner {
             team_entry.connect_text_notify(clone!(@weak self as this => move |entry| {
                 let mut erroneous_entries = this.erroneous_entries.borrow_mut();
                 // show error when disallowed characters are entered
-                if !entry.text().chars().all(|c| is_valid_name_character(c)) {
+                if entry.text().is_empty() || !entry.text().chars().all(|c| is_valid_name_character(c)) {
                     if !entry.css_classes().contains(&"error".into()) {
                         entry.error_bell();
                     }
@@ -160,7 +163,8 @@ mod inner {
         }
 
         fn are_all_entries_valid(&self) -> bool {
-            self.erroneous_entries.borrow().is_empty()
+            // TODO: all team not empty (region can be empty!)
+            self.erroneous_entries.borrow().is_empty() && self.team_name_list.get_model().n_items() > 1
         }
     }
 }

@@ -259,6 +259,8 @@ mod inner {
                             Signal::builder("create-append-widget").return_type::<Widget>().build(),
                             // emitted when the row count changed, i.e. a row was appended or removed
                             Signal::builder("row-count").param_types([u32::static_type()]).build(),
+                            // emitted when a row is appended
+                            Signal::builder("row-appended").build(),
                             // emitted when a row is removed; also provides the removed data object of type DataType
                             Signal::builder("row-removed").param_types([DataType::static_type()]).build(),
                         ],
@@ -483,7 +485,7 @@ mod inner {
 
         ///
         /// Adds a new row to the list. Emits the signal "create-data-object" in order to request a new data object to be inserted in the new slot.
-        /// Emits the signal "row-count".
+        /// Emits the signals "row-count" and "row-appended".
         ///
         fn append_row(&self) {
             assert!(self.allow_count_changes.get());
@@ -493,10 +495,11 @@ mod inner {
 
         ///
         /// Adds a new row to the list. The signal "create-data-object" is not emitted, but the given object is used.
-        /// Emits the signal "row-count".
+        /// Emits the signals "row-count" and "row-appended".
         ///
         pub fn append_row_with_object(&self, data_object: DataType) {
             self.model.append(data_object);
+            self.obj().emit_row_appended();
             self.obj().emit_row_count(self.model.n_items());
         }
 
@@ -617,6 +620,17 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const 
     }
 
     #[inline]
+    pub fn connect_row_appended<F: Fn(&Self) + 'static>(&self, f: F) {
+        self.connect_closure(
+            "row-appended",
+            true,
+            closure_local!(move |list: &Self| {
+                f(list);
+            }),
+        );
+    }
+
+    #[inline]
     pub fn connect_row_removed<F: Fn(&Self, &DataType) + 'static>(&self, f: F) {
         self.connect_closure(
             "row-removed",
@@ -645,6 +659,11 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const 
     #[inline]
     pub fn emit_row_count(&self, row_count: u32) {
         let _: () = self.emit_by_name("row-count", &[&row_count.to_value()]);
+    }
+
+    #[inline]
+    pub fn emit_row_appended(&self) {
+        let _: () = self.emit_by_name("row-appended", &[]);
     }
 
     #[inline]
