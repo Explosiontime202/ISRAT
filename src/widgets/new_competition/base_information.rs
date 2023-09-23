@@ -1,23 +1,19 @@
-use crate::data::{Group, Team};
-use crate::widgets::tile::Tile;
-use crate::widgets::time_selector::TimeSelector;
-use crate::{data::CompetitionData, widgets::new_competition::group_page::GroupPage};
+use crate::data::{CompetitionData, Group, Team};
+use crate::widgets::{new_competition::group_page::GroupPage, tile::Tile, time_selector::TimeSelector};
 use gdk4::{
-    glib::{clone, closure_local, once_cell::sync::Lazy, subclass::Signal},
+    glib::{clone, closure_local, once_cell::sync::Lazy, subclass::Signal, DateTime, GString, TimeZone},
     prelude::*,
     subclass::prelude::*,
 };
 use gtk4::{
     glib, prelude::*, subclass::widget::*, Align, Box as GtkBox, Button, Calendar, CenterBox, Entry, EntryBuffer, FlowBox, Grid, Image,
-    Justification, Label, LayoutManager, Notebook, Orientation, PackType, TextBuffer, TextView, Widget, Window,
+    Justification, Label, LayoutManager, Notebook, NotebookPage, Orientation, PackType, TextBuffer, TextView, Widget, Window,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::rc::Rc;
 
 mod inner {
-    use gtk4::NotebookPage;
-
     use super::*;
 
     #[derive(Debug)]
@@ -55,7 +51,7 @@ mod inner {
         erroneous_group_names: RefCell<HashSet<EntryBuffer>>,
         /// A set of all base information entry buffers currently containing invalid chars.
         erroneous_base_infos: RefCell<HashSet<EntryBuffer>>,
-        /// A button to switch to the next stage of the new competition creation.
+        /// A button to switch to the next stage of the new competition creation. (a direct child)
         /// Will be insensitive if there are any invalid inputs.
         next_button_center: CenterBox,
         /// A reference to the competition data of the newly created competition by this widget.
@@ -116,6 +112,9 @@ mod inner {
 
             self.flow_box.set_parent(&*obj);
             self.init_next_button();
+
+            #[cfg(debug_assertions)]
+            self.add_test_values_key_binding();
         }
 
         fn dispose(&self) {
@@ -414,7 +413,7 @@ mod inner {
                 .css_classes(["action"])
                 .build();
             let submit_button = Button::builder()
-                .label("Submit")
+                .label("Select")
                 .css_name("highlighted_button")
                 .css_classes(["action"])
                 .build();
@@ -454,7 +453,7 @@ mod inner {
                 calendar_date = calendar_date.add_minutes(time_selector.minutes() as i32).unwrap();
 
                 // write to label in button and store date_time for later use
-                let date_time_str = calendar_date.format("%d.%B %Y, %H:%M").expect("Failed to format current date time!");
+                let date_time_str = Self::format_date_time(&calendar_date);
                 this.date_time_label.set_label(&date_time_str);
                 *this.date_time.borrow_mut() = Some(calendar_date);
                 this.obj().emit_all_entries_valid(this.are_all_entries_valid());
@@ -465,6 +464,26 @@ mod inner {
             cancel_button.connect_clicked(clone!(@weak window => move |_| {
                 window.close();
             }));
+        }
+
+        fn format_date_time(date_time: &DateTime) -> GString {
+            match date_time.format("%d.%B %Y, %H:%M") {
+                Ok(str) => str,
+                Err(_) => {
+                    #[cfg(debug_assertions)]
+                    println!(
+                        "DateTime format error!, year = {}, month = {}, day = {}, hour = {}, minute = {}, seconds = {}",
+                        date_time.year(),
+                        date_time.month(),
+                        date_time.day_of_month(),
+                        date_time.hour(),
+                        date_time.minute(),
+                        date_time.seconds()
+                    );
+
+                    GString::from("Invalid DateTime")
+                }
+            }
         }
 
         ///
@@ -497,10 +516,17 @@ mod inner {
         /// Creates a new tab in `notebook` with a generic default group name created with `group_idx_counter`.
         /// Adds a GroupPage as child to the Notebook.
         ///
-        fn create_new_groups_tab(&self) {
+        fn create_new_groups_tab(&self) -> GroupPage {
             let group_idx_counter = self.group_idx_counter.get();
             self.group_idx_counter.set(group_idx_counter + 1);
+            let group_name = format!("Group {}", group_idx_counter + 1);
+            self.create_new_groups_tab_with_name(&group_name)
+        }
 
+        ///
+        /// Creates a new tab in `notebook` with the given group name. Adds the GroupPage as child to the Notebook.
+        ///
+        fn create_new_groups_tab_with_name(&self, group_name: &str) -> GroupPage {
             let page = GroupPage::new();
 
             page.connect_all_entries_valid(clone!(@weak self as this => move |page, all_valid| {
@@ -515,7 +541,7 @@ mod inner {
             }));
 
             let center_box = CenterBox::builder().hexpand(true).focusable(false).build();
-            let group_name_buffer = EntryBuffer::new(Some(&format!("Group {}", group_idx_counter + 1)));
+            let group_name_buffer = EntryBuffer::new(Some(group_name));
             let group_name_entry = Entry::builder()
                 .buffer(&group_name_buffer)
                 .hexpand(true)
@@ -589,10 +615,61 @@ mod inner {
             // group is invalid as it has no teams
             self.erroneous_groups.borrow_mut().insert(page.clone());
             self.obj().emit_all_entries_valid(self.are_all_entries_valid());
+
+            page
         }
 
         pub fn set_competition_data(&self, data: Rc<RefCell<CompetitionData>>) {
             *self.new_competition_data.borrow_mut() = data;
+        }
+
+        #[cfg(debug_assertions)]
+        fn add_test_values_key_binding(&self) {
+            use gdk4::{Key, ModifierType};
+            use gtk4::{EventControllerKey, Inhibit};
+
+            let key_event_controller = EventControllerKey::new();
+            key_event_controller.connect_key_pressed(
+                clone!(@weak self as this => @default-panic, move |_ :&EventControllerKey, _/*key*/: Key, key_code: u32, modifier_type : ModifierType| {
+                    if key_code == 28 && modifier_type.contains(ModifierType::CONTROL_MASK) {
+                        println!("Adding test data to BaseInformationScreen!");
+                        this.competition_name_buffer.set_text("TestCompetition");
+                        let date_time = DateTime::new(&TimeZone::local(), 2024, 1, 1, 13, 30, 0.).unwrap();
+                        this.date_time_label.set_text(&Self::format_date_time(&date_time));
+                        *this.date_time.borrow_mut() = Some(date_time);
+                        this.location_buffer.set_text("TestLocation");
+                        this.executor_buffer.set_text("TestExecutor");
+                        this.organizer_buffer.set_text("TestOrganizer");
+                        this.referee_buffer.set_text("TestReferee");
+                        this.competition_manager_buffer.set_text("TestCompetitionManager");
+                        this.secretary_buffer.set_text("TestSecretary");
+                        this.additional_text_buffer.set_text("TestAdditionalText");
+
+                        for i in (0..this.notebook.n_pages()).rev() {
+                            this.notebook.remove_page(Some(i));
+                        }
+                        this.group_idx_counter.set(0);
+
+                        for letter in ['A', 'B'] {
+                            let group = this.create_new_groups_tab_with_name(&format!("Group {letter}"));
+                            for i in 1..=5 {
+                                group.append_team(&format!("Team {letter}{i}"), &format!("Region {letter}{i}"));
+                            }
+                        }
+
+                        this.erroneous_base_infos.borrow_mut().clear();
+                        this.erroneous_group_names.borrow_mut().clear();
+                        this.erroneous_groups.borrow_mut().clear();
+
+
+                        this.obj().emit_all_entries_valid(this.are_all_entries_valid());
+                        return Inhibit(false);
+                    }
+
+                    Inhibit(false)
+                }),
+            );
+            self.obj().add_controller(key_event_controller);
         }
     }
 }

@@ -577,6 +577,13 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const 
     }
 
     ///
+    /// Append object to list.
+    /// 
+    pub fn append(&self, data_object: DataType) {
+        self.imp().append_row_with_object(data_object);
+    }
+
+    ///
     /// `allow_count_changes` specifies whether rows can be appended and removed.
     /// The according widgets are shown or not.
     /// The default value is false.

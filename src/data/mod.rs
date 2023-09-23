@@ -12,7 +12,6 @@ use tectonic::driver::{OutputFormat, ProcessingSessionBuilder};
 use tectonic::status::NoopStatusBackend;
 
 use crate::data::read_write::save_to_file;
-
 use self::read_write::read_from_file;
 
 pub mod read_write;
@@ -47,6 +46,7 @@ impl Competition {
         }
     }
 
+    #[must_use]
     pub fn get_current_interim_result_for_group(&mut self, group_idx: usize) -> &Vec<InterimResultEntry> {
         // calculate interim result if not available
         if self.current_interim_result[group_idx].is_empty() {
@@ -56,6 +56,7 @@ impl Competition {
         &self.current_interim_result[group_idx]
     }
 
+    #[must_use]
     pub fn handle_open_file(&mut self, path: PathBuf) -> Result<(), String> {
         if !path.exists() {
             return Err(format!("Path does not exists: {}", path.display()));
@@ -105,6 +106,7 @@ impl Competition {
         }
     }
 
+    #[must_use]
     pub fn handle_save_file(&mut self, mut path: PathBuf) -> Result<(), String> {
         if path.exists() && path.is_dir() {
             return Err(String::from("Path references a directory!"));

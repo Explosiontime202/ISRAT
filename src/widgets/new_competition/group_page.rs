@@ -6,8 +6,11 @@ use gdk4::{
     subclass::prelude::*,
 };
 use gtk4::{glib, prelude::*, subclass::widget::*, Align, Box as GtkBox, BoxLayout, Entry, EntryBuffer, Label, LayoutManager, Orientation, Widget};
-use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
+use std::{
+    cell::{Cell, RefCell},
+    iter::zip,
+};
 
 mod inner {
     use super::*;
@@ -177,6 +180,26 @@ glib::wrapper! {
 impl GroupPage {
     pub fn new() -> Self {
         glib::Object::new::<Self>()
+    }
+
+    ///
+    /// Appends a team with `team_name` and `region`.
+    /// 
+    pub fn append_team(&self, team_name: &str, region: &str) {
+        self.imp().team_name_list.append(TeamRegionObject::with_default(
+            EntryBuffer::new(Some(team_name)),
+            EntryBuffer::new(Some(region)),
+        ));
+    }
+
+    ///
+    /// Appends teams with `team_names` and `regions`.
+    /// 
+    pub fn append_teams(&self, team_names: Vec<&str>, regions: Vec<&str>) {
+        debug_assert_eq!(team_names.len(), regions.len());
+        for (team_name, region) in zip(team_names, regions) {
+            self.append_team(team_name, region);
+        }
     }
 
     pub fn connect_all_entries_valid<F: Fn(&Self, bool) + 'static>(&self, f: F) {

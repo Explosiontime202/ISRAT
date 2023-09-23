@@ -1,31 +1,34 @@
 use crate::data::{CompetitionData, Group, Team};
-use crate::widgets::{fix_indexed_list::FixIndexedList, new_competition::group_team_object::GroupTeamObject, tile::Tile};
+use crate::widgets::{fix_indexed_list::FixIndexedList, new_competition::group_team_object::GroupTeamObject, tile::Tile, new_competition::base_information::is_valid_name_character};
 use gdk4::{
     gio::ListStore,
-    glib::GString,
-    glib::{clone, closure_local, once_cell::sync::Lazy, subclass::Signal, translate::FromGlib, SignalHandlerId},
+    glib::{clone, closure_local, once_cell::sync::Lazy, subclass::Signal, translate::FromGlib, SignalHandlerId, GString},
     prelude::*,
     subclass::prelude::*,
 };
 use gtk4::{
-    glib, prelude::*, subclass::widget::*, Align, BoolFilter, Box as GtkBox, CenterBox, ClosureExpression, DropDown, Entry, EntryBuffer, EveryFilter,
-    Expression, FilterListModel, Image, Label, ListBox, Orientation, Paned, PropertyExpression, SearchEntry, SignalListItemFactory, StringFilter,
-    StringList, StringObject, Widget,
+    glib, prelude::*, subclass::widget::*, Align, BoolFilter, Box as GtkBox, Button, CenterBox, ClosureExpression, DropDown, Entry, EntryBuffer,
+    EveryFilter, Expression, FilterListModel, Image, Label, LayoutManager, ListBox, Orientation, Paned, PropertyExpression, SearchEntry,
+    SignalListItemFactory, StringFilter, StringList, StringObject, Widget,
 };
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::rc::Rc;
 
 mod inner {
     use super::*;
 
-    // TODO: Add comments
-
     #[derive(Debug)]
     pub struct TeamInformationScreen {
         /// The main child containing all the content. (a direct child)
         tile: Tile,
+        /// A button to switch to the next stage of the new competition creation. (a direct child)
+        /// Will be insensitive if there are any invalid inputs.
+        next_button_center: CenterBox,
         /// The 6 player name buffer.
         player_name_buffer: Vec<EntryBuffer>,
+        /// The buffer which contain invalid characters (indexes into `player_name_buffer`).
+        erroneous_buffer: RefCell<HashSet<u32>>,
         /// An option for the currently selected team, i.e. those player names can be edited.
         selected_team_obj: RefCell<Option<GroupTeamObject>>,
         /// The currently selected group to filter for.
@@ -46,7 +49,9 @@ mod inner {
 
             Self {
                 tile: Tile::new("Team Information"),
+                next_button_center: CenterBox::new(),
                 player_name_buffer,
+                erroneous_buffer: RefCell::default(),
                 selected_team_obj: RefCell::new(None),
                 selected_group: RefCell::new(None),
                 new_competition_data: RefCell::default(),
@@ -72,8 +77,13 @@ mod inner {
     impl ObjectImpl for TeamInformationScreen {
         fn constructed(&self) {
             self.parent_constructed();
+            self.obj()
+                .property::<LayoutManager>("layout_manager")
+                .set_property("orientation", Orientation::Vertical);
+
             self.tile.set_parent(&*self.obj());
             self.tile.set_hexpand(true);
+            self.tile.set_vexpand(true);
 
             let paned = Paned::builder()
                 .orientation(Orientation::Horizontal)
@@ -93,17 +103,27 @@ mod inner {
             paned.set_end_child(Some(&player_name_box));
 
             self.tile.set_child(paned);
+            self.init_next_button();
+
+            #[cfg(debug_assertions)]
+            self.add_test_values_key_binding();
         }
 
         fn dispose(&self) {
             self.tile.unparent();
+            self.next_button_center.unparent();
         }
 
         fn signals() -> &'static [Signal] {
             static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
-                vec![Signal::builder("selected-team")
-                    .param_types([String::static_type(), String::static_type()])
-                    .build()]
+                vec![
+                    Signal::builder("selected-team")
+                        .param_types([String::static_type(), String::static_type()])
+                        .build(),
+                    Signal::builder("unselect-team").build(),
+                    Signal::builder("next-screen").build(),
+                    Signal::builder("all-entries-valid").param_types([bool::static_type()]).build(),
+                ]
             });
             SIGNALS.as_ref()
         }
@@ -113,6 +133,27 @@ mod inner {
     impl TeamInformationScreen {
         /// The string used to select all groups.
         const ALL_GROUPS_SELECTOR_STR: &str = "All groups";
+
+        ///
+        /// Initializes the button to switch to the next screen.
+        /// Button will be set insensitive if there are some invalid inputs.
+        ///
+        fn init_next_button(&self) {
+            let center_box = CenterBox::new();
+            center_box.set_start_widget(Some(&Label::new(Some("Next"))));
+            center_box.set_end_widget(Some(&Image::from_icon_name("go-next")));
+            let next_button = Button::builder().child(&center_box).css_name("next_button").build();
+            self.next_button_center.set_end_widget(Some(&next_button));
+            self.next_button_center.set_parent(&*self.obj());
+
+            next_button.connect_clicked(clone!(@weak self as this => move |_button| {
+                this.obj().emit_next_screen();
+            }));
+
+            self.obj().connect_all_entries_valid(clone!(@weak next_button => move |_, all_valid| {
+                next_button.set_sensitive(all_valid);
+            }));
+        }
 
         ///
         /// Creates the left half of the Paned, i.e. where the user can select a team, for which the user likes to enter player names.
@@ -159,9 +200,7 @@ mod inner {
 
                     // only override selected_team_obj if it is currently none or another string is stored
                     if this.selected_team_obj.borrow().is_none() || this.selected_team_obj.borrow().as_ref().unwrap() != &team {
-                        *this.selected_team_obj.borrow_mut() = Some(team.clone());
-                        this.load_player_names(&team.team_name(), &team.group_name());
-                        this.obj().emit_selected_team(team.team_name(), team.group_name());
+                        this.select_team(&team);
                     }
                 }
             }));
@@ -172,6 +211,15 @@ mod inner {
             team_selector_box.append(&team_selector_list);
 
             team_selector_box
+        }
+
+        ///
+        /// Stores `team` in `selected_team_obj`, updates
+        ///
+        fn select_team(&self, team: &GroupTeamObject) {
+            *self.selected_team_obj.borrow_mut() = Some(team.clone());
+            self.load_player_names(&team.team_name(), &team.group_name());
+            self.obj().emit_selected_team(team.team_name(), team.group_name());
         }
 
         ///
@@ -257,7 +305,11 @@ mod inner {
         }
 
         fn create_player_name_box(&self) -> Widget {
-            let player_name_box = GtkBox::builder().orientation(Orientation::Vertical).css_name("player_name_box").build();
+            let player_name_box = GtkBox::builder()
+                .orientation(Orientation::Vertical)
+                .css_name("player_name_box")
+                .sensitive(false)
+                .build();
 
             let team_name_center = CenterBox::new();
             let team_name_box = GtkBox::new(Orientation::Horizontal, 10);
@@ -266,12 +318,22 @@ mod inner {
             let group_name = Label::builder().css_classes(["subheadline", "dimmed"]).build();
 
             self.obj().connect_selected_team(
-                clone!(@weak team_name, @weak group_name, @weak hyphen => move |_, selected_team_name, selected_group_name| {
+                clone!(@weak team_name, @weak group_name, @weak hyphen, @weak player_name_box => move |_, selected_team_name, selected_group_name| {
                     team_name.set_label(&selected_team_name);
                     group_name.set_label(&selected_group_name);
                     if !hyphen.is_visible() {
                         hyphen.set_visible(true);
                     }
+                    player_name_box.set_sensitive(true)
+                }),
+            );
+
+            self.obj().connect_unselect_team(
+                clone!(@weak team_name, @weak group_name, @weak hyphen, @weak player_name_box => move |_| {
+                    team_name.set_label("");
+                    group_name.set_label("");
+                    hyphen.set_visible(false);
+                    player_name_box.set_sensitive(false);
                 }),
             );
 
@@ -367,28 +429,31 @@ mod inner {
                 .build();
             entry.set_max_width_chars(1000);
 
-            // TODO: implement
-            /*entry.connect_text_notify(clone!(@weak self as this => move |entry| {
-                let mut erroneous_entries = this.erroneous_entries.borrow_mut();
+            entry.connect_text_notify(clone!(@weak self as this => move |entry| {
+                let mut erroneous_entries = this.erroneous_buffer.borrow_mut();
                 // show error when disallowed characters are entered
                 if !entry.text().chars().all(|c| is_valid_name_character(c)) {
                     if !entry.css_classes().contains(&"error".into()) {
+                        entry.add_css_class("error");
                         entry.error_bell();
                     }
-                    entry.add_css_class("error");
-                    erroneous_entries.insert(entry.buffer());
+                    erroneous_entries.insert(position);
                     drop(erroneous_entries);
                     this.obj().emit_all_entries_valid(this.are_all_entries_valid());
-                } else if erroneous_entries.contains(&entry.buffer())  {
+                } else if erroneous_entries.contains(&position)  {
                     // text is valid, reset possibly set error marker
-                    erroneous_entries.remove(&entry.buffer());
+                    erroneous_entries.remove(&position);
                     entry.remove_css_class("error");
                     drop(erroneous_entries);
                     this.obj().emit_all_entries_valid(this.are_all_entries_valid());
                 }
-            }));*/
+            }));
 
             entry.into()
+        }
+
+        fn are_all_entries_valid(&self) -> bool {
+            self.erroneous_buffer.borrow().len() == 0
         }
 
         ///
@@ -497,6 +562,8 @@ mod inner {
 
         pub fn reload(&self) {
             self.clear_player_name_entries();
+            let selected_team_obj = self.selected_team_obj.borrow_mut().take();
+            self.obj().emit_unselect_team();
 
             // remove all items from team model
             for idx in (0..self.team_model.n_items()).rev() {
@@ -504,26 +571,79 @@ mod inner {
             }
 
             // remove all items from group model (except all groups selector)
-            for idx in (0..self.group_model.n_items()).rev() {
+            for idx in (1..self.group_model.n_items()).rev() {
                 self.group_model.remove(idx);
             }
 
             // and insert new teams & groups
             let new_competition_data = self.new_competition_data.borrow();
             let data = new_competition_data.borrow();
+            let mut found_sel_team_obj = None;
             for group in data.groups.iter() {
                 for team in group.teams.iter() {
-                    self.team_model.append(&GroupTeamObject::new(group.name.clone(), team.name.clone()))
+                    let group_team_obj = GroupTeamObject::new(group.name.clone(), team.name.clone());
+                    self.team_model.append(&group_team_obj);
+
+                    // select team obj again
+                    if let Some(prev_sel_team_obj) = selected_team_obj.as_ref() {
+                        if prev_sel_team_obj.group_name() == group.name && prev_sel_team_obj.team_name() == team.name {
+                            debug_assert!(found_sel_team_obj.is_none());
+                            found_sel_team_obj = Some(group_team_obj);
+                        }
+                    }
                 }
             }
 
             for group in data.groups.iter() {
                 self.group_model.append(&group.name);
             }
+
+            // avoid double borrow of data
+            drop(data);
+            if let Some(sel_team) = found_sel_team_obj.as_ref() {
+                self.select_team(sel_team);
+            }
         }
 
         pub fn set_competition_data(&self, data: Rc<RefCell<CompetitionData>>) {
             *self.new_competition_data.borrow_mut() = data;
+        }
+
+        #[cfg(debug_assertions)]
+        fn add_test_values_key_binding(&self) {
+            use gdk4::{Key, ModifierType};
+            use gtk4::{EventControllerKey, Inhibit};
+
+            let key_event_controller = EventControllerKey::new();
+            key_event_controller.connect_key_pressed(
+                clone!(@weak self as this => @default-panic, move |_ :&EventControllerKey, _/*key*/: Key, key_code: u32, modifier_type : ModifierType| {
+                    if key_code == 28 && modifier_type.contains(ModifierType::CONTROL_MASK) {
+                        println!("Adding test data to TeamInformationScreen!");
+                        this.erroneous_buffer.borrow_mut().clear();
+
+                        let new_competition_data = this.new_competition_data.borrow();
+                        let mut data = new_competition_data.borrow_mut();
+
+                        for group in &mut data.groups {
+                            for team in &mut group.teams {
+                                for i in 0..6 {
+                                    team.player_names[i] = Some(format!("{} - Player {}", team.name, i + 1));
+                                }
+                            }
+                        }
+                        
+                        // avoid double borrow
+                        drop(data);
+
+                        this.reload();
+                        this.obj().emit_all_entries_valid(this.are_all_entries_valid());
+                        return Inhibit(false);
+                    }
+
+                    Inhibit(false)
+                }),
+            );
+            self.obj().add_controller(key_event_controller);
         }
     }
 }
@@ -552,8 +672,63 @@ impl TeamInformationScreen {
     }
 
     #[inline]
+    fn connect_unselect_team<F: Fn(&Self) + 'static>(&self, f: F) {
+        self.connect_closure(
+            "unselect-team",
+            true,
+            closure_local!(move |team_info_screen: &Self| { f(team_info_screen) }),
+        );
+    }
+
+    #[inline]
+    pub fn connect_all_entries_valid<F: Fn(&Self, bool) + 'static>(&self, f: F) {
+        self.connect_closure(
+            "all-entries-valid",
+            true,
+            closure_local!(move |base_info_screen: &Self, all_entries_valid: bool| {
+                f(base_info_screen, all_entries_valid);
+            }),
+        );
+    }
+
+    #[inline]
+    pub fn connect_next_screen<F: Fn(&Self) + 'static>(&self, f: F) {
+        self.connect_closure(
+            "next-screen",
+            true,
+            closure_local!(move |base_info_screen: &Self| {
+                f(base_info_screen);
+            }),
+        );
+    }
+
+    ///
+    /// Emits a signal that `selected_team` from `selected_group_name` was selected.
+    ///
+    #[inline]
     fn emit_selected_team(&self, selected_team: String, selected_group_name: String) {
         let _: () = self.emit_by_name("selected-team", &[&selected_team, &selected_group_name]);
+    }
+
+    #[inline]
+    fn emit_unselect_team(&self) {
+        let _: () = self.emit_by_name("unselect-team", &[]);
+    }
+
+    ///
+    /// Emits a signal whether all entries contains valid text.
+    ///
+    #[inline]
+    pub fn emit_all_entries_valid(&self, all_entries_valid: bool) {
+        let _: () = self.emit_by_name("all-entries-valid", &[&all_entries_valid.to_value()]);
+    }
+
+    ///
+    /// Emits a signal which tells that the next button was pressed and the next screen should be shown.
+    ///
+    #[inline]
+    pub fn emit_next_screen(&self) {
+        let _: () = self.emit_by_name("next-screen", &[]);
     }
 
     pub fn reload(&self) {

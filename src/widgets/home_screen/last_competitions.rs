@@ -108,7 +108,7 @@ mod inner {
             let info = Label::builder()
                 .label(info_text.as_str())
                 .xalign(0.0)
-                .css_classes(["deactivated"])
+                .css_classes(["dimmed"])
                 .build();
 
             let vbox = GtkBox::builder()
