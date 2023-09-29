@@ -7,9 +7,9 @@ use std::fmt::Display;
 use std::fs;
 use std::path::PathBuf;
 use std::thread::{self, JoinHandle};
-use tectonic::config::PersistentConfig;
-use tectonic::driver::{OutputFormat, ProcessingSessionBuilder};
-use tectonic::status::NoopStatusBackend;
+// use tectonic::config::PersistentConfig;
+// use tectonic::driver::{OutputFormat, ProcessingSessionBuilder};
+// use tectonic::status::NoopStatusBackend;
 
 use crate::data::read_write::save_to_file;
 use self::read_write::read_from_file;
@@ -172,7 +172,7 @@ impl Competition {
                 println!("{}", latex);
             }
 
-            let mut status = NoopStatusBackend::default();
+            /*let mut status = NoopStatusBackend::default();
             let config = PersistentConfig::open(false).expect("failed to open the default configuration file");
 
             let bundle = config
@@ -204,7 +204,7 @@ impl Competition {
 
             let mut sess = sb.create(&mut status).expect("failed to initialize the LaTeX processing session");
             sess.run(&mut status).expect("the LaTeX engine failed");
-            println!("Finished export!");
+            println!("Finished export!");*/
         }));
     }
 
