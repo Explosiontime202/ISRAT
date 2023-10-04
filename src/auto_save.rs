@@ -1,15 +1,15 @@
-use crate::data::Competition;
+use crate::{data::Competition, AUTO_SAVE_THREADS};
 use std::{
     sync::{
-        mpsc::{channel, Sender, TryRecvError},
+        mpsc::{self, SyncSender, TryRecvError},
         RwLock, Weak,
     },
     thread::{sleep, JoinHandle},
     time::{Duration, SystemTime},
 };
 
-pub fn spawn_autosave_thread(start_interval: Duration, competition: Weak<RwLock<Competition>>) -> (JoinHandle<()>, Sender<AutoSaveMsg>) {
-    let (tx, rx) = channel();
+pub fn spawn_autosave_thread(start_interval: Duration, competition: Weak<RwLock<Competition>>) -> SyncSender<AutoSaveMsg> {
+    let (tx, rx) = mpsc::sync_channel(std::mem::size_of::<AutoSaveMsg>());
     let auto_save_thread_handle = std::thread::spawn(move || {
         println!("Auto-save: Default interval: {:?}", start_interval);
         let mut cur_interval = start_interval;
@@ -83,7 +83,12 @@ pub fn spawn_autosave_thread(start_interval: Duration, competition: Weak<RwLock<
         }
     });
 
-    return (auto_save_thread_handle, tx);
+    AUTO_SAVE_THREADS.write().expect("AUTO_SAVE_THREADS is poisoned!").push(AutoSaveThread {
+        handle: auto_save_thread_handle,
+        channel: tx.clone(),
+    });
+
+    tx
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -92,4 +97,19 @@ pub enum AutoSaveMsg {
     Stop,
     Continue,
     Exit,
+}
+
+#[derive(Debug)]
+pub struct AutoSaveThread {
+    pub handle: JoinHandle<()>,
+    pub channel: SyncSender<AutoSaveMsg>,
+}
+
+impl AutoSaveThread {
+    pub fn stop(self) {
+        self.channel
+            .send(AutoSaveMsg::Exit)
+            .expect("Sending autosave channel exit message failed!");
+        self.handle.join().expect("Joining autosave thread failed!");
+    }
 }

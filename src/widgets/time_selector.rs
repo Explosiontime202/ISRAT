@@ -1,10 +1,13 @@
 use chrono::Timelike;
 use gdk4::{prelude::*, subclass::prelude::*};
-use gtk4::{glib, subclass::widget::*, traits::WidgetExt, Adjustment, LayoutManager, Orientation, SpinButton, Widget};
+use gtk4::{
+    glib::{self, Propagation},
+    subclass::widget::*,
+    traits::{EditableExt, WidgetExt},
+    Adjustment, LayoutManager, Orientation, SpinButton, Widget,
+};
 
 mod inner {
-    use gtk4::{traits::EditableExt, Inhibit};
-
     use super::*;
 
     #[derive(Debug)]
@@ -45,7 +48,7 @@ mod inner {
                 // show leading zeros
                 spin_button.connect_output(|spin_button| {
                     spin_button.set_text(&format!("{:0>2}", spin_button.value_as_int()));
-                    Inhibit(true)
+                    Propagation::Proceed
                 });
             }
 

@@ -45,7 +45,7 @@ mod inner {
     impl Default for TeamInformationScreen {
         fn default() -> Self {
             let player_name_buffer: Vec<EntryBuffer> = (0..6).map(|_| EntryBuffer::new(None::<&str>)).collect();
-            let team_name_model = ListStore::new(GroupTeamObject::static_type());
+            let team_name_model = ListStore::new::<GroupTeamObject>();
 
             Self {
                 tile: Tile::new("Team Information"),
@@ -132,7 +132,7 @@ mod inner {
 
     impl TeamInformationScreen {
         /// The string used to select all groups.
-        const ALL_GROUPS_SELECTOR_STR: &str = "All groups";
+        const ALL_GROUPS_SELECTOR_STR: &'static str = "All groups";
 
         ///
         /// Initializes the button to switch to the next screen.
@@ -140,7 +140,7 @@ mod inner {
         ///
         fn init_next_button(&self) {
             let center_box = CenterBox::new();
-            center_box.set_start_widget(Some(&Label::new(Some("Next"))));
+            center_box.set_start_widget(Some(&Label::new(Some("Create"))));
             center_box.set_end_widget(Some(&Image::from_icon_name("go-next")));
             let next_button = Button::builder().child(&center_box).css_name("next_button").build();
             self.next_button_center.set_end_widget(Some(&next_button));
@@ -612,7 +612,7 @@ mod inner {
         #[cfg(debug_assertions)]
         fn add_test_values_key_binding(&self) {
             use gdk4::{Key, ModifierType};
-            use gtk4::{EventControllerKey, Inhibit};
+            use gtk4::{EventControllerKey, glib::Propagation};
 
             let key_event_controller = EventControllerKey::new();
             key_event_controller.connect_key_pressed(
@@ -637,10 +637,10 @@ mod inner {
 
                         this.reload();
                         this.obj().emit_all_entries_valid(this.are_all_entries_valid());
-                        return Inhibit(false);
+                        return Propagation::Stop
                     }
 
-                    Inhibit(false)
+                    Propagation::Proceed
                 }),
             );
             self.obj().add_controller(key_event_controller);

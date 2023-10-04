@@ -1,11 +1,11 @@
 use crate::{
-    data::CompetitionData,
+    data::{CompetitionData, Competition},
     widgets::navbar::{NavBar, NavBarCategoryTrait},
-    ProgramState,
+    ProgramState, CompetitionPtr, open_competition_window,
 };
 use gdk4::glib::{self, clone};
 use gtk4::{traits::*, Application, ApplicationWindow};
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, sync::RwLock};
 
 use self::{base_information::BaseInformationScreen, team_information::TeamInformationScreen};
 
@@ -55,8 +55,49 @@ pub fn create_new_competition_screen(application: &Application, program_state: &
 
     // connect signals to show / hide categories and children
     base_information.connect_next_screen(clone!(@weak nav_bar => move |_| {
-        println!("Next screen!");
         nav_bar.show_child("Team Information", NewScreenNavBarCategory::TeamInformation);
+    }));
+
+    team_information.connect_next_screen(clone!(@weak application, @weak new_competition, @weak window => move |_| {
+        // finished creation
+        // TODO: save data & ask to open new window or use the old one
+
+        new_competition.borrow_mut().generate_matches();
+        let competition = CompetitionPtr::from(RwLock::new(Competition {
+            data: Some(new_competition.take()),
+            spawned_threads: Vec::new(),
+            current_interim_result: Vec::new(),
+            absolute_dir_path: None,
+            absolute_file_path: None,
+        }));
+
+        
+
+        // open new competition window
+        open_competition_window(&application, competition);
+        
+        // TODO: use this if no competition is currently opened in the competition window
+        // disable auto-save here
+        /*if let Some(channel) = program_state.auto_save_channel.as_ref() {
+            channel.send(crate::auto_save::AutoSaveMsg::Stop).expect("Sending autosave channel stop message failed");
+        }
+
+        competition.absolute_dir_path = None;
+        competition.absolute_file_path = None;
+        competition.current_interim_result.clear();
+        while let Some(thread) = competition.spawned_threads.pop() {
+            match thread.join() {
+                Ok(()) => (),
+                Err(_) => println!("Failed to join thread!"),
+            };
+        }
+        competition.data = Some(new_competition.take());
+
+        // enable auto-save here
+        if let Some(channel) = program_state.auto_save_channel.as_ref() {
+            channel.send(crate::auto_save::AutoSaveMsg::Continue).expect("Sending autosave channel continue message failed");
+        }*/
+        window.close();
     }));
 
     base_information.connect_all_entries_valid(clone!(@weak nav_bar => move |_, all_valid| {

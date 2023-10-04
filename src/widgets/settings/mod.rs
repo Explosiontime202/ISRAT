@@ -3,11 +3,13 @@ use std::time::Duration;
 
 use crate::auto_save::AutoSaveMsg;
 use crate::ProgramState;
-use gdk4::glib::clone;
-use gdk4::prelude::*;
-use gtk4::traits::ToggleButtonExt;
-use gtk4::{glib, Adjustment, Orientation, PositionType, Scale, ToggleButton, Window};
-use gtk4::{traits::WidgetExt, traits::*, Box as GtkBox, CenterBox, DropDown, Expression, Inhibit, Label, StringList, Switch, Widget};
+use gdk4::{glib::clone, prelude::*};
+use gtk4::{
+    glib::{self, Propagation},
+    traits::*,
+    Adjustment, Box as GtkBox, CenterBox, DropDown, Expression, Label, Orientation, PositionType, Scale, StringList, Switch, ToggleButton, Widget,
+    Window,
+};
 
 pub mod settings_screen;
 
@@ -139,7 +141,7 @@ fn create_text_size_setting() -> Widget {
     );
     scale.connect_change_value(|_, scroll_type, value| {
         println!("Text size: Set to {value} via {scroll_type}");
-        Inhibit::default()
+        Propagation::Proceed
     });
     scale.set_draw_value(true);
     scale.set_value_pos(PositionType::Right);
@@ -230,7 +232,7 @@ fn create_settings_switch_default_state<F: Fn(&Switch, bool) + 'static>(text: &s
     switch.set_state(start_state);
     switch.connect_state_set(move |switch, state| {
         callback(switch, state);
-        Inhibit::default()
+        Propagation::Proceed
     });
     create_setting_base_widget(text, &switch)
 }

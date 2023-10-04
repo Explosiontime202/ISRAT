@@ -626,7 +626,7 @@ mod inner {
         #[cfg(debug_assertions)]
         fn add_test_values_key_binding(&self) {
             use gdk4::{Key, ModifierType};
-            use gtk4::{EventControllerKey, Inhibit};
+            use gtk4::{EventControllerKey, glib::Propagation};
 
             let key_event_controller = EventControllerKey::new();
             key_event_controller.connect_key_pressed(
@@ -663,10 +663,10 @@ mod inner {
 
 
                         this.obj().emit_all_entries_valid(this.are_all_entries_valid());
-                        return Inhibit(false);
+                        return Propagation::Stop;
                     }
 
-                    Inhibit(false)
+                    Propagation::Proceed
                 }),
             );
             self.obj().add_controller(key_event_controller);

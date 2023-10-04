@@ -3,11 +3,11 @@
 #![feature(adt_const_params)]
 
 use adw::prelude::*;
-use auto_save::{spawn_autosave_thread, AutoSaveMsg};
+use auto_save::{spawn_autosave_thread, AutoSaveMsg, AutoSaveThread};
 use data::{Competition, CompetitionData, Team};
 use gdk4::{
     gio::Menu,
-    glib::{self, clone},
+    glib::{self, clone, once_cell::sync::Lazy},
     Display,
 };
 use gtk4::{
@@ -17,7 +17,7 @@ use gtk4::{
 use std::{
     path::PathBuf,
     rc::Rc,
-    sync::{mpsc::Sender, Arc, RwLock},
+    sync::{mpsc::SyncSender, Arc, RwLock},
     time::Duration,
 };
 use widgets::{
@@ -36,48 +36,39 @@ mod widgets;
 
 type CompetitionPtr = Arc<RwLock<Competition>>;
 
+static AUTO_SAVE_THREADS: Lazy<RwLock<Vec<AutoSaveThread>>> = Lazy::new(|| {
+    return RwLock::from(Vec::new());
+});
+
 fn main() -> glib::ExitCode {
-    // TODO: Remove for productive builds
     #[cfg(debug_assertions)]
     let competition = initial_state();
 
     #[cfg(not(debug_assertions))]
     let competition = CompetitionPtr::default();
 
-    let (join_handle, auto_save_channel) = spawn_autosave_thread(Duration::new(15, 0), Arc::downgrade(&competition));
-
     let app = adw::Application::builder().application_id("de.explosiontime.Israt").build();
 
     app.connect_startup(|_| load_css());
-    let program_state = Rc::new(ProgramState {
-        competition: Arc::clone(&competition),
-        auto_save_channel: Some(auto_save_channel.clone()),
-    });
-    app.connect_activate(move |app| build_main_screen(app, Rc::clone(&program_state)));
+    app.connect_activate(move |app| open_competition_window(app.upcast_ref(), Arc::clone(&competition)));
 
     let ret = app.run();
 
-    auto_save_channel
-        .send(auto_save::AutoSaveMsg::Exit)
-        .expect("Sending autosave channel exit message failed!");
-    join_handle.join().expect("Joining autosave thread failed!");
+    let mut auto_save_threads = AUTO_SAVE_THREADS.write().expect("AUTO_SAVE_THREADS is poisoned!");
+    while let Some(auto_save_thread) = auto_save_threads.pop() {
+        auto_save_thread.stop();
+    }
     ret
 }
 
-fn load_css() {
-    // Load the CSS file and add it to the provider
-    let provider = CssProvider::new();
-    provider.load_from_data(include_str!("../resources/style.css"));
+fn open_competition_window(app: &gtk4::Application, competition: CompetitionPtr) {
+    let auto_save_channel = spawn_autosave_thread(Duration::new(15, 0), Arc::downgrade(&competition));
 
-    // Add the provider to the default screen
-    StyleContext::add_provider_for_display(
-        &Display::default().expect("Could not connect to a display."),
-        &provider,
-        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
-    );
-}
+    let program_state = Rc::new(ProgramState {
+        competition: Arc::clone(&competition),
+        auto_save_channel: Some(auto_save_channel),
+    });
 
-fn build_main_screen(app: &adw::Application, program_state: Rc<ProgramState>) {
     let window = ApplicationWindow::builder()
         .application(app)
         .default_width(1920)
@@ -99,7 +90,20 @@ fn build_main_screen(app: &adw::Application, program_state: Rc<ProgramState>) {
     window.show();
 }
 
-fn build_menu(app: &adw::Application) {
+fn load_css() {
+    // Load the CSS file and add it to the provider
+    let provider = CssProvider::new();
+    provider.load_from_data(include_str!("../resources/style.css"));
+
+    // Add the provider to the default screen
+    StyleContext::add_provider_for_display(
+        &Display::default().expect("Could not connect to a display."),
+        &provider,
+        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
+}
+
+fn build_menu(app: &gtk4::Application) {
     let menu_bar = Menu::new();
     let file_menu = Menu::new();
     menu_bar.append_submenu(Some("File"), &file_menu);
@@ -204,7 +208,7 @@ impl NavBarCategoryTrait for MainNavBarCategory {
 #[derive(Debug)]
 pub struct ProgramState {
     competition: CompetitionPtr,
-    auto_save_channel: Option<Sender<AutoSaveMsg>>,
+    auto_save_channel: Option<SyncSender<AutoSaveMsg>>,
 }
 
 impl Default for ProgramState {
