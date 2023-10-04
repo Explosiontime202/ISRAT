@@ -184,7 +184,7 @@ impl GroupPage {
 
     ///
     /// Appends a team with `team_name` and `region`.
-    /// 
+    ///
     pub fn append_team(&self, team_name: &str, region: &str) {
         self.imp().team_name_list.append(TeamRegionObject::with_default(
             EntryBuffer::new(Some(team_name)),
@@ -194,7 +194,7 @@ impl GroupPage {
 
     ///
     /// Appends teams with `team_names` and `regions`.
-    /// 
+    ///
     pub fn append_teams(&self, team_names: Vec<&str>, regions: Vec<&str>) {
         debug_assert_eq!(team_names.len(), regions.len());
         for (team_name, region) in zip(team_names, regions) {

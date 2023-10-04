@@ -117,7 +117,7 @@ impl<DataType: Default + ObjectExt + 'static, const TYPE_NAME: &'static str> Fix
 impl<DataType: Default + ObjectExt + 'static, const TYPE_NAME: &'static str> Default for FixIndexedListStore<DataType, TYPE_NAME> {
     fn default() -> Self {
         Self {
-            list_store: ListStore::new::<FixIndexedListEntry::<DataType, TYPE_NAME>>(),
+            list_store: ListStore::new::<FixIndexedListEntry<DataType, TYPE_NAME>>(),
             phantom_data: PhantomData::<DataType>::default(),
         }
     }

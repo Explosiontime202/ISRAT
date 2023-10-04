@@ -1,8 +1,11 @@
 use crate::data::{CompetitionData, Group, Team};
-use crate::widgets::{fix_indexed_list::FixIndexedList, new_competition::group_team_object::GroupTeamObject, tile::Tile, new_competition::base_information::is_valid_name_character};
+use crate::widgets::{
+    fix_indexed_list::FixIndexedList, new_competition::base_information::is_valid_name_character,
+    new_competition::group_team_object::GroupTeamObject, tile::Tile,
+};
 use gdk4::{
     gio::ListStore,
-    glib::{clone, closure_local, once_cell::sync::Lazy, subclass::Signal, translate::FromGlib, SignalHandlerId, GString},
+    glib::{clone, closure_local, once_cell::sync::Lazy, subclass::Signal, translate::FromGlib, GString, SignalHandlerId},
     prelude::*,
     subclass::prelude::*,
 };
@@ -612,7 +615,7 @@ mod inner {
         #[cfg(debug_assertions)]
         fn add_test_values_key_binding(&self) {
             use gdk4::{Key, ModifierType};
-            use gtk4::{EventControllerKey, glib::Propagation};
+            use gtk4::{glib::Propagation, EventControllerKey};
 
             let key_event_controller = EventControllerKey::new();
             key_event_controller.connect_key_pressed(
@@ -631,7 +634,7 @@ mod inner {
                                 }
                             }
                         }
-                        
+
                         // avoid double borrow
                         drop(data);
 

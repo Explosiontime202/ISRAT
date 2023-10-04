@@ -578,7 +578,7 @@ impl<DataType: Default + ObjectExt + IsA<Object> + Into<Value> + 'static, const 
 
     ///
     /// Append object to list.
-    /// 
+    ///
     pub fn append(&self, data_object: DataType) {
         self.imp().append_row_with_object(data_object);
     }

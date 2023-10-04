@@ -1,7 +1,8 @@
 use crate::{
-    data::{CompetitionData, Competition},
+    data::{Competition, CompetitionData},
+    open_competition_window,
     widgets::navbar::{NavBar, NavBarCategoryTrait},
-    ProgramState, CompetitionPtr, open_competition_window,
+    CompetitionPtr, ProgramState,
 };
 use gdk4::glib::{self, clone};
 use gtk4::{traits::*, Application, ApplicationWindow};
@@ -71,11 +72,11 @@ pub fn create_new_competition_screen(application: &Application, program_state: &
             absolute_file_path: None,
         }));
 
-        
+
 
         // open new competition window
         open_competition_window(&application, competition);
-        
+
         // TODO: use this if no competition is currently opened in the competition window
         // disable auto-save here
         /*if let Some(channel) = program_state.auto_save_channel.as_ref() {

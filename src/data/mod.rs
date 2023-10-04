@@ -11,8 +11,8 @@ use std::thread::{self, JoinHandle};
 // use tectonic::driver::{OutputFormat, ProcessingSessionBuilder};
 // use tectonic::status::NoopStatusBackend;
 
-use crate::data::read_write::save_to_file;
 use self::read_write::read_from_file;
+use crate::data::read_write::save_to_file;
 
 pub mod read_write;
 

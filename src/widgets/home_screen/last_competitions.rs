@@ -105,11 +105,7 @@ mod inner {
                 last_competition.last_accessed.format("%d.%m.%Y - %H:%M"),
                 last_competition.path.display()
             );
-            let info = Label::builder()
-                .label(info_text.as_str())
-                .xalign(0.0)
-                .css_classes(["dimmed"])
-                .build();
+            let info = Label::builder().label(info_text.as_str()).xalign(0.0).css_classes(["dimmed"]).build();
 
             let vbox = GtkBox::builder()
                 .orientation(gtk4::Orientation::Vertical)

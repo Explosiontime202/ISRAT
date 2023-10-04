@@ -626,7 +626,7 @@ mod inner {
         #[cfg(debug_assertions)]
         fn add_test_values_key_binding(&self) {
             use gdk4::{Key, ModifierType};
-            use gtk4::{EventControllerKey, glib::Propagation};
+            use gtk4::{glib::Propagation, EventControllerKey};
 
             let key_event_controller = EventControllerKey::new();
             key_event_controller.connect_key_pressed(
