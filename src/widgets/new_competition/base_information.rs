@@ -1,7 +1,7 @@
 use crate::data::{CompetitionData, Group, Team};
 use crate::widgets::{new_competition::group_page::GroupPage, tile::Tile, time_selector::TimeSelector};
 use gdk4::{
-    glib::{clone, closure_local, once_cell::sync::Lazy, subclass::Signal, DateTime, GString, TimeZone},
+    glib::{clone, closure_local, once_cell::sync::Lazy, subclass::Signal, DateTime, GString},
     prelude::*,
     subclass::prelude::*,
 };
@@ -438,7 +438,7 @@ mod inner {
                 .build();
             let root_widget = self.obj().root().unwrap().downcast::<Window>().unwrap();
             window.set_transient_for(Some(&root_widget));
-            window.show();
+            window.set_visible(true);
 
             // update date_time and close window when submit button is pressed
             submit_button.connect_clicked(clone!(@weak window, @weak calendar, @weak time_selector, @weak self as this => move |_| {
@@ -626,13 +626,16 @@ mod inner {
         #[cfg(debug_assertions)]
         fn add_test_values_key_binding(&self) {
             use gdk4::{Key, ModifierType};
-            use gtk4::{glib::Propagation, EventControllerKey};
+            use gtk4::{
+                glib::{Propagation, TimeZone},
+                EventControllerKey,
+            };
 
             let key_event_controller = EventControllerKey::new();
             key_event_controller.connect_key_pressed(
-                clone!(@weak self as this => @default-panic, move |_ :&EventControllerKey, _/*key*/: Key, key_code: u32, modifier_type : ModifierType| {
-                    if key_code == 28 && modifier_type.contains(ModifierType::CONTROL_MASK) {
-                        println!("Adding test data to BaseInformationScreen!");
+                clone!(@weak self as this => @default-panic, move |_ :&EventControllerKey, key: Key, _ /*key_code*/: u32, modifier_type : ModifierType| {
+                    let add_test_data = |group_letters: Vec<char>| {
+                        println!("Adding test data to BaseInformationScreen with letters {:?}!", group_letters);
                         this.competition_name_buffer.set_text("TestCompetition");
                         let date_time = DateTime::new(&TimeZone::local(), 2024, 1, 1, 13, 30, 0.).unwrap();
                         this.date_time_label.set_text(&Self::format_date_time(&date_time));
@@ -650,7 +653,7 @@ mod inner {
                         }
                         this.group_idx_counter.set(0);
 
-                        for letter in ['A', 'B'] {
+                        for letter in group_letters {
                             let group = this.create_new_groups_tab_with_name(&format!("Group {letter}"));
                             for i in 1..=5 {
                                 group.append_team(&format!("Team {letter}{i}"), &format!("Region {letter}{i}"));
@@ -663,6 +666,14 @@ mod inner {
 
 
                         this.obj().emit_all_entries_valid(this.are_all_entries_valid());
+                    };
+
+                    if modifier_type.contains(ModifierType::CONTROL_MASK) {
+                        match key {
+                            Key::t | Key::T => add_test_data(vec!['A', 'B']),
+                            Key::d | Key::D => add_test_data(vec!['C', 'D']),
+                            _ => ()
+                        }
                         return Propagation::Stop;
                     }
 

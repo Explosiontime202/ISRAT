@@ -139,6 +139,7 @@ mod inner {
         pub fn reload(&self) {
             if self.data.borrow().is_none() {
                 debug_assert!(false);
+                eprintln!("Cannot reload data in GroupOverviewScreen as data is None!");
                 return;
             }
 

@@ -162,14 +162,14 @@ impl Competition {
         );
     }
 
-    fn export_pdf(&mut self, filename: String, latex: String) {
+    fn export_pdf(&mut self, _filename: String, _latex: String) {
         self.verify_paths();
-        let dir_path = self.absolute_dir_path.as_ref().unwrap().clone();
+        // let dir_path = self.absolute_dir_path.as_ref().unwrap().clone();
         self.spawned_threads.push(thread::spawn(move || {
             // TODO: Remove for productive builds
             #[cfg(debug_assertions)]
             {
-                println!("{}", latex);
+                println!("{}", _latex);
             }
 
             /*let mut status = NoopStatusBackend::default();
@@ -559,7 +559,7 @@ impl CompetitionData {
     /// Increases the current batch of the group.
     ///
     pub fn enter_match_results(&mut self, group_idx: usize, match_results: HashMap<MatchID, [u32; 2]>) {
-        let mut group = &mut self.groups[group_idx];
+        let group = &mut self.groups[group_idx];
         assert!(group.current_batch < group.count_batches);
         for match_ in &mut group.matches {
             if let Some([points_a, points_b]) = match_results.get(&match_.id) {

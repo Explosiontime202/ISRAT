@@ -19,6 +19,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 mod inner {
+    use gtk4::ListItem;
+
     use super::*;
 
     #[derive(Debug)]
@@ -373,6 +375,7 @@ mod inner {
                 let factory = SignalListItemFactory::new();
 
                 factory.connect_setup(clone!(@weak group_selector => move|_, list_item| {
+                    let list_item: &ListItem = list_item.downcast_ref().unwrap();
                     let center_box = CenterBox::new();
                     center_box.set_start_widget(Some(&Label::new(None)));
                     center_box.set_end_widget(Some(&Image::new()));
@@ -399,6 +402,7 @@ mod inner {
                 }));
 
                 factory.connect_bind(clone!(@weak group_selector => move |_, list_item| {
+                    let list_item: &ListItem = list_item.downcast_ref().unwrap();
                     let center_box: CenterBox = list_item.child().and_downcast().unwrap();
                     let label: Label = center_box.start_widget().and_downcast().unwrap();
                     let group: StringObject = list_item.item().and_downcast().unwrap();
@@ -619,8 +623,8 @@ mod inner {
 
             let key_event_controller = EventControllerKey::new();
             key_event_controller.connect_key_pressed(
-                clone!(@weak self as this => @default-panic, move |_ :&EventControllerKey, _/*key*/: Key, key_code: u32, modifier_type : ModifierType| {
-                    if key_code == 28 && modifier_type.contains(ModifierType::CONTROL_MASK) {
+                clone!(@weak self as this => @default-panic, move |_ :&EventControllerKey, key: Key, _ /*key_code*/: u32, modifier_type : ModifierType| {
+                    let add_test_data = || {
                         println!("Adding test data to TeamInformationScreen!");
                         this.erroneous_buffer.borrow_mut().clear();
 
@@ -640,7 +644,15 @@ mod inner {
 
                         this.reload();
                         this.obj().emit_all_entries_valid(this.are_all_entries_valid());
-                        return Propagation::Stop
+                    };
+
+                    if modifier_type.contains(ModifierType::CONTROL_MASK) {
+                        match key {
+                            Key::t | Key::T => add_test_data(),
+                            _ => (),
+                        }
+                        
+                        return Propagation::Proceed
                     }
 
                     Propagation::Proceed

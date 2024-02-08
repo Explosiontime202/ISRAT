@@ -4,18 +4,18 @@
 
 use adw::prelude::*;
 use auto_save::{spawn_autosave_thread, AutoSaveMsg, AutoSaveThread};
-use data::{Competition, CompetitionData, Team};
+use data::{Competition, CompetitionData};
 use gdk4::{
     gio::Menu,
-    glib::{self, clone, once_cell::sync::Lazy},
+    glib::{self, clone, once_cell::sync::Lazy, WeakRef},
     Display,
 };
 use gtk4::{
     traits::{BoxExt, GtkApplicationExt, GtkWindowExt, WidgetExt},
-    ApplicationWindow, CssProvider, StyleContext,
+    ApplicationWindow, CssProvider,
 };
+use screen_names::*;
 use std::{
-    path::PathBuf,
     rc::Rc,
     sync::{mpsc::SyncSender, Arc, RwLock},
     time::Duration,
@@ -32,6 +32,7 @@ use widgets::{
 
 mod auto_save;
 mod data;
+mod screen_names;
 mod widgets;
 
 type CompetitionPtr = Arc<RwLock<Competition>>;
@@ -41,10 +42,10 @@ static AUTO_SAVE_THREADS: Lazy<RwLock<Vec<AutoSaveThread>>> = Lazy::new(|| {
 });
 
 fn main() -> glib::ExitCode {
-    #[cfg(debug_assertions)]
-    let competition = initial_state();
+    // #[cfg(debug_assertions)]
+    // let competition = initial_state(); 
 
-    #[cfg(not(debug_assertions))]
+    // #[cfg(not(debug_assertions))]
     let competition = CompetitionPtr::default();
 
     let app = adw::Application::builder().application_id("de.explosiontime.Israt").build();
@@ -67,6 +68,7 @@ fn open_competition_window(app: &gtk4::Application, competition: CompetitionPtr)
     let program_state = Rc::new(ProgramState {
         competition: Arc::clone(&competition),
         auto_save_channel: Some(auto_save_channel),
+        main_nav_bar: Default::default(),
     });
 
     let window = ApplicationWindow::builder()
@@ -82,12 +84,14 @@ fn open_competition_window(app: &gtk4::Application, competition: CompetitionPtr)
     let h_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 10);
     let v_box = gtk4::Box::new(gtk4::Orientation::Vertical, 10);
 
-    build_navigation_bar(&h_box, program_state);
+    build_navigation_bar(&h_box, &program_state);
+
+    assert!(program_state.main_nav_bar.upgrade().is_some());
 
     v_box.append(&h_box);
 
     window.set_child(Some(&v_box));
-    window.show();
+    window.set_visible(true);
 }
 
 fn load_css() {
@@ -96,7 +100,7 @@ fn load_css() {
     provider.load_from_data(include_str!("../resources/style.css"));
 
     // Add the provider to the default screen
-    StyleContext::add_provider_for_display(
+    gtk4::style_context_add_provider_for_display(
         &Display::default().expect("Could not connect to a display."),
         &provider,
         gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
@@ -111,77 +115,159 @@ fn build_menu(app: &gtk4::Application) {
     app.set_menubar(Some(&menu_bar));
 }
 
-fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, program_state: Rc<ProgramState>) {
+fn build_navigation_bar(parent: &impl IsA<gtk4::Box>, program_state: &Rc<ProgramState>) {
     let nav_bar = NavBar::<MainNavBarCategory>::new();
     nav_bar.set_hexpand(true);
     nav_bar.set_hexpand_set(true);
     nav_bar.set_vexpand(true);
     nav_bar.set_vexpand_set(true);
 
+    // store weak reference to navbar for later use
+    program_state.main_nav_bar.set(Some(&nav_bar));
+
     let home_screen = HomeScreen::new(&nav_bar, &program_state);
-    nav_bar.add_child_with_callback(&home_screen, String::from("Home Screen"), MainNavBarCategory::Main, |nav_bar, _, _| {
+    nav_bar.add_child_with_callback(&home_screen, HOME_SCREEN_NAME, MainNavBarCategory::Main, |nav_bar, _, _| {
         nav_bar.hide_category(MainNavBarCategory::Group)
     });
 
     let settings_screen = SettingsScreen::new(&program_state);
-    nav_bar.add_child_with_callback(
-        &settings_screen,
-        String::from("Settings Screen"),
-        MainNavBarCategory::Main,
-        |nav_bar, _, _| nav_bar.hide_category(MainNavBarCategory::Group),
-    );
+    nav_bar.add_child_with_callback(&settings_screen, SETTINGS_SCREEN_NAME, MainNavBarCategory::Main, |nav_bar, _, _| {
+        nav_bar.hide_category(MainNavBarCategory::Group)
+    });
 
-    {
-        if let Some(data) = program_state.competition.read().unwrap().data.as_ref() {
-            let group_overview = GroupOverviewScreen::new(&program_state);
-            nav_bar.add_child_with_callback(
-                &group_overview,
-                String::from("Overview"),
-                MainNavBarCategory::Group,
-                clone!(@weak group_overview => move |_, _, _| group_overview.reload()),
-            );
-
-            let enter_results = EnterResultScreen::new(&program_state);
-            nav_bar.add_child_with_callback(
-                &enter_results,
-                String::from("Enter results"),
-                MainNavBarCategory::Group,
-                clone!(@weak enter_results => move |_, _, _| enter_results.reload()),
-            );
-
-            let match_history = MatchHistoryScreen::new(&program_state);
-            nav_bar.add_child_with_callback(
-                &match_history,
-                String::from("Match History"),
-                MainNavBarCategory::Group,
-                clone!(@weak match_history => move |_, _, _| match_history.reload()),
-            );
-
-            for (group_idx, group) in data.groups.iter().enumerate() {
-                nav_bar.add_custom_nav_button(
-                    group.name.as_str(),
-                    MainNavBarCategory::GroupSelector,
-                    clone!(@weak group_overview, @weak enter_results, @weak match_history => move |nav_bar, _, _| {
-                            group_overview.show_group(group_idx as u32);
-                            enter_results.show_group(group_idx as u32);
-                            match_history.show_group(group_idx as u32);
-
-                            if !nav_bar.is_category_shown(MainNavBarCategory::Group) {
-                                nav_bar.show_category(MainNavBarCategory::Group);
-                            }
-                            let selected = nav_bar.get_selected_categories();
-                            if !selected.contains(&MainNavBarCategory::Group) {
-                                nav_bar.show_child("Overview", MainNavBarCategory::Group);
-                            }
-                    }),
-                );
-            }
-
-            nav_bar.hide_category(MainNavBarCategory::Group);
-        }
-    }
+    add_group_screens(program_state);
 
     parent.append(&nav_bar);
+}
+
+fn add_group_screens(program_state: &Rc<ProgramState>) -> bool {
+    if let Some(data) = program_state.competition.read().expect("Competition is poisoned!").data.as_ref() {
+        let main_nav_bar = program_state.main_nav_bar.upgrade().expect("MainNavBar reference is not valid anymore!");
+        let group_overview = GroupOverviewScreen::new(&program_state);
+        main_nav_bar.add_child_with_callback(
+            &group_overview,
+            GROUP_OVERVIEW_NAME,
+            MainNavBarCategory::Group,
+            clone!(@weak group_overview => move |_, _, _| group_overview.reload()),
+        );
+
+        let enter_results = EnterResultScreen::new(&program_state);
+        main_nav_bar.add_child_with_callback(
+            &enter_results,
+            ENTER_RESULTS_NAME,
+            MainNavBarCategory::Group,
+            clone!(@weak enter_results => move |_, _, _| enter_results.reload()),
+        );
+
+        let match_history = MatchHistoryScreen::new(&program_state);
+        main_nav_bar.add_child_with_callback(
+            &match_history,
+            MATCH_HISTORY_NAME,
+            MainNavBarCategory::Group,
+            clone!(@weak match_history => move |_, _, _| match_history.reload()),
+        );
+
+        for (group_idx, group) in data.groups.iter().enumerate() {
+            add_group_selector_button(
+                group_idx as u32,
+                &group.name,
+                &main_nav_bar,
+                &group_overview,
+                &enter_results,
+                &match_history,
+            );
+        }
+
+        main_nav_bar.hide_category(MainNavBarCategory::Group);
+        true
+    } else {
+        false
+    }
+}
+
+fn add_group_selector_button(
+    group_idx: u32,
+    group_name: &str,
+    main_nav_bar: &NavBar<MainNavBarCategory>,
+    group_overview: &GroupOverviewScreen,
+    enter_results: &EnterResultScreen,
+    match_history: &MatchHistoryScreen,
+) {
+    main_nav_bar.add_custom_nav_button(
+        group_name,
+        MainNavBarCategory::GroupSelector,
+        clone!(@weak group_overview, @weak enter_results, @weak match_history => move |nav_bar, _, _| {
+                group_overview.show_group(group_idx as u32);
+                enter_results.show_group(group_idx as u32);
+                match_history.show_group(group_idx as u32);
+
+                if !nav_bar.is_category_shown(MainNavBarCategory::Group) {
+                    nav_bar.show_category(MainNavBarCategory::Group);
+                }
+                let selected = nav_bar.get_selected_categories();
+                if !selected.contains(&MainNavBarCategory::Group) {
+                    nav_bar.show_child(GROUP_OVERVIEW_NAME, MainNavBarCategory::Group);
+                }
+        }),
+    );
+}
+
+fn reload_group_screens(program_state: &Rc<ProgramState>) {
+    let main_nav_bar = program_state.main_nav_bar.upgrade().expect("MainNavBar in ProgramState is invalid!");
+
+    let (mut group_overview, mut enter_results, mut match_history) = (None, None, None);
+
+    // reload group overview screen
+    match main_nav_bar.get_child_by_name(GROUP_OVERVIEW_NAME) {
+        Some(widget) => match widget.downcast::<GroupOverviewScreen>() {
+            Ok(overview) => {
+                overview.reload();
+                group_overview = Some(overview);
+            }
+            Err(widget) => eprintln!("Expected GroupOverviewScreen, found {}", widget.widget_name()),
+        },
+        None => eprintln!("{GROUP_OVERVIEW_NAME} is not available in the main NavBar. Cannot update group overview screen!"),
+    }
+
+    // reload enter results screen
+    match main_nav_bar.get_child_by_name(ENTER_RESULTS_NAME) {
+        Some(widget) => match widget.downcast::<EnterResultScreen>() {
+            Ok(enter_result) => {
+                enter_result.reload();
+                enter_results = Some(enter_result);
+            }
+            Err(widget) => eprintln!("Expected EnterResultScreen, found {}", widget.widget_name()),
+        },
+        None => eprintln!("{ENTER_RESULTS_NAME} is not available in the main NavBar. Cannot update enter results screen!"),
+    }
+
+    // reload match history screen
+    match main_nav_bar.get_child_by_name(MATCH_HISTORY_NAME) {
+        Some(widget) => match widget.downcast::<MatchHistoryScreen>() {
+            Ok(history) => {
+                history.reload();
+                match_history = Some(history);
+            }
+            Err(widget) => eprintln!("Expected MatchHistoryScreen, found {}", widget.widget_name()),
+        },
+        None => eprintln!("{MATCH_HISTORY_NAME} is not available in the main NavBar. Cannot update match history screen!"),
+    }
+
+    // remove old group selector buttons
+    main_nav_bar.remove_all_children(MainNavBarCategory::GroupSelector);
+
+    // add new group selector buttons
+    match (group_overview, enter_results, match_history) {
+        (Some(overview), Some(results), Some(history)) => {
+            let competition = program_state.competition.read().expect("Competition is poisoned!");
+            if let Some(data) = competition.data.as_ref() {
+                for (group_idx, group) in data.groups.iter().enumerate() {
+                    add_group_selector_button(group_idx as u32, &group.name, &main_nav_bar, &overview, &results, &history);
+                }
+            }
+        }
+        _ => eprintln!("Cannot find all group screens: cannot not update group selectors!"),
+    }
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
@@ -209,6 +295,7 @@ impl NavBarCategoryTrait for MainNavBarCategory {
 pub struct ProgramState {
     competition: CompetitionPtr,
     auto_save_channel: Option<SyncSender<AutoSaveMsg>>,
+    main_nav_bar: WeakRef<NavBar<MainNavBarCategory>>,
 }
 
 impl Default for ProgramState {
@@ -216,16 +303,17 @@ impl Default for ProgramState {
         Self {
             competition: Default::default(),
             auto_save_channel: Default::default(),
+            main_nav_bar: Default::default(),
         }
     }
 }
 
 // TODO: Remove for productive builds
+#[allow(dead_code)]
 #[cfg(debug_assertions)]
 fn initial_state() -> CompetitionPtr {
-    use std::path::Path;
-
-    use crate::data::{Group, MatchResult};
+    use crate::data::{Group, MatchResult, Team};
+    use std::path::{Path, PathBuf};
 
     let competition = CompetitionPtr::default();
 

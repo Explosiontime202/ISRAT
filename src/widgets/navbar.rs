@@ -237,7 +237,7 @@ mod inner {
         pub fn add_child<F: Fn(&super::NavBar<CategoryT>, &Button, &Stack) + 'static>(
             &self,
             child: &impl IsA<Widget>,
-            name: &String,
+            name: impl AsRef<str>,
             category: CategoryT,
             callback: Option<F>,
         ) {
@@ -252,11 +252,11 @@ mod inner {
             }
 
             // add new child to the stack
-            self.stack.add_named(child, Some(name.as_str()));
+            self.stack.add_named(child, Some(name.as_ref()));
 
             // and create button for it
-            let label = Label::new(Some(name.as_str()));
-            let button = Button::builder().child(&label).label(name.clone()).css_name("nav_button").build();
+            let label = Label::new(Some(name.as_ref()));
+            let button = Button::builder().child(&label).label(name.as_ref()).css_name("nav_button").build();
 
             self.add_button_to_category(&button, category);
 
@@ -309,7 +309,7 @@ mod inner {
 
             // store new management data
             let res = category_entry.entries.insert(
-                name.to_string(),
+                name.as_ref().into(),
                 NavButton {
                     button,
                     has_stack_child: true,
@@ -323,11 +323,11 @@ mod inner {
         /// Removes the child labelled by name in the category.
         /// Removes the whole category if it is empty afterwards.
         ///
-        pub fn remove_child_by_name(&self, name: &String, category: CategoryT) {
+        pub fn remove_child_by_name(&self, name: impl AsRef<str>, category: CategoryT) {
             let mut buttons_map = self.buttons.borrow_mut();
 
             // remove child from stack
-            let child = match self.stack.child_by_name(name.as_str()) {
+            let child = match self.stack.child_by_name(name.as_ref()) {
                 Some(child) => child,
                 None => return,
             };
@@ -337,7 +337,7 @@ mod inner {
             let category_entry_opt = buttons_map.get_mut(&category);
             debug_assert!(category_entry_opt.is_some());
             let category_entry = category_entry_opt.unwrap();
-            let button_opt = category_entry.entries.remove(name);
+            let button_opt = category_entry.entries.remove(name.as_ref());
             debug_assert!(button_opt.is_some());
             let button = &button_opt.as_ref().unwrap().button;
             category_entry.button_box.remove(button);
@@ -354,6 +354,20 @@ mod inner {
             if category_entry.entries.len() == 0 {
                 self.remove_category(category);
             }
+        }
+
+        ///
+        /// Removes all children from this category as well as the whole category.
+        ///
+        pub fn remove_all_children(&self, category: CategoryT) {
+            self.remove_category(category);
+        }
+
+        ///
+        /// Returns a reference to the child labelled by name in the according category.
+        ///
+        pub fn get_child_by_name(&self, name: impl AsRef<str>) -> Option<Widget> {
+            self.stack.child_by_name(name.as_ref())
         }
 
         ///
@@ -414,13 +428,14 @@ mod inner {
                 self.navigation_box.remove(sep_before);
             }
 
+            drop(buttons_map);
+
             // remove remaining children from stack
             for (name, _) in &category_entry.entries {
                 self.remove_child_by_name(name, category);
             }
 
             if category_entry.is_shown {
-                drop(buttons_map);
                 self.remove_separator_for_category(category);
             }
         }
@@ -442,23 +457,23 @@ mod inner {
         ///
         /// Show child named `name` in `category`. Also show associated button as selected.
         ///
-        pub fn show_child(&self, name: &str, category: CategoryT) {
+        pub fn show_child(&self, name: impl AsRef<str>, category: CategoryT) {
             let has_child = {
                 let buttons = self.buttons.borrow();
                 assert!(buttons.contains_key(&category), "The NavBar needs to have a buttons in this category.");
                 assert!(
-                    buttons[&category].entries.contains_key(name),
+                    buttons[&category].entries.contains_key(name.as_ref()),
                     "The NavBar needs to have a button with this name!"
                 );
-                let button = &buttons[&category].entries[name];
+                let button = &buttons[&category].entries[name.as_ref()];
                 Self::handle_selections(Rc::clone(&self.selected_buttons), category, &button.button);
                 button.has_stack_child
             };
 
             if has_child {
-                let child = self.stack.child_by_name(name).unwrap();
+                let child = self.stack.child_by_name(name.as_ref()).unwrap();
                 self.emit_show_child_before(&child);
-                self.stack.set_visible_child_name(name);
+                self.stack.set_visible_child_name(name.as_ref());
                 self.emit_show_child_after(&child);
             }
         }
@@ -469,7 +484,7 @@ mod inner {
         ///
         pub fn add_custom_nav_button<F: Fn(&super::NavBar<CategoryT>, &Button, &Stack) + 'static>(
             &self,
-            name: &str,
+            name: impl AsRef<str>,
             category: CategoryT,
             callback: F,
         ) {
@@ -477,7 +492,7 @@ mod inner {
                 self.init_category(category);
             }
 
-            let label = Label::new(Some(name));
+            let label = Label::new(Some(name.as_ref()));
             let custom_button = Button::builder().child(&label).css_name("nav_button").build();
             {
                 let stack = &self.stack;
@@ -496,7 +511,7 @@ mod inner {
             let mut buttons = self.buttons.borrow_mut();
             let category_entry = buttons.get_mut(&category).unwrap();
             category_entry.entries.insert(
-                name.into(),
+                name.as_ref().into(),
                 NavButton {
                     button: custom_button,
                     has_stack_child: false,
@@ -638,9 +653,11 @@ mod inner {
                     removed_sep.unparent();
                 }
 
-                let category_entry = buttons.get_mut(&category).unwrap();
-                category_entry.separator_before = None;
-                category_entry.separator_after = None;
+                // could be None if whole category is/was removed
+                if let Some(category_entry) = buttons.get_mut(&category) {
+                    category_entry.separator_before = None;
+                    category_entry.separator_after = None;
+                }
             }
         }
 
@@ -764,14 +781,15 @@ impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> NavBar<Catego
         obj
     }
 
+    /// FIXME: does not work with the same child names in different categories
     ///
     /// Add the given child to the navigation bars stack.
     /// Also a button labelled with name is added in the corresponding category.
     /// When the button is clicked, the child is shown.
     /// Name has to be unique for a category.
     ///
-    pub fn add_child(&self, child: &impl IsA<Widget>, name: String, category: CategoryT) {
-        self.imp().add_child(child, &name, category, None::<fn(&Self, &Button, &Stack)>);
+    pub fn add_child(&self, child: &impl IsA<Widget>, name: impl AsRef<str>, category: CategoryT) {
+        self.imp().add_child(child, name, category, None::<fn(&Self, &Button, &Stack)>);
     }
 
     ///
@@ -780,18 +798,18 @@ impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> NavBar<Catego
     pub fn add_child_with_callback<F: Fn(&Self, &Button, &Stack) + 'static>(
         &self,
         child: &impl IsA<Widget>,
-        name: String,
+        name: impl AsRef<str>,
         category: CategoryT,
         callback: F,
     ) {
-        self.imp().add_child(child, &name, category, Some(callback));
+        self.imp().add_child(child, name, category, Some(callback));
     }
 
     ///
     /// Add a custom button without a child on the stack.
     /// The callback can modify the navbar, the button and the stack.
     ///
-    pub fn add_custom_nav_button<F: Fn(&Self, &Button, &Stack) + 'static>(&self, name: &str, category: CategoryT, callback: F) {
+    pub fn add_custom_nav_button<F: Fn(&Self, &Button, &Stack) + 'static>(&self, name: impl AsRef<str>, category: CategoryT, callback: F) {
         self.imp().add_custom_nav_button(name, category, callback);
     }
 
@@ -799,14 +817,28 @@ impl<CategoryT: 'static + Hash + Ord + Copy + NavBarCategoryTrait> NavBar<Catego
     /// Removes the child labelled by name in the category.
     /// Removes the whole category if it is empty afterwards.
     ///
-    pub fn remove_child_by_name(&self, name: String, category: CategoryT) {
-        self.imp().remove_child_by_name(&name, category);
+    pub fn remove_child_by_name(&self, name: impl AsRef<str>, category: CategoryT) {
+        self.imp().remove_child_by_name(name, category);
+    }
+
+    ///
+    /// Removes all children from this category as well as the whole category.
+    ///
+    pub fn remove_all_children(&self, category: CategoryT) {
+        self.imp().remove_all_children(category);
+    }
+
+    ///
+    /// Returns a reference to the child labelled by name in the according category.
+    ///
+    pub fn get_child_by_name(&self, name: impl AsRef<str>) -> Option<Widget> {
+        self.imp().get_child_by_name(name)
     }
 
     ///
     /// Show child named `name` in `category`. Also show associated button as selected.
     ///
-    pub fn show_child(&self, name: &str, category: CategoryT) {
+    pub fn show_child(&self, name: impl AsRef<str>, category: CategoryT) {
         self.imp().show_child(name, category);
     }
 
