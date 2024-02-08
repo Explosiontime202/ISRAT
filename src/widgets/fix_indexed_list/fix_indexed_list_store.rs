@@ -122,3 +122,35 @@ impl<DataType: Default + ObjectExt + 'static, const TYPE_NAME: &'static str> Def
         }
     }
 }
+
+impl<'a, DataType: Default + ObjectExt + 'static, const TYPE_NAME: &'static str> core::iter::IntoIterator
+    for &'a FixIndexedListStore<DataType, TYPE_NAME>
+{
+    type Item = DataType;
+    type IntoIter = FixIndexedListStoreIterator<'a, DataType, TYPE_NAME>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Self::IntoIter::new(self)
+    }
+}
+
+pub struct FixIndexedListStoreIterator<'a, DataType: Default + ObjectExt + 'static, const TYPE_NAME: &'static str> {
+    list_store: &'a FixIndexedListStore<DataType, TYPE_NAME>,
+    i: u32,
+}
+
+impl<'a, DataType: Default + ObjectExt + 'static, const TYPE_NAME: &'static str> FixIndexedListStoreIterator<'a, DataType, TYPE_NAME> {
+    pub fn new(list_store: &'a FixIndexedListStore<DataType, TYPE_NAME>) -> Self {
+        Self { list_store, i: 0 }
+    }
+}
+
+impl<'a, DataType: Default + ObjectExt + 'static, const TYPE_NAME: &'static str> Iterator for FixIndexedListStoreIterator<'a, DataType, TYPE_NAME> {
+    type Item = DataType;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = self.list_store.get(self.i);
+        self.i += 1;
+        return item;
+    }
+}

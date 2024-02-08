@@ -166,8 +166,13 @@ mod inner {
         }
 
         fn are_all_entries_valid(&self) -> bool {
-            // TODO: all team not empty (region can be empty!)
-            self.erroneous_entries.borrow().is_empty() && self.team_name_list.get_model().n_items() > 1
+            self.erroneous_entries.borrow().is_empty()
+                && self.team_name_list.get_model().n_items() > 1
+                && self
+                    .team_name_list
+                    .get_model()
+                    .into_iter()
+                    .all(|team_region_object| !team_region_object.team().text().is_empty())
         }
     }
 }
